@@ -6,6 +6,8 @@ export interface Holding {
   shares: number
   price: number
   value: number
+  name?: string
+  currentPrice?: number
 }
 
 export interface MomentumData {
@@ -40,8 +42,35 @@ export const useMomentumRiderStore = defineStore('momentumRider', () => {
     ALTERNATIVES: ['SGOL', 'IBIT']
   })
 
-  // Selected ETFs
-  const selectedETFs = ref<string[]>([])
+  // Load portfolio from localStorage on initialization
+  const loadPortfolioFromStorage = () => {
+    try {
+      const savedHoldings = localStorage.getItem('momentumRider_portfolio')
+      const savedAdditionalCash = localStorage.getItem('momentumRider_additionalCash')
+
+      if (savedHoldings) {
+        currentHoldings.value = JSON.parse(savedHoldings)
+      }
+      if (savedAdditionalCash) {
+        additionalCash.value = JSON.parse(savedAdditionalCash)
+      }
+    } catch (error) {
+      console.warn('Failed to load portfolio from localStorage:', error)
+    }
+  }
+
+  // Save portfolio to localStorage
+  const savePortfolioToStorage = () => {
+    try {
+      localStorage.setItem('momentumRider_portfolio', JSON.stringify(currentHoldings.value))
+      localStorage.setItem('momentumRider_additionalCash', JSON.stringify(additionalCash.value))
+    } catch (error) {
+      console.warn('Failed to save portfolio to localStorage:', error)
+    }
+  }
+
+  // Selected ETFs - all selected by default
+  const selectedETFs = ref<string[]>([...Object.values(etfUniverse.value).flat()])
   
   // Category Toggles
   const enabledCategories = ref({
@@ -64,8 +93,14 @@ export const useMomentumRiderStore = defineStore('momentumRider', () => {
   const additionalCash = ref(0)
   const allocationMethod = ref<'Proportional' | 'Underweight Only'>('Proportional')
 
+  // Load portfolio from localStorage on store initialization
+  loadPortfolioFromStorage()
+
   // Momentum Data
   const momentumData = ref<MomentumData>({})
+
+  // ETF Price Data
+  const etfPrices = ref<{ [ticker: string]: { price: number; name: string } }>({})
 
   // Rebalancing Orders
   const rebalancingOrders = ref<RebalancingOrder[]>([])
@@ -101,26 +136,119 @@ export const useMomentumRiderStore = defineStore('momentumRider', () => {
     return result
   })
 
+  const sortedMomentumData = computed(() => {
+    return Object.entries(momentumData.value)
+      .sort(([_, a], [__, b]) => b.average - a.average) // Sort by average momentum (highest to lowest)
+  })
+
+  const selectedTopETFs = computed(() => {
+    return Object.entries(momentumData.value)
+      .filter(([_, data]) => data.absoluteMomentum)
+      .sort(([_, a], [__, b]) => b.average - a.average)
+      .slice(0, topAssets.value)
+      .map(([ticker]) => ticker)
+  })
+
   // Actions
   function toggleCategory(category: keyof typeof enabledCategories.value) {
-    enabledCategories.value[category] = !enabledCategories.value[category]
-    updateSelectedETFs()
+    const newState = !enabledCategories.value[category]
+    enabledCategories.value[category] = newState
+
+    // Select or deselect all ETFs in this category
+    const categoryETFs = etfUniverse.value[category as keyof typeof etfUniverse.value]
+    if (newState) {
+      // Add all ETFs from this category to selectedETFs
+      categoryETFs.forEach(etf => {
+        if (!selectedETFs.value.includes(etf)) {
+          selectedETFs.value.push(etf)
+        }
+      })
+    } else {
+      // Remove all ETFs from this category from selectedETFs
+      selectedETFs.value = selectedETFs.value.filter(etf => !categoryETFs.includes(etf))
+    }
   }
 
   function updateSelectedETFs() {
     selectedETFs.value = availableETFs.value.filter(etf => selectedETFs.value.includes(etf))
   }
 
-  function addHolding(ticker: string, shares: number, price: number) {
-    currentHoldings.value[ticker] = {
-      shares,
-      price,
-      value: shares * price
+  async function addHolding(ticker: string, shares: number, price?: number) {
+    try {
+      // Fetch current quote data
+      const quoteData = await financeAPI.getCurrentQuote(ticker)
+
+      const currentPrice = quoteData.regularMarketPrice || quoteData.price || price || 1
+      const name = quoteData.longName || quoteData.shortName || ticker
+
+      currentHoldings.value[ticker] = {
+        shares,
+        price: currentPrice, // Use current price from API
+        value: shares * currentPrice,
+        name,
+        currentPrice
+      }
+
+      savePortfolioToStorage()
+    } catch (error) {
+      console.warn(`Failed to fetch quote for ${ticker}:`, error)
+      // Fallback: use provided price or default to 1
+      const fallbackPrice = price || 1
+      currentHoldings.value[ticker] = {
+        shares,
+        price: fallbackPrice,
+        value: shares * fallbackPrice,
+        name: ticker
+      }
+      savePortfolioToStorage()
     }
   }
 
   function removeHolding(ticker: string) {
     delete currentHoldings.value[ticker]
+    savePortfolioToStorage()
+  }
+
+  async function refreshCurrentPrices() {
+    const tickers = Object.keys(currentHoldings.value)
+
+    for (const ticker of tickers) {
+      try {
+        const quoteData = await financeAPI.getCurrentQuote(ticker)
+        const currentPrice = quoteData.regularMarketPrice || quoteData.price || currentHoldings.value[ticker].price
+
+        currentHoldings.value[ticker] = {
+          ...currentHoldings.value[ticker],
+          price: currentPrice,
+          value: currentHoldings.value[ticker].shares * currentPrice,
+          currentPrice
+        }
+      } catch (error) {
+        console.warn(`Failed to refresh price for ${ticker}:`, error)
+      }
+    }
+
+    savePortfolioToStorage()
+  }
+
+  async function fetchETFPrice(ticker: string) {
+    try {
+      const quoteData = await financeAPI.getCurrentQuote(ticker)
+      const price = quoteData.regularMarketPrice || quoteData.price || 1
+      const name = quoteData.longName || quoteData.shortName || ticker
+
+      etfPrices.value[ticker] = { price, name }
+      return { price, name }
+    } catch (error) {
+      console.warn(`Failed to fetch price for ${ticker}:`, error)
+      etfPrices.value[ticker] = { price: 1, name: ticker }
+      return { price: 1, name: ticker }
+    }
+  }
+
+  async function fetchAllETFPrices(tickers: string[]) {
+    const pricePromises = tickers.map(ticker => fetchETFPrice(ticker))
+    await Promise.all(pricePromises)
   }
 
   async function calculateMomentum() {
@@ -129,6 +257,9 @@ export const useMomentumRiderStore = defineStore('momentumRider', () => {
 
     try {
       const realMomentumData: MomentumData = {}
+
+      // Fetch current prices for all selected ETFs
+      await fetchAllETFPrices(selectedETFs.value)
 
       // Use batch momentum calculation for better performance
       const results: MomentumResult[] = await financeAPI.calculateBatchMomentum(selectedETFs.value)
@@ -232,6 +363,7 @@ export const useMomentumRiderStore = defineStore('momentumRider', () => {
     additionalCash,
     allocationMethod,
     momentumData,
+    etfPrices,
     rebalancingOrders,
     isLoading,
     error,
@@ -240,12 +372,15 @@ export const useMomentumRiderStore = defineStore('momentumRider', () => {
     totalPortfolioValue,
     availableETFs,
     selectedETFsWithCategories,
+    sortedMomentumData,
+    selectedTopETFs,
     
     // Actions
     toggleCategory,
     updateSelectedETFs,
     addHolding,
     removeHolding,
+    refreshCurrentPrices,
     calculateMomentum,
     calculateRebalancing
   }

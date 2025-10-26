@@ -25,20 +25,41 @@ export interface MomentumResult {
 }
 
 class FinanceAPIService {
-  private readonly API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+  public readonly API_BASE_URL: string;
+
+  constructor() {
+    // Use environment variable if available, otherwise construct from current host
+    if (import.meta.env.VITE_API_URL) {
+      this.API_BASE_URL = import.meta.env.VITE_API_URL;
+    } else {
+      // Construct API URL based on current window location
+      const protocol = window.location.protocol;
+      const host = window.location.hostname;
+      const port = '3001';
+      this.API_BASE_URL = `${protocol}//${host}:${port}/api`;
+    }
+
+    console.log('📡 API Base URL:', this.API_BASE_URL);
+    console.log('🌐 Environment VITE_API_URL:', import.meta.env.VITE_API_URL);
+    console.log('🌐 Current host:', window.location.host);
+  }
 
   /**
    * Fetch data from backend API with error handling
    */
   private async fetchBackendData(url: string): Promise<any> {
     try {
+      console.log('🔗 Making API request to:', url);
       const response = await fetch(url);
+      console.log('📡 API Response status:', response.status);
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
-      return await response.json();
+      const data = await response.json();
+      console.log('✅ API Response data:', data);
+      return data;
     } catch (error) {
-      console.error('Backend API error:', error);
+      console.error('❌ Backend API error:', error);
       throw error;
     }
   }

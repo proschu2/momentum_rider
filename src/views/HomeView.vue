@@ -1,19 +1,47 @@
 <script setup lang="ts">
 import { useMomentumRiderStore } from '@/stores/momentum-rider'
-import ETFUniverse from '@/components/ETFUniverse.vue'
 import StrategyParams from '@/components/StrategyParams.vue'
 import PortfolioManager from '@/components/PortfolioManager.vue'
 import RebalancingTable from '@/components/RebalancingTable.vue'
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, reactive } from 'vue'
+import { financeAPI } from '@/services/finance-api'
 
 const store = useMomentumRiderStore()
 const isMounted = ref(false)
 
+// API status tracking
+const apiStatus = reactive({
+  apiBaseUrl: 'Loading...',
+  backendStatus: 'Checking...'
+})
+
+const currentUrl = ref('Loading...')
+
+// Set current URL
+if (typeof window !== 'undefined') {
+  currentUrl.value = window.location.href
+}
+
 // Initialize with some default selections after component is mounted
-onMounted(() => {
+onMounted(async () => {
   isMounted.value = true
   if (store.selectedETFs.length === 0) {
-    store.selectedETFs = ['VTI', 'TLT', 'PDBC', 'IBIT']
+    store.selectedETFs = ['VTI', 'TLT', 'PDBC', 'IBIT', 'VEA', 'VWO', 'SGOL', 'BND', 'BWX']
+  }
+
+  // Get API base URL for display
+  apiStatus.apiBaseUrl = financeAPI.API_BASE_URL || 'Unknown'
+
+  // Test backend connection
+  try {
+    const response = await fetch(`${apiStatus.apiBaseUrl.replace('/api', '')}/health`)
+    if (response.ok) {
+      apiStatus.backendStatus = '✅ Connected'
+    } else {
+      apiStatus.backendStatus = '❌ Error: ' + response.status
+    }
+  } catch (error) {
+    apiStatus.backendStatus = '❌ Offline'
   }
 })
 </script>
@@ -38,6 +66,25 @@ onMounted(() => {
       </div>
     </div>
 
+    <!-- API Status Display -->
+    <div class="bg-info-50 border border-info-200 rounded-xl p-4">
+      <div class="flex items-start space-x-3">
+        <div class="flex-shrink-0 mt-0.5">
+          <svg class="h-5 w-5 text-info-500" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+          </svg>
+        </div>
+        <div class="flex-1">
+          <h3 class="text-sm font-medium text-info-800">API Configuration</h3>
+          <div class="mt-1 text-sm text-info-700 space-y-1">
+            <div><strong>Frontend URL:</strong> {{ currentUrl }}</div>
+            <div><strong>API Base URL:</strong> {{ apiStatus.apiBaseUrl }}</div>
+            <div><strong>Backend Status:</strong> {{ apiStatus.backendStatus }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Error Display -->
     <div
       v-if="store.error"
@@ -58,24 +105,58 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- Main Content Grid -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      <!-- Left Column - Configuration -->
-      <div class="lg:col-span-1 space-y-6">
-        <ETFUniverse />
+    <!-- ETF Category Selection Bar -->
+    <div class="bg-surface rounded-xl border border-neutral-200 p-6">
+      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div>
+          <h2 class="text-lg font-semibold text-neutral-900 mb-3 lg:mb-0">ETF Universe Selection</h2>
+          <p class="text-sm text-neutral-600">Select asset categories to include in momentum analysis</p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button
+            v-for="category in Object.keys(store.etfUniverse)"
+            :key="category"
+            @click="store.toggleCategory(category as any)"
+            class="inline-flex items-center px-4 py-2 rounded-lg border text-sm font-medium transition-colors"
+            :class="store.enabledCategories[category as keyof typeof store.enabledCategories]
+              ? 'bg-primary-100 text-primary-800 border-primary-300'
+              : 'bg-neutral-100 text-neutral-700 border-neutral-300 hover:bg-neutral-200'"
+          >
+            <svg
+              v-if="store.enabledCategories[category as keyof typeof store.enabledCategories]"
+              class="w-4 h-4 mr-2"
+              fill="currentColor"
+              viewBox="0 0 20 20"
+            >
+              <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+            </svg>
+            {{ category }} ({{ store.etfUniverse[category as keyof typeof store.etfUniverse].length }})
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Configuration and Actions Row -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <!-- Strategy Parameters -->
+      <div class="lg:col-span-1">
         <StrategyParams />
+      </div>
+
+      <!-- Portfolio Management -->
+      <div class="lg:col-span-1">
         <PortfolioManager />
       </div>
 
-      <!-- Right Column - Results -->
-      <div class="lg:col-span-2 space-y-6">
+      <!-- Action Buttons and Stats -->
+      <div class="lg:col-span-1 space-y-6">
         <!-- Action Buttons -->
         <div class="bg-surface rounded-xl border border-neutral-200 p-6">
-          <div class="flex flex-col sm:flex-row gap-3">
+          <div class="space-y-3">
             <button
               @click="store.calculateMomentum()"
               :disabled="store.isLoading || store.selectedETFs.length === 0"
-              class="inline-flex items-center px-5 py-2.5 border border-transparent text-sm font-medium rounded-lg text-white bg-primary-500 hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              class="w-full inline-flex items-center justify-center px-5 py-2.5 border border-transparent text-sm font-medium rounded-lg text-white bg-primary-500 hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               <svg
                 v-if="store.isLoading"
@@ -93,41 +174,180 @@ onMounted(() => {
             <button
               @click="store.calculateRebalancing()"
               :disabled="Object.keys(store.momentumData).length === 0"
-              class="inline-flex items-center px-5 py-2.5 border border-neutral-300 text-sm font-medium rounded-lg text-neutral-700 bg-surface hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              class="w-full inline-flex items-center justify-center px-5 py-2.5 border border-neutral-300 text-sm font-medium rounded-lg text-neutral-700 bg-surface hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Generate Rebalancing Orders
             </button>
           </div>
         </div>
 
+        <!-- Quick Stats -->
+        <div class="bg-surface rounded-xl border border-neutral-200 p-6">
+          <div class="space-y-3">
+            <div class="flex justify-between items-center">
+              <span class="text-sm text-neutral-600">Selected ETFs</span>
+              <span class="text-sm font-semibold text-neutral-900">{{ store.selectedETFs.length }}</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-sm text-neutral-600">Positive Momentum</span>
+              <span class="text-sm font-semibold text-success-600">
+                {{ Object.values(store.momentumData).filter(data => data.absoluteMomentum).length }}
+              </span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-sm text-neutral-600">Top Assets</span>
+              <span class="text-sm font-semibold text-primary-600">{{ store.topAssets }}</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-sm text-neutral-600">Portfolio Value</span>
+              <span class="text-sm font-semibold text-neutral-900">${{ store.totalPortfolioValue.toLocaleString() }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
         <!-- Results Section -->
         <div v-if="Object.keys(store.momentumData).length > 0" class="space-y-6">
           <!-- Momentum Results -->
-          <div class="bg-surface rounded-xl border border-neutral-200 p-6">
-            <h2 class="text-lg font-semibold text-neutral-900 mb-4">Momentum Results</h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div
-                v-for="[ticker, data] in Object.entries(store.momentumData)"
-                :key="ticker"
-                class="border rounded-xl p-4 transition-colors hover:shadow-card-hover"
-                :class="data.absoluteMomentum ? 'border-success-200 bg-success-50' : 'border-error-200 bg-error-50'"
-              >
-                <div class="flex justify-between items-start mb-3">
-                  <span class="font-semibold text-neutral-900">{{ ticker }}</span>
-                  <span
-                    class="text-xs px-2 py-1 rounded-full font-medium"
-                    :class="data.absoluteMomentum ? 'bg-success-100 text-success-800' : 'bg-error-100 text-error-800'"
+          <div class="bg-surface rounded-xl border border-neutral-200">
+            <div class="flex items-center justify-between p-6 border-b border-neutral-200">
+              <h2 class="text-lg font-semibold text-neutral-900">Momentum Results</h2>
+              <div class="text-sm text-neutral-500">
+                Sorted by momentum ranking
+              </div>
+            </div>
+
+            <!-- Desktop Table View -->
+            <div class="hidden lg:block">
+              <table class="w-full">
+                <thead class="bg-neutral-50">
+                  <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Rank</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Ticker</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Name</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Price</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Momentum</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Status</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-neutral-200">
+                  <tr
+                    v-for="([ticker, data], index) in store.sortedMomentumData"
+                    :key="ticker"
+                    class="hover:bg-neutral-50 transition-colors group"
+                    :class="[
+                      data.absoluteMomentum && store.selectedTopETFs.includes(ticker)
+                        ? 'bg-primary-50 border-l-4 border-primary-500'
+                        : data.absoluteMomentum
+                        ? 'bg-success-50'
+                        : 'bg-error-50'
+                    ]"
                   >
-                    {{ data.absoluteMomentum ? 'Positive' : 'Negative' }}
-                  </span>
-                </div>
-                <div class="text-xl font-bold mb-3" :class="data.average >= 0 ? 'text-success-600' : 'text-error-600'">
-                  {{ data.average.toFixed(2) }}%
-                </div>
-                <div class="text-xs text-neutral-500 space-y-1.5">
-                  <div v-for="period in ['3month', '6month', '9month', '12month']" :key="period" class="flex justify-between">
-                    <span>{{ period.replace('month', 'm') }}:</span>
-                    <span class="font-medium">{{ data.periods[period as keyof typeof data.periods].toFixed(2) }}%</span>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-neutral-900">
+                      {{ index + 1 }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                      <div class="flex items-center space-x-2">
+                        <span class="text-sm font-semibold text-neutral-900">{{ ticker }}</span>
+                        <span
+                          v-if="store.selectedTopETFs.includes(ticker)"
+                          class="text-xs px-2 py-1 rounded-full font-medium bg-primary-100 text-primary-800 border border-primary-200"
+                        >
+                          Top {{ store.selectedTopETFs.indexOf(ticker) + 1 }}
+                        </span>
+                      </div>
+                    </td>
+                    <td class="px-6 py-4 text-sm text-neutral-600 max-w-xs truncate" :title="store.etfPrices[ticker]?.name || ticker">
+                      {{ store.etfPrices[ticker]?.name || ticker }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-neutral-900">
+                      ${{ store.etfPrices[ticker]?.price?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || 'N/A' }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                      <div class="relative group/momentum">
+                        <span class="text-sm font-bold cursor-help" :class="data.average >= 0 ? 'text-success-600' : 'text-error-600'">
+                          {{ data.average.toFixed(2) }}%
+                        </span>
+                        <!-- Period Returns Tooltip -->
+                        <div class="absolute left-0 bottom-full mb-2 hidden group-hover/momentum:block bg-neutral-800 text-white text-xs rounded-lg p-3 shadow-lg z-10 min-w-[180px]">
+                          <div class="font-medium mb-2">Period Returns</div>
+                          <div class="space-y-1">
+                            <div v-for="period in ['3month', '6month', '9month', '12month']" :key="period" class="flex justify-between">
+                              <span>{{ period.replace('month', 'm') }}:</span>
+                              <span class="font-medium">{{ data.periods[period as keyof typeof data.periods].toFixed(2) }}%</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                      <span
+                        class="text-xs px-2 py-1 rounded-full font-medium"
+                        :class="data.absoluteMomentum ? 'bg-success-100 text-success-800' : 'bg-error-100 text-error-800'"
+                      >
+                        {{ data.absoluteMomentum ? 'Positive' : 'Negative' }}
+                      </span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Mobile Card View -->
+            <div class="lg:hidden p-6">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div
+                  v-for="[ticker, data] in store.sortedMomentumData"
+                  :key="ticker"
+                  class="border-2 rounded-xl p-4 transition-all hover:shadow-card-hover"
+                  :class="[
+                    data.absoluteMomentum
+                      ? store.selectedTopETFs.includes(ticker)
+                        ? 'border-primary-500 bg-primary-50 shadow-md' // Highlighted positive momentum (chosen)
+                        : 'border-success-200 bg-success-50' // Positive momentum (not chosen)
+                      : 'border-error-200 bg-error-50', // Negative momentum
+                    store.selectedTopETFs.includes(ticker) ? 'ring-2 ring-primary-200' : ''
+                  ]"
+                >
+                  <div class="flex justify-between items-start mb-3">
+                    <div class="flex items-center space-x-2">
+                      <span class="font-semibold text-neutral-900">{{ ticker }}</span>
+                      <span
+                        v-if="store.selectedTopETFs.includes(ticker)"
+                        class="text-xs px-2 py-1 rounded-full font-medium bg-primary-100 text-primary-800 border border-primary-200"
+                      >
+                        Top {{ store.selectedTopETFs.indexOf(ticker) + 1 }}
+                      </span>
+                    </div>
+                    <span
+                      class="text-xs px-2 py-1 rounded-full font-medium"
+                      :class="data.absoluteMomentum ? 'bg-success-100 text-success-800' : 'bg-error-100 text-error-800'"
+                    >
+                      {{ data.absoluteMomentum ? 'Positive' : 'Negative' }}
+                    </span>
+                  </div>
+                  <div class="text-xl font-bold mb-3" :class="data.average >= 0 ? 'text-success-600' : 'text-error-600'">
+                    {{ data.average.toFixed(2) }}%
+                  </div>
+                  <!-- Price and Value Information -->
+                  <div class="text-xs text-neutral-500 space-y-1.5 mb-3">
+                    <div class="flex justify-between">
+                      <span>Price:</span>
+                      <span class="font-medium">${{ store.etfPrices[ticker]?.price?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || 'N/A' }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                      <span>Name:</span>
+                      <span class="font-medium truncate max-w-[120px]" :title="store.etfPrices[ticker]?.name || ticker">
+                        {{ store.etfPrices[ticker]?.name || ticker }}
+                      </span>
+                    </div>
+                  </div>
+                  <div class="text-xs text-neutral-500 space-y-1.5">
+                    <div v-for="period in ['3month', '6month', '9month', '12month']" :key="period" class="flex justify-between">
+                      <span>{{ period.replace('month', 'm') }}:</span>
+                      <span class="font-medium">{{ data.periods[period as keyof typeof data.periods].toFixed(2) }}%</span>
+                    </div>
                   </div>
                 </div>
               </div>

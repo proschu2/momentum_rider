@@ -10,17 +10,33 @@ const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey', 'ripHis
 
 // Middleware
 app.use(cors({
-  origin: [
-    'http://localhost:5173',
-    'http://localhost:3000',
-    'http://localhost:3001',
-    'http://localhost:3002',
-    'http://localhost:3003',
-    'http://localhost:80',
-    'http://frontend:80',
-    'http://frontend',
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or Postman)
+    if (!origin) return callback(null, true);
+
+    // Allow localhost and common development ports
+    const allowedOrigins = [
+      'http://localhost:5173',
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'http://localhost:3002',
+      'http://localhost:3003',
+      'http://localhost:80',
+      'http://frontend:80',
+      'http://frontend',
       'http://localhost'
-  ],
+    ];
+
+    // Allow any IP address on port 5173 (Vite dev server)
+    const isViteDevServer = origin.match(/^http:\/\/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}):5173$/) ||origin.match(/^http:\/\/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}):3000$/) ;
+
+    if (allowedOrigins.includes(origin) || isViteDevServer) {
+      callback(null, true);
+    } else {
+      console.log('CORS blocked origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -379,13 +395,6 @@ app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString(), mode: 'development', hotReload: 'working' });
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Backend server running on http://localhost:${PORT}`);
-  console.log(`📊 Available endpoints:`);
-  console.log(`   GET  /api/quote/:ticker`);
-  console.log(`   GET  /api/momentum/:ticker`);
-  console.log(`   GET  /api/prices/:ticker`);
-  console.log(`   POST /api/momentum/batch`);
-  console.log(`   DELETE /api/cache`);
-  console.log(`   GET  /health`);
 });

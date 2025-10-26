@@ -11,11 +11,12 @@ const store = useMomentumRiderStore()
   <div class="bg-surface rounded-xl border border-neutral-200 p-6">
     <h2 class="text-lg font-semibold text-neutral-900 mb-4">Strategy Parameters</h2>
 
-    <div class="space-y-4">
+    <!-- Compact Grid Layout -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <!-- Top Assets -->
-      <div>
-        <label for="top-assets" class="block text-sm font-medium text-neutral-700 mb-2">
-          Number of Top Assets
+      <div class="space-y-2">
+        <label for="top-assets" class="block text-sm font-medium text-neutral-700">
+          Top Assets
         </label>
         <div class="flex items-center space-x-3">
           <input
@@ -30,15 +31,15 @@ const store = useMomentumRiderStore()
             {{ store.topAssets }}
           </span>
         </div>
-        <p class="mt-1 text-xs text-neutral-500">
-          Number of top-performing ETFs to include in the portfolio
+        <p class="text-xs text-neutral-500">
+          Number of top ETFs
         </p>
       </div>
 
       <!-- Bitcoin Allocation -->
-      <div>
-        <label for="bitcoin-allocation" class="block text-sm font-medium text-neutral-700 mb-2">
-          Bitcoin Allocation (%)
+      <div class="space-y-2">
+        <label for="bitcoin-allocation" class="block text-sm font-medium text-neutral-700">
+          Bitcoin Allocation
         </label>
         <div class="flex items-center space-x-3">
           <input
@@ -54,102 +55,96 @@ const store = useMomentumRiderStore()
             {{ store.bitcoinAllocation }}%
           </span>
         </div>
-        <p class="mt-1 text-xs text-neutral-500">
-          Fixed allocation percentage for Bitcoin ETF (IBIT)
+        <p class="text-xs text-neutral-500">
+          Fixed allocation to IBIT
         </p>
       </div>
 
       <!-- Rebalancing Frequency -->
-      <div>
-        <label class="block text-sm font-medium text-neutral-700 mb-2">
-          Rebalancing Frequency
+      <div class="space-y-2">
+        <label class="block text-sm font-medium text-neutral-700">
+          Rebalancing
         </label>
-        <div class="flex space-x-4">
+        <div class="flex space-x-3">
           <label class="inline-flex items-center">
             <input
               type="radio"
               v-model="store.rebalancingFrequency"
               value="monthly"
-              class="h-4 w-4 text-primary-500 focus:ring-primary-500 border-neutral-300"
+              class="h-3 w-3 text-primary-500 focus:ring-primary-500 border-neutral-300"
             />
-            <span class="ml-2 text-sm text-neutral-700">Monthly</span>
+            <span class="ml-1.5 text-xs text-neutral-700">Monthly</span>
           </label>
           <label class="inline-flex items-center">
             <input
               type="radio"
               v-model="store.rebalancingFrequency"
               value="quarterly"
-              class="h-4 w-4 text-primary-500 focus:ring-primary-500 border-neutral-300"
+              class="h-3 w-3 text-primary-500 focus:ring-primary-500 border-neutral-300"
             />
-            <span class="ml-2 text-sm text-neutral-700">Quarterly</span>
+            <span class="ml-1.5 text-xs text-neutral-700">Quarterly</span>
           </label>
         </div>
-      </div>
-
-      <!-- Momentum Periods -->
-      <div>
-        <label class="block text-sm font-medium text-neutral-700 mb-2">
-          Momentum Calculation Periods (months)
-        </label>
-        <div class="grid grid-cols-2 gap-2">
-          <label
-            v-for="period in [3, 6, 9, 12]"
-            :key="period"
-            class="inline-flex items-center"
-          >
-            <input
-              type="checkbox"
-              :value="period"
-              v-model="store.momentumPeriods"
-              class="h-4 w-4 text-primary-500 focus:ring-primary-500 border-neutral-300 rounded"
-            />
-            <span class="ml-2 text-sm text-neutral-700">{{ period }} months</span>
-          </label>
-        </div>
-        <p class="mt-1 text-xs text-neutral-500">
-          Historical periods used for momentum calculation
-        </p>
       </div>
 
       <!-- Allocation Method -->
-      <div>
-        <label class="block text-sm font-medium text-neutral-700 mb-2">
-          Allocation Method
+      <div class="space-y-2">
+        <label class="block text-sm font-medium text-neutral-700">
+          Cash Allocation
         </label>
-        <div class="flex space-x-4">
+        <div class="flex space-x-3">
           <label class="inline-flex items-center">
             <input
               type="radio"
               v-model="store.allocationMethod"
               value="Proportional"
-              class="h-4 w-4 text-primary-500 focus:ring-primary-500 border-neutral-300"
+              class="h-3 w-3 text-primary-500 focus:ring-primary-500 border-neutral-300"
             />
-            <span class="ml-2 text-sm text-neutral-700">Proportional</span>
+            <span class="ml-1.5 text-xs text-neutral-700">Proportional</span>
           </label>
           <label class="inline-flex items-center">
             <input
               type="radio"
               v-model="store.allocationMethod"
               value="Underweight Only"
-              class="h-4 w-4 text-primary-500 focus:ring-primary-500 border-neutral-300"
+              class="h-3 w-3 text-primary-500 focus:ring-primary-500 border-neutral-300"
             />
-            <span class="ml-2 text-sm text-neutral-700">Underweight Only</span>
+            <span class="ml-1.5 text-xs text-neutral-700">Underweight</span>
           </label>
         </div>
-        <p class="mt-1 text-xs text-neutral-500">
-          How to allocate additional cash during rebalancing
-        </p>
+      </div>
+    </div>
+
+    <!-- Momentum Periods - Full Width -->
+    <div class="mt-4 pt-4 border-t border-neutral-200">
+      <label class="block text-sm font-medium text-neutral-700 mb-2">
+        Momentum Periods
+      </label>
+      <div class="flex space-x-4">
+        <label
+          v-for="period in [3, 6, 9, 12]"
+          :key="period"
+          class="inline-flex items-center"
+        >
+          <input
+            type="checkbox"
+            :value="period"
+            v-model="store.momentumPeriods"
+            class="h-3 w-3 text-primary-500 focus:ring-primary-500 border-neutral-300 rounded"
+          />
+          <span class="ml-1.5 text-xs text-neutral-700">{{ period }}m</span>
+        </label>
       </div>
     </div>
 
     <!-- Strategy Summary -->
-    <div class="mt-6 pt-4 border-t border-neutral-200">
+    <div class="mt-4 pt-4 border-t border-neutral-200">
       <h3 class="text-sm font-medium text-neutral-900 mb-2">Strategy Summary</h3>
-      <div class="space-y-1 text-sm text-neutral-600">
-        <div>• Select top {{ store.topAssets }} ETFs with positive momentum</div>
-        <div v-if="store.bitcoinAllocation > 0">• {{ store.bitcoinAllocation }}% fixed allocation to Bitcoin</div>
+      <div class="space-y-1 text-xs text-neutral-600">
+        <div>• Top {{ store.topAssets }} ETFs with positive momentum</div>
+        <div v-if="store.bitcoinAllocation > 0">• {{ store.bitcoinAllocation }}% Bitcoin allocation</div>
         <div>• {{ store.rebalancingFrequency }} rebalancing</div>
-        <div>• Momentum periods: {{ store.momentumPeriods.join(', ') }} months</div>
+        <div>• Periods: {{ store.momentumPeriods.join(', ') }} months</div>
       </div>
     </div>
   </div>
