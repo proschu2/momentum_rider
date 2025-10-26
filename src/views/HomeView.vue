@@ -1,9 +1,16 @@
 <script setup lang="ts">
 import { useMomentumRiderStore } from '@/stores/momentum-rider'
 import StrategyParams from '@/components/StrategyParams.vue'
-import PortfolioManager from '@/components/PortfolioManager.vue'
+import DraggablePortfolioManager from '@/components/DraggablePortfolioManager.vue'
 import RebalancingTable from '@/components/RebalancingTable.vue'
-import { onMounted, ref, reactive } from 'vue'
+import CollapsibleSection from '@/components/ui/CollapsibleSection.vue'
+import Tooltip from '@/components/ui/Tooltip.vue'
+import ProgressBar from '@/components/ui/ProgressBar.vue'
+import PortfolioAllocationChart from '@/components/data/PortfolioAllocationChart.vue'
+import PerformanceTrendChart from '@/components/data/PerformanceTrendChart.vue'
+import PortfolioDataTable from '@/components/data/PortfolioDataTable.vue'
+import RealTimeDataManager from '@/components/data/RealTimeDataManager.vue'
+import { onMounted, ref, reactive, computed } from 'vue'
 import { financeAPI } from '@/services/finance-api'
 
 const store = useMomentumRiderStore()
@@ -16,6 +23,13 @@ const apiStatus = reactive({
 })
 
 const currentUrl = ref('Loading...')
+
+// Collapsible section states
+const sections = reactive({
+  configuration: true,
+  portfolio: true,
+  results: false
+})
 
 // Set current URL
 if (typeof window !== 'undefined') {
@@ -43,6 +57,20 @@ onMounted(async () => {
   } catch (error) {
     apiStatus.backendStatus = '❌ Offline'
   }
+})
+
+// Computed values for enhanced UX
+const positiveMomentumCount = computed(() => {
+  return Object.values(store.momentumData).filter(data => data.absoluteMomentum).length
+})
+
+const totalAssetsCount = computed(() => {
+  return Object.keys(store.momentumData).length
+})
+
+const momentumScore = computed(() => {
+  if (totalAssetsCount.value === 0) return 0
+  return (positiveMomentumCount.value / totalAssetsCount.value) * 100
 })
 </script>
 
@@ -106,117 +134,186 @@ onMounted(async () => {
     </div>
 
     <!-- ETF Category Selection Bar -->
-    <div class="bg-surface rounded-xl border border-neutral-200 p-6">
+    <CollapsibleSection
+      title="ETF Universe Selection"
+      :default-open="sections.configuration"
+      badge="Categories"
+    >
+      <template #description>
+        Select asset categories to include in momentum analysis
+      </template>
+
       <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <div>
-          <h2 class="text-lg font-semibold text-neutral-900 mb-3 lg:mb-0">ETF Universe Selection</h2>
-          <p class="text-sm text-neutral-600">Select asset categories to include in momentum analysis</p>
-        </div>
-        <div class="flex flex-wrap gap-2">
-          <button
-            v-for="category in Object.keys(store.etfUniverse)"
-            :key="category"
-            @click="store.toggleCategory(category as any)"
-            class="inline-flex items-center px-4 py-2 rounded-lg border text-sm font-medium transition-colors"
-            :class="store.enabledCategories[category as keyof typeof store.enabledCategories]
-              ? 'bg-primary-100 text-primary-800 border-primary-300'
-              : 'bg-neutral-100 text-neutral-700 border-neutral-300 hover:bg-neutral-200'"
-          >
-            <svg
-              v-if="store.enabledCategories[category as keyof typeof store.enabledCategories]"
-              class="w-4 h-4 mr-2"
-              fill="currentColor"
-              viewBox="0 0 20 20"
+        <div class="flex-1">
+          <p class="text-sm text-neutral-600 mb-4">
+            Choose which asset categories to include in your momentum analysis. Each category contains ETFs that represent different market segments.
+          </p>
+          <div class="flex flex-wrap gap-2">
+            <Tooltip
+              v-for="category in Object.keys(store.etfUniverse)"
+              :key="category"
+              :content="`${store.etfUniverse[category as keyof typeof store.etfUniverse].length} ETFs in ${category} category`"
+              position="top"
             >
-              <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
-            </svg>
-            {{ category }} ({{ store.etfUniverse[category as keyof typeof store.etfUniverse].length }})
-          </button>
+              <button
+                @click="store.toggleCategory(category as any)"
+                class="inline-flex items-center px-4 py-2 rounded-lg border text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+                :class="store.enabledCategories[category as keyof typeof store.enabledCategories]
+                  ? 'bg-primary-100 text-primary-800 border-primary-300'
+                  : 'bg-neutral-100 text-neutral-700 border-neutral-300 hover:bg-neutral-200'"
+                :aria-pressed="store.enabledCategories[category as keyof typeof store.enabledCategories]"
+              >
+                <svg
+                  v-if="store.enabledCategories[category as keyof typeof store.enabledCategories]"
+                  class="w-4 h-4 mr-2"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                </svg>
+                {{ category }} ({{ store.etfUniverse[category as keyof typeof store.etfUniverse].length }})
+              </button>
+            </Tooltip>
+          </div>
         </div>
       </div>
-    </div>
+    </CollapsibleSection>
 
     <!-- Configuration and Actions Row -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <!-- Strategy Parameters -->
       <div class="lg:col-span-1">
-        <StrategyParams />
+        <CollapsibleSection
+          title="Strategy Parameters"
+          :default-open="sections.configuration"
+          badge="Settings"
+        >
+          <StrategyParams />
+        </CollapsibleSection>
       </div>
 
       <!-- Portfolio Management -->
       <div class="lg:col-span-1">
-        <PortfolioManager />
+        <CollapsibleSection
+          title="Portfolio Management"
+          :default-open="sections.portfolio"
+          :badge="Object.keys(store.currentHoldings).length"
+        >
+          <DraggablePortfolioManager />
+        </CollapsibleSection>
       </div>
 
       <!-- Action Buttons and Stats -->
       <div class="lg:col-span-1 space-y-6">
         <!-- Action Buttons -->
-        <div class="bg-surface rounded-xl border border-neutral-200 p-6">
+        <CollapsibleSection
+          title="Analysis Actions"
+          :default-open="sections.configuration"
+          :show-toggle="false"
+        >
           <div class="space-y-3">
-            <button
-              @click="store.calculateMomentum()"
-              :disabled="store.isLoading || store.selectedETFs.length === 0"
-              class="w-full inline-flex items-center justify-center px-5 py-2.5 border border-transparent text-sm font-medium rounded-lg text-white bg-primary-500 hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            <Tooltip
+              :content="store.selectedETFs.length === 0 ? 'Select ETFs first' : 'Calculate momentum scores for selected ETFs'"
+              position="top"
             >
-              <svg
-                v-if="store.isLoading"
-                class="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
+              <button
+                @click="store.calculateMomentum()"
+                :disabled="store.isLoading || store.selectedETFs.length === 0"
+                class="w-full inline-flex items-center justify-center px-5 py-2.5 border border-transparent text-sm font-medium rounded-lg text-white bg-primary-500 hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                aria-label="Calculate momentum scores"
               >
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              {{ store.isLoading ? 'Calculating...' : 'Calculate Momentum' }}
-            </button>
+                <svg
+                  v-if="store.isLoading"
+                  class="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                {{ store.isLoading ? 'Calculating...' : 'Calculate Momentum' }}
+              </button>
+            </Tooltip>
 
-            <button
-              @click="store.calculateRebalancing()"
-              :disabled="Object.keys(store.momentumData).length === 0"
-              class="w-full inline-flex items-center justify-center px-5 py-2.5 border border-neutral-300 text-sm font-medium rounded-lg text-neutral-700 bg-surface hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            <Tooltip
+              :content="Object.keys(store.momentumData).length === 0 ? 'Calculate momentum first' : 'Generate rebalancing orders based on momentum scores'"
+              position="top"
             >
-              Generate Rebalancing Orders
-            </button>
+              <button
+                @click="store.calculateRebalancing()"
+                :disabled="Object.keys(store.momentumData).length === 0"
+                class="w-full inline-flex items-center justify-center px-5 py-2.5 border border-neutral-300 text-sm font-medium rounded-lg text-neutral-700 bg-surface hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                aria-label="Generate rebalancing orders"
+              >
+                Generate Rebalancing Orders
+              </button>
+            </Tooltip>
           </div>
-        </div>
+        </CollapsibleSection>
 
         <!-- Quick Stats -->
-        <div class="bg-surface rounded-xl border border-neutral-200 p-6">
-          <div class="space-y-3">
-            <div class="flex justify-between items-center">
-              <span class="text-sm text-neutral-600">Selected ETFs</span>
-              <span class="text-sm font-semibold text-neutral-900">{{ store.selectedETFs.length }}</span>
+        <CollapsibleSection
+          title="Portfolio Overview"
+          :default-open="sections.configuration"
+          :show-toggle="false"
+        >
+          <div class="space-y-4">
+            <!-- Momentum Score Progress Bar -->
+            <div v-if="Object.keys(store.momentumData).length > 0">
+              <div class="flex justify-between items-center mb-2">
+                <span class="text-sm font-medium text-neutral-700">Momentum Score</span>
+                <span class="text-sm font-semibold text-primary-600">{{ momentumScore.toFixed(1) }}%</span>
+              </div>
+              <ProgressBar
+                :value="momentumScore"
+                :max="100"
+                size="sm"
+                color="primary"
+                :show-label="false"
+              />
+              <p class="text-xs text-neutral-500 mt-1">
+                {{ positiveMomentumCount }} of {{ totalAssetsCount }} assets with positive momentum
+              </p>
             </div>
-            <div class="flex justify-between items-center">
-              <span class="text-sm text-neutral-600">Positive Momentum</span>
-              <span class="text-sm font-semibold text-success-600">
-                {{ Object.values(store.momentumData).filter(data => data.absoluteMomentum).length }}
-              </span>
-            </div>
-            <div class="flex justify-between items-center">
-              <span class="text-sm text-neutral-600">Top Assets</span>
-              <span class="text-sm font-semibold text-primary-600">{{ store.topAssets }}</span>
-            </div>
-            <div class="flex justify-between items-center">
-              <span class="text-sm text-neutral-600">Portfolio Value</span>
-              <span class="text-sm font-semibold text-neutral-900">${{ store.totalPortfolioValue.toLocaleString() }}</span>
+
+            <!-- Stats Grid -->
+            <div class="grid grid-cols-2 gap-4">
+              <div class="text-center p-3 bg-neutral-50 rounded-lg">
+                <div class="text-lg font-bold text-neutral-900">{{ store.selectedETFs.length }}</div>
+                <div class="text-xs text-neutral-600">Selected ETFs</div>
+              </div>
+              <div class="text-center p-3 bg-neutral-50 rounded-lg">
+                <div class="text-lg font-bold text-success-600">{{ positiveMomentumCount }}</div>
+                <div class="text-xs text-neutral-600">Positive Momentum</div>
+              </div>
+              <div class="text-center p-3 bg-neutral-50 rounded-lg">
+                <div class="text-lg font-bold text-primary-600">{{ store.topAssets }}</div>
+                <div class="text-xs text-neutral-600">Top Assets</div>
+              </div>
+              <div class="text-center p-3 bg-neutral-50 rounded-lg">
+                <div class="text-lg font-bold text-neutral-900">
+                  ${{ (store.totalPortfolioValue / 1000).toFixed(0) }}K
+                </div>
+                <div class="text-xs text-neutral-600">Portfolio Value</div>
+              </div>
             </div>
           </div>
-        </div>
+        </CollapsibleSection>
       </div>
     </div>
 
         <!-- Results Section -->
         <div v-if="Object.keys(store.momentumData).length > 0" class="space-y-6">
           <!-- Momentum Results -->
-          <div class="bg-surface rounded-xl border border-neutral-200">
-            <div class="flex items-center justify-between p-6 border-b border-neutral-200">
-              <h2 class="text-lg font-semibold text-neutral-900">Momentum Results</h2>
-              <div class="text-sm text-neutral-500">
-                Sorted by momentum ranking
-              </div>
-            </div>
+          <CollapsibleSection
+            title="Momentum Results"
+            :default-open="sections.results"
+            :badge="Object.keys(store.momentumData).length"
+          >
+            <template #description>
+              Sorted by momentum ranking - showing performance across different time periods
+            </template>
 
             <!-- Desktop Table View -->
             <div class="hidden lg:block">
@@ -352,10 +449,19 @@ onMounted(async () => {
                 </div>
               </div>
             </div>
-          </div>
+          </CollapsibleSection>
 
           <!-- Rebalancing Orders -->
-          <RebalancingTable />
+          <CollapsibleSection
+            title="Rebalancing Orders"
+            :default-open="sections.results"
+            badge="Actions"
+          >
+            <template #description>
+              Recommended buy and sell orders based on momentum analysis
+            </template>
+            <RebalancingTable />
+          </CollapsibleSection>
         </div>
 
         <!-- Empty State -->

@@ -3,8 +3,42 @@ import { useMomentumRiderStore } from '@/stores/momentum-rider'
 import Card from './ui/Card.vue'
 import Slider from './ui/Slider.vue'
 import Checkbox from './ui/Checkbox.vue'
+import { generateAriaLabel, ScreenReader } from '@/utils/accessibility'
 
 const store = useMomentumRiderStore()
+
+// Handle parameter changes with screen reader announcements
+function handleTopAssetsChange(value: number) {
+  store.topAssets = value
+  ScreenReader.announce(`Top assets set to ${value}`)
+}
+
+function handleBitcoinAllocationChange(value: number) {
+  store.bitcoinAllocation = value
+  ScreenReader.announce(`Bitcoin allocation set to ${value} percent`)
+}
+
+function handleRebalancingChange(value: string) {
+  store.rebalancingFrequency = value
+  ScreenReader.announce(`Rebalancing frequency set to ${value}`)
+}
+
+function handleAllocationMethodChange(value: string) {
+  store.allocationMethod = value
+  ScreenReader.announce(`Allocation method set to ${value}`)
+}
+
+function handleMomentumPeriodsChange(period: number, checked: boolean) {
+  const currentPeriods = [...store.momentumPeriods]
+
+  if (checked) {
+    store.momentumPeriods = [...currentPeriods, period]
+    ScreenReader.announce(`${period} month momentum period added`)
+  } else {
+    store.momentumPeriods = currentPeriods.filter(p => p !== period)
+    ScreenReader.announce(`${period} month momentum period removed`)
+  }
+}
 </script>
 
 <template>
@@ -23,16 +57,25 @@ const store = useMomentumRiderStore()
             id="top-assets"
             type="range"
             v-model.number="store.topAssets"
+            @input="handleTopAssetsChange(parseInt($event.target.value))"
             min="1"
             max="8"
-            class="w-full h-2 bg-neutral-200 rounded-lg appearance-none cursor-pointer"
+            aria-valuemin="1"
+            aria-valuemax="8"
+            :aria-valuenow="store.topAssets"
+            aria-valuetext="${store.topAssets} top assets"
+            class="w-full h-2 bg-neutral-200 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
           />
-          <span class="text-sm font-medium text-neutral-900 min-w-8">
+          <span
+            class="text-sm font-medium text-neutral-900 min-w-8"
+            aria-live="polite"
+            aria-atomic="true"
+          >
             {{ store.topAssets }}
           </span>
         </div>
-        <p class="text-xs text-neutral-500">
-          Number of top ETFs
+        <p class="text-xs text-neutral-500" id="top-assets-description">
+          Number of top ETFs to include in portfolio
         </p>
       </div>
 
@@ -46,101 +89,135 @@ const store = useMomentumRiderStore()
             id="bitcoin-allocation"
             type="range"
             v-model.number="store.bitcoinAllocation"
+            @input="handleBitcoinAllocationChange(parseFloat($event.target.value))"
             min="0"
             max="20"
             step="0.5"
-            class="w-full h-2 bg-neutral-200 rounded-lg appearance-none cursor-pointer"
+            aria-valuemin="0"
+            aria-valuemax="20"
+            :aria-valuenow="store.bitcoinAllocation"
+            aria-valuetext="${store.bitcoinAllocation} percent bitcoin allocation"
+            class="w-full h-2 bg-neutral-200 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
           />
-          <span class="text-sm font-medium text-neutral-900 min-w-12">
+          <span
+            class="text-sm font-medium text-neutral-900 min-w-12"
+            aria-live="polite"
+            aria-atomic="true"
+          >
             {{ store.bitcoinAllocation }}%
           </span>
         </div>
-        <p class="text-xs text-neutral-500">
-          Fixed allocation to IBIT
+        <p class="text-xs text-neutral-500" id="bitcoin-allocation-description">
+          Fixed allocation percentage to IBIT Bitcoin ETF
         </p>
       </div>
 
       <!-- Rebalancing Frequency -->
       <div class="space-y-2">
-        <label class="block text-sm font-medium text-neutral-700">
-          Rebalancing
-        </label>
-        <div class="flex space-x-3">
-          <label class="inline-flex items-center">
-            <input
-              type="radio"
-              v-model="store.rebalancingFrequency"
-              value="monthly"
-              class="h-3 w-3 text-primary-500 focus:ring-primary-500 border-neutral-300"
-            />
-            <span class="ml-1.5 text-xs text-neutral-700">Monthly</span>
-          </label>
-          <label class="inline-flex items-center">
-            <input
-              type="radio"
-              v-model="store.rebalancingFrequency"
-              value="quarterly"
-              class="h-3 w-3 text-primary-500 focus:ring-primary-500 border-neutral-300"
-            />
-            <span class="ml-1.5 text-xs text-neutral-700">Quarterly</span>
-          </label>
-        </div>
+        <fieldset>
+          <legend class="block text-sm font-medium text-neutral-700">
+            Rebalancing Frequency
+          </legend>
+          <div class="flex space-x-3 mt-1" role="radiogroup" aria-labelledby="rebalancing-legend">
+            <label class="inline-flex items-center">
+              <input
+                type="radio"
+                v-model="store.rebalancingFrequency"
+                @change="handleRebalancingChange('monthly')"
+                value="monthly"
+                class="h-3 w-3 text-primary-500 focus:ring-primary-500 border-neutral-300"
+                aria-describedby="rebalancing-description"
+              />
+              <span class="ml-1.5 text-xs text-neutral-700">Monthly</span>
+            </label>
+            <label class="inline-flex items-center">
+              <input
+                type="radio"
+                v-model="store.rebalancingFrequency"
+                @change="handleRebalancingChange('quarterly')"
+                value="quarterly"
+                class="h-3 w-3 text-primary-500 focus:ring-primary-500 border-neutral-300"
+                aria-describedby="rebalancing-description"
+              />
+              <span class="ml-1.5 text-xs text-neutral-700">Quarterly</span>
+            </label>
+          </div>
+          <p class="text-xs text-neutral-500 mt-1" id="rebalancing-description">
+            How often to rebalance the portfolio
+          </p>
+        </fieldset>
       </div>
 
       <!-- Allocation Method -->
       <div class="space-y-2">
-        <label class="block text-sm font-medium text-neutral-700">
-          Cash Allocation
-        </label>
-        <div class="flex space-x-3">
-          <label class="inline-flex items-center">
-            <input
-              type="radio"
-              v-model="store.allocationMethod"
-              value="Proportional"
-              class="h-3 w-3 text-primary-500 focus:ring-primary-500 border-neutral-300"
-            />
-            <span class="ml-1.5 text-xs text-neutral-700">Proportional</span>
-          </label>
-          <label class="inline-flex items-center">
-            <input
-              type="radio"
-              v-model="store.allocationMethod"
-              value="Underweight Only"
-              class="h-3 w-3 text-primary-500 focus:ring-primary-500 border-neutral-300"
-            />
-            <span class="ml-1.5 text-xs text-neutral-700">Underweight</span>
-          </label>
-        </div>
+        <fieldset>
+          <legend class="block text-sm font-medium text-neutral-700">
+            Cash Allocation Method
+          </legend>
+          <div class="flex space-x-3 mt-1" role="radiogroup" aria-labelledby="allocation-legend">
+            <label class="inline-flex items-center">
+              <input
+                type="radio"
+                v-model="store.allocationMethod"
+                @change="handleAllocationMethodChange('Proportional')"
+                value="Proportional"
+                class="h-3 w-3 text-primary-500 focus:ring-primary-500 border-neutral-300"
+                aria-describedby="allocation-description"
+              />
+              <span class="ml-1.5 text-xs text-neutral-700">Proportional</span>
+            </label>
+            <label class="inline-flex items-center">
+              <input
+                type="radio"
+                v-model="store.allocationMethod"
+                @change="handleAllocationMethodChange('Underweight Only')"
+                value="Underweight Only"
+                class="h-3 w-3 text-primary-500 focus:ring-primary-500 border-neutral-300"
+                aria-describedby="allocation-description"
+              />
+              <span class="ml-1.5 text-xs text-neutral-700">Underweight</span>
+            </label>
+          </div>
+          <p class="text-xs text-neutral-500 mt-1" id="allocation-description">
+            How to allocate additional cash to portfolio assets
+          </p>
+        </fieldset>
       </div>
     </div>
 
     <!-- Momentum Periods - Full Width -->
     <div class="mt-4 pt-4 border-t border-neutral-200">
-      <label class="block text-sm font-medium text-neutral-700 mb-2">
-        Momentum Periods
-      </label>
-      <div class="flex space-x-4">
-        <label
-          v-for="period in [3, 6, 9, 12]"
-          :key="period"
-          class="inline-flex items-center"
-        >
-          <input
-            type="checkbox"
-            :value="period"
-            v-model="store.momentumPeriods"
-            class="h-3 w-3 text-primary-500 focus:ring-primary-500 border-neutral-300 rounded"
-          />
-          <span class="ml-1.5 text-xs text-neutral-700">{{ period }}m</span>
-        </label>
-      </div>
+      <fieldset>
+        <legend class="block text-sm font-medium text-neutral-700 mb-2">
+          Momentum Periods
+        </legend>
+        <div class="flex space-x-4" role="group" aria-labelledby="momentum-periods-legend">
+          <label
+            v-for="period in [3, 6, 9, 12]"
+            :key="period"
+            class="inline-flex items-center"
+          >
+            <input
+              type="checkbox"
+              :value="period"
+              v-model="store.momentumPeriods"
+              @change="handleMomentumPeriodsChange(period, $event.target.checked)"
+              class="h-3 w-3 text-primary-500 focus:ring-primary-500 border-neutral-300 rounded"
+              aria-describedby="momentum-periods-description"
+            />
+            <span class="ml-1.5 text-xs text-neutral-700">{{ period }}m</span>
+          </label>
+        </div>
+        <p class="text-xs text-neutral-500 mt-1" id="momentum-periods-description">
+          Time periods used to calculate momentum scores
+        </p>
+      </fieldset>
     </div>
 
     <!-- Strategy Summary -->
     <div class="mt-4 pt-4 border-t border-neutral-200">
       <h3 class="text-sm font-medium text-neutral-900 mb-2">Strategy Summary</h3>
-      <div class="space-y-1 text-xs text-neutral-600">
+      <div class="space-y-1 text-xs text-neutral-600" role="status" aria-live="polite" aria-atomic="true">
         <div>• Top {{ store.topAssets }} ETFs with positive momentum</div>
         <div v-if="store.bitcoinAllocation > 0">• {{ store.bitcoinAllocation }}% Bitcoin allocation</div>
         <div>• {{ store.rebalancingFrequency }} rebalancing</div>
