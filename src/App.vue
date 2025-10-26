@@ -1,9 +1,21 @@
 <script setup lang="ts">
 import { RouterView } from 'vue-router'
+import KeyboardShortcuts from '@/components/ui/KeyboardShortcuts.vue'
 </script>
 
 <template>
   <div class="min-h-screen bg-neutral-50">
+    <!-- Skip to Content Link for Keyboard Users -->
+    <a
+      href="#main-content"
+      class="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 bg-primary-500 text-white px-4 py-2 rounded-lg z-50"
+    >
+      Skip to main content
+    </a>
+
+    <!-- Keyboard Shortcuts Component -->
+    <KeyboardShortcuts />
+
     <!-- Minimal Header -->
     <header class="bg-surface border-b border-neutral-200">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -22,14 +34,14 @@ import { RouterView } from 'vue-router'
           <nav class="flex space-x-1">
             <router-link
               to="/"
-              class="px-3 py-2 text-sm font-medium rounded-lg transition-colors text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100"
+              class="px-3 py-2 text-sm font-medium rounded-lg transition-colors text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
               active-class="text-primary-600 bg-primary-50"
             >
               Dashboard
             </router-link>
             <router-link
               to="/about"
-              class="px-3 py-2 text-sm font-medium rounded-lg transition-colors text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100"
+              class="px-3 py-2 text-sm font-medium rounded-lg transition-colors text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
               active-class="text-primary-600 bg-primary-50"
             >
               About
@@ -40,7 +52,7 @@ import { RouterView } from 'vue-router'
     </header>
 
     <!-- Main Content -->
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <main id="main-content" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
       <RouterView />
     </main>
   </div>

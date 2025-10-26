@@ -179,39 +179,70 @@ const momentumScore = computed(() => {
       </div>
     </CollapsibleSection>
 
-    <!-- Configuration and Actions Row -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <!-- Strategy Parameters -->
-      <div class="lg:col-span-1">
+    <!-- Data Visualization Section -->
+    <div v-if="Object.keys(store.currentHoldings).length > 0" class="space-y-6">
+      <!-- Portfolio Visualization Row -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Portfolio Allocation Chart -->
         <CollapsibleSection
-          title="Strategy Parameters"
+          title="Portfolio Allocation"
           :default-open="sections.configuration"
-          badge="Settings"
+          badge="Chart"
         >
-          <StrategyParams />
+          <template #description>
+            Visual breakdown of your portfolio by asset allocation
+          </template>
+          <PortfolioAllocationChart />
         </CollapsibleSection>
-      </div>
 
-      <!-- Portfolio Management -->
-      <div class="lg:col-span-1">
+        <!-- Performance Trends Chart -->
         <CollapsibleSection
-          title="Portfolio Management"
-          :default-open="sections.portfolio"
-          :badge="Object.keys(store.currentHoldings).length"
+          title="Performance Trends"
+          :default-open="sections.configuration"
+          badge="Trends"
         >
-          <DraggablePortfolioManager />
+          <template #description>
+            Track performance trends across different time periods
+          </template>
+          <PerformanceTrendChart />
         </CollapsibleSection>
       </div>
 
-      <!-- Action Buttons and Stats -->
-      <div class="lg:col-span-1 space-y-6">
-        <!-- Action Buttons -->
+      <!-- Portfolio Data Table -->
+      <CollapsibleSection
+        title="Portfolio Holdings"
+        :default-open="sections.portfolio"
+        :badge="Object.keys(store.currentHoldings).length"
+      >
+        <template #description>
+          Detailed view of all portfolio holdings with sorting and filtering
+        </template>
+        <PortfolioDataTable />
+      </CollapsibleSection>
+
+      <!-- Real-time Data Manager -->
+      <CollapsibleSection
+        title="Real-time Data"
+        :default-open="sections.configuration"
+        badge="Live"
+      >
+        <template #description>
+          Configure and monitor real-time data updates for your portfolio
+        </template>
+        <RealTimeDataManager />
+      </CollapsibleSection>
+    </div>
+
+    <!-- Primary Actions and Configuration -->
+    <div class="space-y-6">
+      <!-- Action Buttons -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <CollapsibleSection
           title="Analysis Actions"
           :default-open="sections.configuration"
           :show-toggle="false"
         >
-          <div class="space-y-3">
+          <div class="space-y-4">
             <Tooltip
               :content="store.selectedETFs.length === 0 ? 'Select ETFs first' : 'Calculate momentum scores for selected ETFs'"
               position="top"
@@ -219,12 +250,12 @@ const momentumScore = computed(() => {
               <button
                 @click="store.calculateMomentum()"
                 :disabled="store.isLoading || store.selectedETFs.length === 0"
-                class="w-full inline-flex items-center justify-center px-5 py-2.5 border border-transparent text-sm font-medium rounded-lg text-white bg-primary-500 hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                class="w-full inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-lg text-white bg-primary-500 hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 aria-label="Calculate momentum scores"
               >
                 <svg
                   v-if="store.isLoading"
-                  class="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                  class="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
                   xmlns="http://www.w3.org/2000/svg"
                   fill="none"
                   viewBox="0 0 24 24"
@@ -232,7 +263,7 @@ const momentumScore = computed(() => {
                   <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                   <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                {{ store.isLoading ? 'Calculating...' : 'Calculate Momentum' }}
+                {{ store.isLoading ? 'Calculating Momentum...' : 'Calculate Momentum' }}
               </button>
             </Tooltip>
 
@@ -243,7 +274,7 @@ const momentumScore = computed(() => {
               <button
                 @click="store.calculateRebalancing()"
                 :disabled="Object.keys(store.momentumData).length === 0"
-                class="w-full inline-flex items-center justify-center px-5 py-2.5 border border-neutral-300 text-sm font-medium rounded-lg text-neutral-700 bg-surface hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                class="w-full inline-flex items-center justify-center px-6 py-3 border border-neutral-300 text-base font-medium rounded-lg text-neutral-700 bg-surface hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 aria-label="Generate rebalancing orders"
               >
                 Generate Rebalancing Orders
@@ -279,26 +310,47 @@ const momentumScore = computed(() => {
 
             <!-- Stats Grid -->
             <div class="grid grid-cols-2 gap-4">
-              <div class="text-center p-3 bg-neutral-50 rounded-lg">
-                <div class="text-lg font-bold text-neutral-900">{{ store.selectedETFs.length }}</div>
-                <div class="text-xs text-neutral-600">Selected ETFs</div>
+              <div class="text-center p-4 bg-neutral-50 rounded-lg border border-neutral-200">
+                <div class="text-xl font-bold text-neutral-900">{{ store.selectedETFs.length }}</div>
+                <div class="text-sm text-neutral-600">Selected ETFs</div>
               </div>
-              <div class="text-center p-3 bg-neutral-50 rounded-lg">
-                <div class="text-lg font-bold text-success-600">{{ positiveMomentumCount }}</div>
-                <div class="text-xs text-neutral-600">Positive Momentum</div>
+              <div class="text-center p-4 bg-neutral-50 rounded-lg border border-neutral-200">
+                <div class="text-xl font-bold text-success-600">{{ positiveMomentumCount }}</div>
+                <div class="text-sm text-neutral-600">Positive Momentum</div>
               </div>
-              <div class="text-center p-3 bg-neutral-50 rounded-lg">
-                <div class="text-lg font-bold text-primary-600">{{ store.topAssets }}</div>
-                <div class="text-xs text-neutral-600">Top Assets</div>
+              <div class="text-center p-4 bg-neutral-50 rounded-lg border border-neutral-200">
+                <div class="text-xl font-bold text-primary-600">{{ store.topAssets }}</div>
+                <div class="text-sm text-neutral-600">Top Assets</div>
               </div>
-              <div class="text-center p-3 bg-neutral-50 rounded-lg">
-                <div class="text-lg font-bold text-neutral-900">
+              <div class="text-center p-4 bg-neutral-50 rounded-lg border border-neutral-200">
+                <div class="text-xl font-bold text-neutral-900">
                   ${{ (store.totalPortfolioValue / 1000).toFixed(0) }}K
                 </div>
-                <div class="text-xs text-neutral-600">Portfolio Value</div>
+                <div class="text-sm text-neutral-600">Portfolio Value</div>
               </div>
             </div>
           </div>
+        </CollapsibleSection>
+      </div>
+
+      <!-- Configuration Sections -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Strategy Parameters -->
+        <CollapsibleSection
+          title="Strategy Parameters"
+          :default-open="sections.configuration"
+          badge="Settings"
+        >
+          <StrategyParams />
+        </CollapsibleSection>
+
+        <!-- Portfolio Management -->
+        <CollapsibleSection
+          title="Portfolio Management"
+          :default-open="sections.portfolio"
+          :badge="Object.keys(store.currentHoldings).length"
+        >
+          <DraggablePortfolioManager />
         </CollapsibleSection>
       </div>
     </div>

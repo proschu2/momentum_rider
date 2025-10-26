@@ -198,6 +198,8 @@ describe('DashboardLayout Component', () => {
       key: vi.fn()
     }
 
+    // Temporarily replace the global localStorage mock
+    const originalLocalStorage = window.localStorage
     Object.defineProperty(window, 'localStorage', {
       value: localStorageMock,
       writable: true
@@ -215,6 +217,12 @@ describe('DashboardLayout Component', () => {
         }
       })
     }).not.toThrow()
+
+    // Restore original localStorage
+    Object.defineProperty(window, 'localStorage', {
+      value: originalLocalStorage,
+      writable: true
+    })
   })
 
   test('provides layout context to child components', () => {

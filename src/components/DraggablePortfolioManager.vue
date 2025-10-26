@@ -2,12 +2,21 @@
 import { useMomentumRiderStore } from '@/stores/momentum-rider'
 import { ref, computed, watch } from 'vue'
 import ConfirmationDialog from '@/components/ui/ConfirmationDialog.vue'
+import { ScreenReader } from '@/utils/accessibility'
 
 const store = useMomentumRiderStore()
 
 // Drag and drop state
 const dragItem = ref<string | null>(null)
 const dragOverItem = ref<string | null>(null)
+
+// Refresh prices with screen reader announcement
+async function refreshPrices() {
+  if (Object.keys(store.currentHoldings).length > 0) {
+    await store.refreshCurrentPrices()
+    ScreenReader.announce('Current prices refreshed')
+  }
+}
 
 // Confirmation dialog state
 const showDeleteDialog = ref(false)
@@ -107,23 +116,31 @@ function confirmDeleteHolding(ticker: string) {
 
 function deleteHolding() {
   if (holdingToDelete.value) {
-    store.removeHolding(holdingToDelete.value)
+    const ticker = holdingToDelete.value
+    store.removeHolding(ticker)
     holdingToDelete.value = null
     showDeleteDialog.value = false
+
+    // Announce to screen reader
+    ScreenReader.announce(`Deleted ${ticker} holding from portfolio`)
   }
 }
 
 // Add new holding
 async function addNewHolding() {
   if (newHolding.value.ticker && newHolding.value.shares > 0) {
+    const ticker = newHolding.value.ticker.toUpperCase()
     await store.addHolding(
-      newHolding.value.ticker.toUpperCase(),
+      ticker,
       newHolding.value.shares,
       newHolding.value.price > 0 ? newHolding.value.price : undefined
     )
     // Reset form
     newHolding.value = { ticker: '', shares: 0, price: 0 }
     showAddForm.value = false
+
+    // Announce to screen reader
+    ScreenReader.announce(`Added ${ticker} holding to portfolio`)
   }
 }
 
@@ -144,6 +161,46 @@ function handleTouchMove(event: TouchEvent) {
 function handleTouchEnd(event: TouchEvent) {
   resetDragState()
 }
+
+// Keyboard navigation handler
+function handleKeydown(event: KeyboardEvent, ticker: string) {
+  const target = event.target as HTMLElement
+
+  switch (event.key) {
+    case 'Enter':
+    case ' ':
+      event.preventDefault()
+      // Focus the delete button for quick access
+      const deleteButton = target.querySelector('[aria-label*="Delete"]') as HTMLButtonElement
+      if (deleteButton) {
+        deleteButton.focus()
+      }
+      break
+    case 'Delete':
+    case 'Backspace':
+      event.preventDefault()
+      confirmDeleteHolding(ticker)
+      break
+    case 'ArrowUp':
+    case 'ArrowDown':
+      event.preventDefault()
+      // Navigate between holdings
+      const holdings = Array.from(document.querySelectorAll('[role="button"][tabindex="0"]'))
+      const currentIndex = holdings.indexOf(target)
+      let nextIndex = currentIndex
+
+      if (event.key === 'ArrowUp' && currentIndex > 0) {
+        nextIndex = currentIndex - 1
+      } else if (event.key === 'ArrowDown' && currentIndex < holdings.length - 1) {
+        nextIndex = currentIndex + 1
+      }
+
+      if (nextIndex !== currentIndex) {
+        ;(holdings[nextIndex] as HTMLElement).focus()
+      }
+      break
+  }
+}
 </script>
 
 <template>
@@ -152,11 +209,13 @@ function handleTouchEnd(event: TouchEvent) {
       <h2 class="text-lg font-semibold text-neutral-900">Portfolio Management</h2>
       <div class="flex space-x-2">
         <button
-          @click="store.refreshCurrentPrices()"
+          @click="refreshPrices"
           :disabled="Object.keys(store.currentHoldings).length === 0"
           class="inline-flex items-center px-3 py-1.5 border border-neutral-300 text-xs font-medium rounded-lg text-neutral-700 bg-surface hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          aria-label="Refresh current prices"
+          :aria-disabled="Object.keys(store.currentHoldings).length === 0"
         >
-          <svg class="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg class="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
           Refresh
@@ -164,8 +223,11 @@ function handleTouchEnd(event: TouchEvent) {
         <button
           @click="showAddForm = !showAddForm"
           class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-lg text-white bg-primary-500 hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors"
+          :aria-expanded="showAddForm"
+          aria-controls="add-holding-form"
+          aria-label="Add new holding"
         >
-          <svg class="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg class="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
           </svg>
           Add Holding
@@ -174,9 +236,15 @@ function handleTouchEnd(event: TouchEvent) {
     </div>
 
     <!-- Add Holding Form -->
-    <div v-if="showAddForm" class="mb-4 p-4 border border-neutral-200 rounded-lg bg-neutral-50">
-      <h3 class="text-sm font-medium text-neutral-900 mb-3">Add New Holding</h3>
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+    <div
+      v-if="showAddForm"
+      id="add-holding-form"
+      class="mb-4 p-4 border border-neutral-200 rounded-lg bg-neutral-50"
+      role="region"
+      aria-labelledby="add-holding-title"
+    >
+      <h3 id="add-holding-title" class="text-sm font-medium text-neutral-900 mb-3">Add New Holding</h3>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3" role="form">
         <div>
           <label for="ticker" class="block text-xs font-medium text-neutral-700 mb-1">Ticker</label>
           <input
@@ -185,7 +253,10 @@ function handleTouchEnd(event: TouchEvent) {
             type="text"
             placeholder="e.g., VTI"
             class="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-primary-500 focus:border-primary-500 text-sm"
+            aria-required="true"
+            aria-describedby="ticker-description"
           />
+          <p id="ticker-description" class="sr-only">Enter the stock ticker symbol for the holding</p>
         </div>
         <div>
           <label for="shares" class="block text-xs font-medium text-neutral-700 mb-1">Shares</label>
@@ -196,7 +267,10 @@ function handleTouchEnd(event: TouchEvent) {
             step="0.001"
             min="0"
             class="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-primary-500 focus:border-primary-500 text-sm"
+            aria-required="true"
+            aria-describedby="shares-description"
           />
+          <p id="shares-description" class="sr-only">Enter the number of shares for this holding</p>
         </div>
         <div>
           <label for="price" class="block text-xs font-medium text-neutral-700 mb-1">Price ($) <span class="text-neutral-400">(optional)</span></label>
@@ -208,13 +282,16 @@ function handleTouchEnd(event: TouchEvent) {
             min="0"
             placeholder="Auto-fetch"
             class="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-primary-500 focus:border-primary-500 text-sm"
+            aria-describedby="price-description"
           />
+          <p id="price-description" class="sr-only">Enter the current price per share, or leave blank to auto-fetch</p>
         </div>
       </div>
       <div class="mt-3 flex justify-end space-x-2">
         <button
           @click="showAddForm = false"
           class="px-3 py-2 border border-neutral-300 text-sm font-medium rounded-lg text-neutral-700 bg-surface hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors"
+          aria-label="Cancel adding new holding"
         >
           Cancel
         </button>
@@ -222,6 +299,8 @@ function handleTouchEnd(event: TouchEvent) {
           @click="addNewHolding"
           :disabled="!newHolding.ticker || newHolding.shares <= 0"
           class="px-3 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-primary-500 hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          :aria-disabled="!newHolding.ticker || newHolding.shares <= 0"
+          aria-label="Add new holding to portfolio"
         >
           Add
         </button>
@@ -229,10 +308,20 @@ function handleTouchEnd(event: TouchEvent) {
     </div>
 
     <!-- Draggable Holdings List -->
-    <div>
+    <div role="region" aria-labelledby="current-holdings-title">
       <div class="flex justify-between items-center mb-3">
-        <h3 class="text-sm font-medium text-neutral-900">Current Holdings</h3>
-        <p class="text-xs text-neutral-500">Drag to reorder</p>
+        <h3 id="current-holdings-title" class="text-sm font-medium text-neutral-900">Current Holdings</h3>
+        <div class="flex items-center space-x-4">
+          <p class="text-xs text-neutral-500" aria-hidden="true">Drag to reorder</p>
+          <p class="sr-only">Use drag and drop to reorder holdings</p>
+          <!-- Desktop-only keyboard shortcuts hint -->
+          <div class="hidden lg:flex items-center space-x-1 text-xs text-neutral-400">
+            <kbd class="px-1.5 py-0.5 text-xs bg-neutral-100 border border-neutral-300 rounded">Alt</kbd>
+            <span class="text-neutral-500">+</span>
+            <kbd class="px-1.5 py-0.5 text-xs bg-neutral-100 border border-neutral-300 rounded">R</kbd>
+            <span class="text-neutral-500">to refresh</span>
+          </div>
+        </div>
       </div>
 
       <div v-if="draggableHoldings.length > 0" class="space-y-2">
@@ -247,14 +336,16 @@ function handleTouchEnd(event: TouchEvent) {
           @drop="handleDrop($event, holding.ticker)"
           @touchstart="handleTouchStart($event, holding.ticker)"
           @touchend="handleTouchEnd"
+          @keydown="handleKeydown($event, holding.ticker)"
           :class="[
-            'flex items-center justify-between p-3 border rounded-lg transition-all duration-200 cursor-move',
+            'flex items-center justify-between p-3 border rounded-lg transition-all duration-200 cursor-move group',
+            'focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
             holding.isDragging ? 'opacity-50 bg-primary-50 border-primary-300' : '',
             holding.isDragOver ? 'bg-primary-100 border-primary-400 border-dashed' : 'bg-surface border-neutral-200 hover:bg-neutral-50'
           ]"
           role="button"
           tabindex="0"
-          :aria-label="`Drag to reorder ${holding.ticker} holding`"
+          :aria-label="`${holding.ticker} holding: ${holding.shares} shares at $${holding.price}. Drag to reorder or press Delete to remove.`"
         >
           <!-- Drag Handle -->
           <div class="flex items-center space-x-3 flex-1">
@@ -288,12 +379,17 @@ function handleTouchEnd(event: TouchEvent) {
 
             <button
               @click="confirmDeleteHolding(holding.ticker)"
-              class="p-1 text-neutral-400 hover:text-error-600 transition-colors focus:outline-none focus:ring-2 focus:ring-error-500 focus:ring-offset-2 rounded"
-              aria-label="Delete holding"
+              class="p-1 text-neutral-400 hover:text-error-600 transition-colors focus:outline-none focus:ring-2 focus:ring-error-500 focus:ring-offset-2 rounded group/delete"
+              :aria-label="`Delete ${holding.ticker} holding (or press Delete key)`"
             >
               <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
               </svg>
+              <!-- Desktop tooltip -->
+              <div class="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-neutral-800 text-white text-xs rounded px-2 py-1 opacity-0 group-hover/delete:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+                Delete (Del)
+                <div class="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1 w-2 h-2 bg-neutral-800 rotate-45"></div>
+              </div>
             </button>
           </div>
         </div>

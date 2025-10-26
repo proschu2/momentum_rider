@@ -14,6 +14,23 @@ interface ChartData {
 const store = useMomentumRiderStore()
 const chartType = ref<'pie' | 'donut'>('donut')
 const hoveredSlice = ref<ChartData | null>(null)
+const isLoading = ref(false)
+const error = ref<string | null>(null)
+
+// Watch for store loading state
+watch(() => store.isLoading, (loading) => {
+  isLoading.value = loading
+  if (loading) {
+    error.value = null
+  }
+})
+
+// Watch for store errors
+watch(() => store.error, (storeError) => {
+  if (storeError) {
+    error.value = storeError
+  }
+})
 
 // Color palette for different asset categories
 const categoryColors = {
@@ -159,37 +176,95 @@ const handleSliceClick = (data: ChartData) => {
   console.log('Slice clicked:', data)
   // Could trigger detailed view or navigation
 }
+
+// Keyboard navigation for chart
+const handleChartKeydown = (event: KeyboardEvent) => {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault()
+    // Focus the first legend item
+    const firstLegendItem = document.querySelector('.legend-item') as HTMLElement
+    if (firstLegendItem) {
+      firstLegendItem.focus()
+    }
+  }
+}
 </script>
 
 <template>
   <div class="portfolio-allocation-chart">
     <!-- Chart Header -->
     <div class="chart-header">
-      <h3 class="chart-title">Portfolio Allocation</h3>
+      <div class="flex items-center space-x-3">
+        <h3 class="chart-title">Portfolio Allocation</h3>
+        <!-- Desktop-only quick stats -->
+        <div class="hidden lg:flex items-center space-x-4 text-sm">
+          <div class="flex items-center space-x-1">
+            <div class="w-2 h-2 bg-primary-500 rounded-full"></div>
+            <span class="text-neutral-600">{{ chartData.length }} assets</span>
+          </div>
+          <div class="flex items-center space-x-1">
+            <div class="w-2 h-2 bg-success-500 rounded-full"></div>
+            <span class="text-neutral-600">${{ totalValue.toLocaleString() }}</span>
+          </div>
+        </div>
+      </div>
       <div class="chart-controls">
         <button
           @click="chartType = 'pie'"
           :class="['chart-type-btn', { active: chartType === 'pie' }]"
+          aria-label="Switch to pie chart view"
         >
+          <svg class="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" />
+          </svg>
           Pie
         </button>
         <button
           @click="chartType = 'donut'"
           :class="['chart-type-btn', { active: chartType === 'donut' }]"
+          aria-label="Switch to donut chart view"
         >
+          <svg class="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2a10 10 0 100 20 10 10 0 000-20z" />
+          </svg>
           Donut
         </button>
       </div>
     </div>
 
+    <!-- Loading State -->
+    <div v-if="isLoading" class="loading-state">
+      <div class="loading-spinner">
+        <svg class="spinner-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <circle class="spinner-circle" cx="12" cy="12" r="10" stroke-width="4" />
+        </svg>
+      </div>
+      <p class="loading-text">Loading portfolio data...</p>
+    </div>
+
+    <!-- Error State -->
+    <div v-else-if="error" class="error-state">
+      <svg class="error-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.35 16.5c-.77.833.192 2.5 1.732 2.5z" />
+      </svg>
+      <p class="error-text">{{ error }}</p>
+      <button @click="store.refreshCurrentPrices()" class="retry-btn">
+        Retry
+      </button>
+    </div>
+
     <!-- Chart Container -->
-    <div class="chart-container">
+    <div v-else class="chart-container">
       <!-- SVG Chart -->
       <div class="chart-svg-container">
         <svg
           :viewBox="`0 0 400 400`"
           class="allocation-chart"
           @mouseleave="handleSliceHover(null)"
+          @keydown="handleChartKeydown"
+          tabindex="0"
+          role="img"
+          :aria-label="`Portfolio allocation chart showing ${chartData.length} assets. Total value $${totalValue.toLocaleString()}.`"
         >
           <!-- Background Circle -->
           <circle
