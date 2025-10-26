@@ -48,12 +48,16 @@ function closeMenu() {
 
 // Swipe gesture handling
 function handleTouchStart(event: TouchEvent) {
-  touchStartX.value = event.changedTouches[0].screenX
+  if (event.changedTouches.length > 0 && event.changedTouches[0]) {
+    touchStartX.value = event.changedTouches[0].screenX
+  }
 }
 
 function handleTouchEnd(event: TouchEvent) {
-  touchEndX.value = event.changedTouches[0].screenX
-  handleSwipe()
+  if (event.changedTouches.length > 0 && event.changedTouches[0]) {
+    touchEndX.value = event.changedTouches[0].screenX
+    handleSwipe()
+  }
 }
 
 function handleSwipe() {
@@ -127,7 +131,7 @@ onUnmounted(() => {
             @click="toggleMenu"
             class="p-2 rounded-lg text-neutral-600 hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
             aria-label="Toggle navigation menu"
-            aria-expanded="isMenuOpen"
+            :aria-expanded="isMenuOpen"
             aria-controls="mobile-menu"
           >
             <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">

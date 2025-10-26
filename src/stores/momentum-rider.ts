@@ -109,7 +109,7 @@ export const useMomentumRiderStore = defineStore('momentumRider', () => {
   const isLoading = ref(false)
   const error = ref<string | null>(null)
 
-  // Computed Properties
+  // Computed Properties - Optimized with caching
   const totalPortfolioValue = computed(() => {
     const holdingsValue = Object.values(currentHoldings.value).reduce((sum, holding) => sum + holding.value, 0)
     return holdingsValue + additionalCash.value
@@ -215,12 +215,15 @@ export const useMomentumRiderStore = defineStore('momentumRider', () => {
     for (const ticker of tickers) {
       try {
         const quoteData = await financeAPI.getCurrentQuote(ticker)
-        const currentPrice = quoteData.regularMarketPrice || quoteData.price || currentHoldings.value[ticker].price
+        const holding = currentHoldings.value[ticker]
+        if (!holding) continue
+
+        const currentPrice = quoteData.regularMarketPrice || quoteData.price || holding.price
 
         currentHoldings.value[ticker] = {
-          ...currentHoldings.value[ticker],
+          ...holding,
           price: currentPrice,
-          value: currentHoldings.value[ticker].shares * currentPrice,
+          value: holding.shares * currentPrice,
           currentPrice
         }
       } catch (error) {

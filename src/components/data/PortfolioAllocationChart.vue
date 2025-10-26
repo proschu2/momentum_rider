@@ -104,8 +104,11 @@ function getCategoryData() {
     if (!categories[item.category]) {
       categories[item.category] = { value: 0, percentage: 0, color: categoryColors[item.category as keyof typeof categoryColors] }
     }
-    categories[item.category].value += item.value
-    categories[item.category].percentage += item.percentage
+    const category = categories[item.category]
+    if (category) {
+      category.value += item.value
+      category.percentage += item.percentage
+    }
   })
 
   return Object.entries(categories).map(([category, data]) => ({
@@ -186,6 +189,34 @@ const handleChartKeydown = (event: KeyboardEvent) => {
     if (firstLegendItem) {
       firstLegendItem.focus()
     }
+  }
+}
+
+// Keyboard navigation for legend items
+const handleLegendKeydown = (event: KeyboardEvent, item: ChartData) => {
+  switch (event.key) {
+    case 'Enter':
+    case ' ':
+      event.preventDefault()
+      handleSliceClick(item)
+      break
+    case 'ArrowUp':
+    case 'ArrowDown':
+      event.preventDefault()
+      const legendItems = Array.from(document.querySelectorAll('.legend-item'))
+      const currentIndex = legendItems.indexOf(event.target as HTMLElement)
+      let nextIndex = currentIndex
+
+      if (event.key === 'ArrowUp' && currentIndex > 0) {
+        nextIndex = currentIndex - 1
+      } else if (event.key === 'ArrowDown' && currentIndex < legendItems.length - 1) {
+        nextIndex = currentIndex + 1
+      }
+
+      if (nextIndex !== currentIndex) {
+        ;(legendItems[nextIndex] as HTMLElement).focus()
+      }
+      break
   }
 }
 </script>
@@ -361,6 +392,10 @@ const handleChartKeydown = (event: KeyboardEvent) => {
           @mouseenter="handleSliceHover(item)"
           @mouseleave="handleSliceHover(null)"
           @click="handleSliceClick(item)"
+          @keydown="handleLegendKeydown($event, item)"
+          tabindex="0"
+          role="button"
+          :aria-label="`${item.name}: $${item.value.toLocaleString()} (${item.percentage.toFixed(1)}%)`"
         >
           <div class="legend-color" :style="{ backgroundColor: item.color }"></div>
           <div class="legend-details">

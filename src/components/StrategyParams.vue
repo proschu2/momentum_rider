@@ -18,12 +18,12 @@ function handleBitcoinAllocationChange(value: number) {
   ScreenReader.announce(`Bitcoin allocation set to ${value} percent`)
 }
 
-function handleRebalancingChange(value: string) {
+function handleRebalancingChange(value: 'monthly' | 'quarterly') {
   store.rebalancingFrequency = value
   ScreenReader.announce(`Rebalancing frequency set to ${value}`)
 }
 
-function handleAllocationMethodChange(value: string) {
+function handleAllocationMethodChange(value: 'Proportional' | 'Underweight Only') {
   store.allocationMethod = value
   ScreenReader.announce(`Allocation method set to ${value}`)
 }
@@ -57,7 +57,7 @@ function handleMomentumPeriodsChange(period: number, checked: boolean) {
             id="top-assets"
             type="range"
             v-model.number="store.topAssets"
-            @input="handleTopAssetsChange(parseInt($event.target.value))"
+            @input="handleTopAssetsChange(parseInt(($event.target as HTMLInputElement).value))"
             min="1"
             max="8"
             aria-valuemin="1"
@@ -89,7 +89,7 @@ function handleMomentumPeriodsChange(period: number, checked: boolean) {
             id="bitcoin-allocation"
             type="range"
             v-model.number="store.bitcoinAllocation"
-            @input="handleBitcoinAllocationChange(parseFloat($event.target.value))"
+            @input="handleBitcoinAllocationChange(parseFloat(($event.target as HTMLInputElement).value))"
             min="0"
             max="20"
             step="0.5"
@@ -201,7 +201,7 @@ function handleMomentumPeriodsChange(period: number, checked: boolean) {
               type="checkbox"
               :value="period"
               v-model="store.momentumPeriods"
-              @change="handleMomentumPeriodsChange(period, $event.target.checked)"
+              @change="handleMomentumPeriodsChange(period, ($event.target as HTMLInputElement).checked)"
               class="h-3 w-3 text-primary-500 focus:ring-primary-500 border-neutral-300 rounded"
               aria-describedby="momentum-periods-description"
             />

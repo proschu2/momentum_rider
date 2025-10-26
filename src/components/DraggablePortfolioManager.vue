@@ -86,8 +86,11 @@ function handleDrop(event: DragEvent, targetTicker: string) {
 
   if (draggedIndex !== -1 && targetIndex !== -1) {
     const newHoldingsArray = [...holdingsArray]
-    const [draggedItem] = newHoldingsArray.splice(draggedIndex, 1)
-    newHoldingsArray.splice(targetIndex, 0, draggedItem)
+    const draggedItems = newHoldingsArray.splice(draggedIndex, 1)
+    const draggedItem = draggedItems[0]
+    if (draggedItem) {
+      newHoldingsArray.splice(targetIndex, 0, draggedItem)
+    }
 
     // Update store with reordered holdings
     const reorderedHoldings: Record<string, any> = {}

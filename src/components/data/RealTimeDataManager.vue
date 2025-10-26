@@ -22,7 +22,7 @@ const realTimeConfig = ref({
 // Real-time data
 const realTimeUpdates = ref<RealTimeUpdate[]>([])
 const lastUpdateTime = ref<number | null>(null)
-const updateInterval = ref<NodeJS.Timeout | null>(null)
+const updateInterval = ref<number | null>(null)
 const isUpdating = ref(false)
 
 // Performance metrics
@@ -238,7 +238,7 @@ onUnmounted(() => {
           <label class="setting-label">Refresh Interval</label>
           <select
             v-model="realTimeConfig.refreshInterval"
-            @change="updateRefreshInterval(Number($event.target.value))"
+            @change="updateRefreshInterval(Number(($event.target as HTMLSelectElement).value))"
             class="setting-select"
           >
             <option value="15000">15 seconds</option>

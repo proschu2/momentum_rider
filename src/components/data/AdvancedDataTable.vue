@@ -314,7 +314,7 @@ defineExpose({
                 <input
                   type="text"
                   :value="columnFilters[column.key] || ''"
-                  @input="handleFilterChange(column.key, $event.target.value)"
+                  @input="handleFilterChange(column.key, ($event.target as HTMLInputElement).value)"
                   :placeholder="`Filter ${column.label}`"
                   class="filter-input"
                   :aria-label="`Filter by ${column.label}`"
@@ -416,7 +416,7 @@ defineExpose({
             @click="goToPage(page)"
             :class="['page-btn', { 'active': page === currentPage }]"
             :aria-label="`Go to page ${page}`"
-            :aria-current="page === currentPage ? 'page' : null"
+            :aria-current="page === currentPage ? 'page' : undefined"
           >
             {{ page }}
           </button>

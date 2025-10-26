@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
 
 interface Props {
   modelValue: boolean
@@ -109,7 +109,7 @@ onUnmounted(() => {
   document.body.style.overflow = ''
 })
 
-watch(() => props.modelValue, (newValue) => {
+watch(() => props.modelValue, (newValue: boolean) => {
   if (newValue) {
     document.addEventListener('keydown', handleKeydown)
     document.addEventListener('keydown', trapFocus)

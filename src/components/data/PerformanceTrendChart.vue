@@ -60,7 +60,7 @@ function generateTrendData(ticker: string, baseValue: number, volatility: number
     currentValue = Math.max(1, currentValue * (1 + change / 100))
 
     data.push({
-      period: date.toISOString().split('T')[0],
+      period: date.toISOString().split('T')[0] || '',
       value: currentValue,
       date
     })
@@ -253,18 +253,19 @@ watch(() => store.selectedTopETFs, (newTopETFs) => {
 
           <!-- Data Points -->
           <g class="data-points">
-            <circle
-              v-for="asset in trendData"
-              :key="`point-${asset.ticker}`"
-              v-for="(point, index) in asset.data.filter((_, i) => i % 7 === 0)"
-              :cx="xScale(point.date) + margin.left"
-              :cy="yScale(point.value) + margin.top"
-              r="3"
-              :fill="asset.color"
-              class="data-point"
-              @mouseenter="handlePointHover(asset.ticker, point)"
-              @mouseleave="handlePointHover('', null)"
-            />
+            <g v-for="asset in trendData" :key="`points-${asset.ticker}`">
+              <circle
+                v-for="(point, index) in asset.data.filter((_, i) => i % 7 === 0)"
+                :key="`point-${asset.ticker}-${index}`"
+                :cx="xScale(point.date) + margin.left"
+                :cy="yScale(point.value) + margin.top"
+                r="3"
+                :fill="asset.color"
+                class="data-point"
+                @mouseenter="handlePointHover(asset.ticker, point)"
+                @mouseleave="handlePointHover('', null)"
+              />
+            </g>
           </g>
 
           <!-- Axes -->
@@ -364,7 +365,7 @@ watch(() => store.selectedTopETFs, (newTopETFs) => {
             </div>
             <div class="asset-color" :style="{ backgroundColor: assetColors[asset as keyof typeof assetColors] || '#6B7280' }"></div>
             <span class="asset-ticker">{{ asset }}</span>
-            <span class="asset-momentum" :class="{ positive: store.momentumData[asset]?.average >= 0, negative: store.momentumData[asset]?.average < 0 }">
+            <span class="asset-momentum" :class="{ positive: (store.momentumData[asset]?.average || 0) >= 0, negative: (store.momentumData[asset]?.average || 0) < 0 }">
               {{ formatPercentage(store.momentumData[asset]?.average || 0) }}
             </span>
           </div>
@@ -384,14 +385,14 @@ watch(() => store.selectedTopETFs, (newTopETFs) => {
           <div class="summary-header">
             <div class="summary-color" :style="{ backgroundColor: asset.color }"></div>
             <span class="summary-ticker">{{ asset.ticker }}</span>
-            <span class="summary-momentum" :class="{ positive: asset.averageMomentum >= 0, negative: asset.averageMomentum < 0 }">
-              {{ formatPercentage(asset.averageMomentum) }}
+            <span class="summary-momentum" :class="{ positive: (asset.averageMomentum || 0) >= 0, negative: (asset.averageMomentum || 0) < 0 }">
+              {{ formatPercentage(asset.averageMomentum || 0) }}
             </span>
           </div>
           <div class="summary-details">
             <div class="summary-price">{{ formatCurrency(asset.currentValue) }}</div>
             <div class="summary-change">
-              <span v-if="asset.data.length > 1">
+              <span v-if="asset.data.length > 1 && asset.data[0]">
                 {{ formatPercentage(((asset.currentValue - asset.data[0].value) / asset.data[0].value) * 100) }}
               </span>
             </div>
