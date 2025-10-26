@@ -38,10 +38,6 @@ class FinanceAPIService {
       const port = '3001';
       this.API_BASE_URL = `${protocol}//${host}:${port}/api`;
     }
-
-    console.log('📡 API Base URL:', this.API_BASE_URL);
-    console.log('🌐 Environment VITE_API_URL:', import.meta.env.VITE_API_URL);
-    console.log('🌐 Current host:', window.location.host);
   }
 
   /**
@@ -49,17 +45,12 @@ class FinanceAPIService {
    */
   private async fetchBackendData(url: string): Promise<any> {
     try {
-      console.log('🔗 Making API request to:', url);
       const response = await fetch(url);
-      console.log('📡 API Response status:', response.status);
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
-      const data = await response.json();
-      console.log('✅ API Response data:', data);
-      return data;
+      return await response.json();
     } catch (error) {
-      console.error('❌ Backend API error:', error);
       throw error;
     }
   }

@@ -38,8 +38,8 @@ export const useMomentumRiderStore = defineStore('momentumRider', () => {
   const etfUniverse = ref({
     STOCKS: ['VTI', 'VEA', 'VWO'],
     BONDS: ['TLT', 'BWX', 'BND'],
-    COMMODITIES: ['PDBC'],
-    ALTERNATIVES: ['SGOL', 'IBIT']
+    COMMODITIES: ['PDBC', 'SGOL'],
+    ALTERNATIVES: ['IBIT']
   })
 
   // Load portfolio from localStorage on initialization
@@ -125,6 +125,16 @@ export const useMomentumRiderStore = defineStore('momentumRider', () => {
     return etfs
   })
 
+  // Get all selectable ETFs (those in the ETF universe)
+  const selectableETFs = computed(() => {
+    return [...Object.values(etfUniverse.value).flat()]
+  })
+
+  // Check if a ticker is selectable (in the ETF universe)
+  const isSelectableETF = computed(() => (ticker: string) => {
+    return selectableETFs.value.includes(ticker)
+  })
+
   const selectedETFsWithCategories = computed(() => {
     const result: { [category: string]: string[] } = {}
     Object.entries(etfUniverse.value).forEach(([category, tickers]) => {
@@ -143,7 +153,7 @@ export const useMomentumRiderStore = defineStore('momentumRider', () => {
 
   const selectedTopETFs = computed(() => {
     return Object.entries(momentumData.value)
-      .filter(([_, data]) => data.absoluteMomentum)
+      .filter(([ticker, data]) => data.absoluteMomentum && isSelectableETF.value(ticker))
       .sort(([_, a], [__, b]) => b.average - a.average)
       .slice(0, topAssets.value)
       .map(([ticker]) => ticker)
@@ -261,11 +271,18 @@ export const useMomentumRiderStore = defineStore('momentumRider', () => {
     try {
       const realMomentumData: MomentumData = {}
 
-      // Fetch current prices for all selected ETFs
-      await fetchAllETFPrices(selectedETFs.value)
+      // Get all tickers that need momentum calculation
+      // Include selected ETFs AND current portfolio holdings
+      const allTickers = new Set([
+        ...selectedETFs.value,
+        ...Object.keys(currentHoldings.value)
+      ])
+
+      // Fetch current prices for all relevant tickers
+      await fetchAllETFPrices([...allTickers])
 
       // Use batch momentum calculation for better performance
-      const results: MomentumResult[] = await financeAPI.calculateBatchMomentum(selectedETFs.value)
+      const results: MomentumResult[] = await financeAPI.calculateBatchMomentum([...allTickers])
 
       for (const result of results) {
         realMomentumData[result.ticker] = {
@@ -290,40 +307,87 @@ export const useMomentumRiderStore = defineStore('momentumRider', () => {
     }
   }
 
+  // Calculate momentum for current portfolio holdings
+  const portfolioMomentumInsight = computed(() => {
+    const insights: { [ticker: string]: { momentum: number; rank: number; absoluteMomentum: boolean; isSelectable: boolean } } = {}
+    
+    Object.keys(currentHoldings.value).forEach(ticker => {
+      const momentum = momentumData.value[ticker]
+      const isSelectable = isSelectableETF.value(ticker)
+      
+      if (momentum) {
+        // For selectable ETFs: calculate rank among ALL selectable ETFs (not just positive momentum)
+        // For non-selectable holdings: show N/A for rank
+        let rank = 0
+        if (isSelectable) {
+          const selectableMomentumData = Object.entries(momentumData.value)
+            .filter(([t, data]) => isSelectableETF.value(t))
+            .map(([t, data]) => ({ ticker: t, ...data }))
+          const sortedMomentum = [...selectableMomentumData].sort((a, b) => b.average - a.average)
+          rank = sortedMomentum.findIndex(data => data.ticker === ticker) + 1
+          rank = rank > 0 ? rank : sortedMomentum.length // If not found, assign lowest rank
+        }
+        
+        insights[ticker] = {
+          momentum: momentum.average,
+          rank: isSelectable ? rank : -1, // -1 indicates non-selectable (N/A)
+          absoluteMomentum: momentum.absoluteMomentum,
+          isSelectable
+        }
+      } else {
+        // Handle holdings without momentum data
+        insights[ticker] = {
+          momentum: 0,
+          rank: isSelectable ? 0 : -1, // 0 = no data, -1 = non-selectable
+          absoluteMomentum: false,
+          isSelectable
+        }
+      }
+    })
+    
+    return insights
+  })
+
   function calculateRebalancing() {
     if (Object.keys(momentumData.value).length === 0) {
       error.value = 'Please calculate momentum first'
       return
     }
 
-    // Filter ETFs with positive momentum
+    // Get top 4 ETFs with positive momentum (excluding Bitcoin)
     const positiveMomentumETFs = Object.entries(momentumData.value)
-      .filter(([_, data]) => data.absoluteMomentum)
+      .filter(([_, data]) => data.absoluteMomentum && _ !== 'IBIT')
       .sort(([_, a], [__, b]) => b.average - a.average)
       .slice(0, topAssets.value)
       .map(([ticker]) => ticker)
+
+    // Add Bitcoin if it has positive momentum
+    const bitcoinMomentum = momentumData.value['IBIT']
+    if (bitcoinMomentum?.absoluteMomentum) {
+      positiveMomentumETFs.push('IBIT')
+    }
 
     if (positiveMomentumETFs.length === 0) {
       error.value = 'No ETFs with positive momentum found'
       return
     }
 
-    // Calculate target allocations
-    const bitcoinETFs = positiveMomentumETFs.filter(etf => etf === 'IBIT')
-    const nonBitcoinETFs = positiveMomentumETFs.filter(etf => etf !== 'IBIT')
-    
+    // Calculate target allocations - Top 4 ETFs + 4% Bitcoin
     const totalAllocation = 100
     const bitcoinTargetPercent = bitcoinAllocation.value
     const remainingPercent = totalAllocation - bitcoinTargetPercent
     
-    const nonBitcoinTargetPercent = nonBitcoinETFs.length > 0 
-      ? remainingPercent / nonBitcoinETFs.length 
+    // Distribute remaining allocation among non-Bitcoin ETFs
+    const nonBitcoinETFs = positiveMomentumETFs.filter(etf => etf !== 'IBIT')
+    const nonBitcoinTargetPercent = nonBitcoinETFs.length > 0
+      ? remainingPercent / nonBitcoinETFs.length
       : 0
 
-    // Generate rebalancing orders
+    // Generate rebalancing orders with complete shares only
     const orders: RebalancingOrder[] = []
     const totalValue = totalPortfolioValue.value
 
+    // Step 1: Create orders for strategy assets (Top 4 ETFs + Bitcoin)
     positiveMomentumETFs.forEach(ticker => {
       const isBitcoin = ticker === 'IBIT'
       const targetPercent = isBitcoin ? bitcoinTargetPercent : nonBitcoinTargetPercent
@@ -337,17 +401,51 @@ export const useMomentumRiderStore = defineStore('momentumRider', () => {
       if (difference > 0) action = 'BUY'
       else if (difference < 0) action = 'SELL'
       
-      const currentPrice = currentHolding?.price || 1 // Fallback price for calculation
-      const shares = Math.abs(difference) / currentPrice
+      const currentPrice = currentHolding?.price || etfPrices.value[ticker]?.price || 1
+      
+      // Calculate complete shares only (no fractional shares)
+      let shares = 0
+      if (action !== 'HOLD') {
+        shares = Math.floor(Math.abs(difference) / currentPrice)
+        // Ensure we don't sell more shares than we own
+        if (action === 'SELL' && currentHolding) {
+          shares = Math.min(shares, currentHolding.shares)
+        }
+      }
 
       orders.push({
         ticker,
         action,
-        shares: Math.round(shares * 100) / 100, // Round to 2 decimal places
+        shares,
         targetValue,
         currentValue,
-        difference
+        difference: action === 'BUY' ? shares * currentPrice :
+                   action === 'SELL' ? -shares * currentPrice : 0
       })
+    })
+
+    // Step 2: Identify and create sell orders for ALL non-strategy holdings
+    // This includes holdings that are not in the selectable ETFs universe (like AGG)
+    const currentPortfolioTickers = Object.keys(currentHoldings.value)
+    const nonStrategyHoldings = currentPortfolioTickers.filter(ticker =>
+      !positiveMomentumETFs.includes(ticker)
+    )
+
+    nonStrategyHoldings.forEach(ticker => {
+      const currentHolding = currentHoldings.value[ticker]
+      if (currentHolding && currentHolding.shares > 0) {
+        const currentPrice = currentHolding.price || etfPrices.value[ticker]?.price || 1
+        const shares = currentHolding.shares
+        
+        orders.push({
+          ticker,
+          action: 'SELL',
+          shares,
+          targetValue: 0, // Target is to sell completely (not part of strategy)
+          currentValue: currentHolding.value,
+          difference: -shares * currentPrice
+        })
+      }
     })
 
     rebalancingOrders.value = orders
@@ -377,6 +475,9 @@ export const useMomentumRiderStore = defineStore('momentumRider', () => {
     selectedETFsWithCategories,
     sortedMomentumData,
     selectedTopETFs,
+    portfolioMomentumInsight,
+    selectableETFs,
+    isSelectableETF,
     
     // Actions
     toggleCategory,

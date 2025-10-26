@@ -138,7 +138,7 @@ function handleRowKeydown(event: KeyboardEvent, order: any) {
             </td>
             <td class="px-4 py-3 whitespace-nowrap text-sm text-neutral-600" role="gridcell">
               <span class="sr-only">Shares: </span>
-              {{ order.shares.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+              {{ order.shares.toLocaleString() }}
             </td>
             <td class="px-4 py-3 whitespace-nowrap text-sm text-neutral-600" role="gridcell">
               <span class="sr-only">Current Value: </span>
