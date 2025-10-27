@@ -50,18 +50,6 @@ import KeyboardShortcuts from '@/components/ui/KeyboardShortcuts.vue'
                 <span>Dashboard</span>
               </span>
             </router-link>
-            <router-link
-              to="/about"
-              class="px-4 py-2.5 text-sm font-medium rounded-xl transition-all duration-200 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 group relative"
-              active-class="text-primary-600 bg-primary-50 shadow-sm"
-            >
-              <span class="flex items-center space-x-2">
-                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span>About</span>
-              </span>
-            </router-link>
           </nav>
 
           <!-- Mobile Menu Button -->
