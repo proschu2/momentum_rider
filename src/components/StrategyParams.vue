@@ -1,41 +1,41 @@
 <script setup lang="ts">
-import { useMomentumRiderStore } from '@/stores/momentum-rider'
+import { useRebalancingStore } from '@/stores/rebalancing'
 import Card from './ui/Card.vue'
 import Slider from './ui/Slider.vue'
 import Checkbox from './ui/Checkbox.vue'
 import { generateAriaLabel, ScreenReader } from '@/utils/accessibility'
 
-const store = useMomentumRiderStore()
+const rebalancingStore = useRebalancingStore()
 
 // Handle parameter changes with screen reader announcements
 function handleTopAssetsChange(value: number) {
-  store.topAssets = value
+  rebalancingStore.topAssets = value
   ScreenReader.announce(`Top assets set to ${value}`)
 }
 
 function handleBitcoinAllocationChange(value: number) {
-  store.bitcoinAllocation = value
+  rebalancingStore.bitcoinAllocation = value
   ScreenReader.announce(`Bitcoin allocation set to ${value} percent`)
 }
 
 function handleRebalancingChange(value: 'monthly' | 'quarterly') {
-  store.rebalancingFrequency = value
+  rebalancingStore.rebalancingFrequency = value
   ScreenReader.announce(`Rebalancing frequency set to ${value}`)
 }
 
 function handleAllocationMethodChange(value: 'Proportional' | 'Underweight Only') {
-  store.allocationMethod = value
+  rebalancingStore.allocationMethod = value
   ScreenReader.announce(`Allocation method set to ${value}`)
 }
 
 function handleMomentumPeriodsChange(period: number, checked: boolean) {
-  const currentPeriods = [...store.momentumPeriods]
+  const currentPeriods = [...rebalancingStore.momentumPeriods]
 
   if (checked) {
-    store.momentumPeriods = [...currentPeriods, period]
+    rebalancingStore.momentumPeriods = [...currentPeriods, period]
     ScreenReader.announce(`${period} month momentum period added`)
   } else {
-    store.momentumPeriods = currentPeriods.filter(p => p !== period)
+    rebalancingStore.momentumPeriods = currentPeriods.filter(p => p !== period)
     ScreenReader.announce(`${period} month momentum period removed`)
   }
 }
@@ -56,14 +56,14 @@ function handleMomentumPeriodsChange(period: number, checked: boolean) {
           <input
             id="top-assets"
             type="range"
-            v-model.number="store.topAssets"
+            v-model.number="rebalancingStore.topAssets"
             @input="handleTopAssetsChange(parseInt(($event.target as HTMLInputElement).value))"
             min="1"
             max="8"
             aria-valuemin="1"
             aria-valuemax="8"
-            :aria-valuenow="store.topAssets"
-            aria-valuetext="${store.topAssets} top assets"
+            :aria-valuenow="rebalancingStore.topAssets"
+            :aria-valuetext="`${rebalancingStore.topAssets} top assets`"
             class="w-full h-2 bg-neutral-200 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
           />
           <span
@@ -71,7 +71,7 @@ function handleMomentumPeriodsChange(period: number, checked: boolean) {
             aria-live="polite"
             aria-atomic="true"
           >
-            {{ store.topAssets }}
+            {{ rebalancingStore.topAssets }}
           </span>
         </div>
         <p class="text-xs text-neutral-500" id="top-assets-description">
@@ -88,15 +88,15 @@ function handleMomentumPeriodsChange(period: number, checked: boolean) {
           <input
             id="bitcoin-allocation"
             type="range"
-            v-model.number="store.bitcoinAllocation"
+            v-model.number="rebalancingStore.bitcoinAllocation"
             @input="handleBitcoinAllocationChange(parseFloat(($event.target as HTMLInputElement).value))"
             min="0"
             max="20"
             step="0.5"
             aria-valuemin="0"
             aria-valuemax="20"
-            :aria-valuenow="store.bitcoinAllocation"
-            aria-valuetext="${store.bitcoinAllocation} percent bitcoin allocation"
+            :aria-valuenow="rebalancingStore.bitcoinAllocation"
+            :aria-valuetext="`${rebalancingStore.bitcoinAllocation} percent bitcoin allocation`"
             class="w-full h-2 bg-neutral-200 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
           />
           <span
@@ -104,7 +104,7 @@ function handleMomentumPeriodsChange(period: number, checked: boolean) {
             aria-live="polite"
             aria-atomic="true"
           >
-            {{ store.bitcoinAllocation }}%
+            {{ rebalancingStore.bitcoinAllocation }}%
           </span>
         </div>
         <p class="text-xs text-neutral-500" id="bitcoin-allocation-description">
@@ -122,7 +122,7 @@ function handleMomentumPeriodsChange(period: number, checked: boolean) {
             <label class="inline-flex items-center">
               <input
                 type="radio"
-                v-model="store.rebalancingFrequency"
+                v-model="rebalancingStore.rebalancingFrequency"
                 @change="handleRebalancingChange('monthly')"
                 value="monthly"
                 class="h-3 w-3 text-primary-500 focus:ring-primary-500 border-neutral-300"
@@ -133,7 +133,7 @@ function handleMomentumPeriodsChange(period: number, checked: boolean) {
             <label class="inline-flex items-center">
               <input
                 type="radio"
-                v-model="store.rebalancingFrequency"
+                v-model="rebalancingStore.rebalancingFrequency"
                 @change="handleRebalancingChange('quarterly')"
                 value="quarterly"
                 class="h-3 w-3 text-primary-500 focus:ring-primary-500 border-neutral-300"
@@ -158,7 +158,7 @@ function handleMomentumPeriodsChange(period: number, checked: boolean) {
             <label class="inline-flex items-center">
               <input
                 type="radio"
-                v-model="store.allocationMethod"
+                v-model="rebalancingStore.allocationMethod"
                 @change="handleAllocationMethodChange('Proportional')"
                 value="Proportional"
                 class="h-3 w-3 text-primary-500 focus:ring-primary-500 border-neutral-300"
@@ -169,7 +169,7 @@ function handleMomentumPeriodsChange(period: number, checked: boolean) {
             <label class="inline-flex items-center">
               <input
                 type="radio"
-                v-model="store.allocationMethod"
+                v-model="rebalancingStore.allocationMethod"
                 @change="handleAllocationMethodChange('Underweight Only')"
                 value="Underweight Only"
                 class="h-3 w-3 text-primary-500 focus:ring-primary-500 border-neutral-300"
@@ -200,7 +200,7 @@ function handleMomentumPeriodsChange(period: number, checked: boolean) {
             <input
               type="checkbox"
               :value="period"
-              v-model="store.momentumPeriods"
+              v-model="rebalancingStore.momentumPeriods"
               @change="handleMomentumPeriodsChange(period, ($event.target as HTMLInputElement).checked)"
               class="h-3 w-3 text-primary-500 focus:ring-primary-500 border-neutral-300 rounded"
               aria-describedby="momentum-periods-description"
@@ -218,10 +218,10 @@ function handleMomentumPeriodsChange(period: number, checked: boolean) {
     <div class="mt-4 pt-4 border-t border-neutral-200">
       <h3 class="text-sm font-medium text-neutral-900 mb-2">Strategy Summary</h3>
       <div class="space-y-1 text-xs text-neutral-600" role="status" aria-live="polite" aria-atomic="true">
-        <div>• Top {{ store.topAssets }} ETFs with positive momentum</div>
-        <div v-if="store.bitcoinAllocation > 0">• {{ store.bitcoinAllocation }}% Bitcoin allocation</div>
-        <div>• {{ store.rebalancingFrequency }} rebalancing</div>
-        <div>• Periods: {{ store.momentumPeriods.join(', ') }} months</div>
+        <div>• Top {{ rebalancingStore.topAssets }} ETFs with positive momentum</div>
+        <div v-if="rebalancingStore.bitcoinAllocation > 0">• {{ rebalancingStore.bitcoinAllocation }}% Bitcoin allocation</div>
+        <div>• {{ rebalancingStore.rebalancingFrequency }} rebalancing</div>
+        <div>• Periods: {{ rebalancingStore.momentumPeriods.join(', ') }} months</div>
       </div>
     </div>
   </div>

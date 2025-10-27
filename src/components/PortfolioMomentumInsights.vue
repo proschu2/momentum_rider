@@ -1,16 +1,18 @@
 <script setup lang="ts">
-import { useMomentumRiderStore } from '@/stores/momentum-rider'
+import { usePortfolioStore } from '@/stores/portfolio'
+import { useMomentumStore } from '@/stores/momentum'
 
-const store = useMomentumRiderStore()
+const portfolioStore = usePortfolioStore()
+const momentumStore = useMomentumStore()
 </script>
 
 <template>
   <div class="bg-surface rounded-xl border border-neutral-200 p-6">
     <h2 class="text-lg font-semibold text-neutral-900 mb-4">Portfolio Momentum Insights</h2>
 
-    <div v-if="Object.keys(store.portfolioMomentumInsight).length > 0" class="space-y-3">
-      <div 
-        v-for="[ticker, insight] in Object.entries(store.portfolioMomentumInsight)" 
+    <div v-if="Object.keys(momentumStore.portfolioMomentumInsight).length > 0" class="space-y-3">
+      <div
+        v-for="[ticker, insight] in Object.entries(momentumStore.portfolioMomentumInsight)"
         :key="ticker"
         class="flex items-center justify-between p-3 border border-neutral-200 rounded-lg bg-neutral-50"
       >
@@ -41,7 +43,7 @@ const store = useMomentumRiderStore()
 
     <!-- Empty State -->
     <div
-      v-else-if="Object.keys(store.currentHoldings).length > 0"
+      v-else-if="Object.keys(portfolioStore.currentHoldings).length > 0"
       class="text-center py-6 border-2 border-dashed border-neutral-300 rounded-lg"
     >
       <svg class="mx-auto h-8 w-8 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -68,27 +70,27 @@ const store = useMomentumRiderStore()
     </div>
 
     <!-- Strategy Summary -->
-    <div v-if="Object.keys(store.portfolioMomentumInsight).length > 0" class="mt-4 pt-3 border-t border-neutral-200">
+    <div v-if="Object.keys(momentumStore.portfolioMomentumInsight).length > 0" class="mt-4 pt-3 border-t border-neutral-200">
       <h3 class="text-sm font-medium text-neutral-900 mb-2">Strategy Summary</h3>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
         <div>
           <span class="text-neutral-500">Top ETFs:</span>
-          <span class="font-medium text-neutral-900 ml-1">{{ store.topAssets }}</span>
+          <span class="font-medium text-neutral-900 ml-1">{{ momentumStore.topAssets }}</span>
         </div>
         <div>
           <span class="text-neutral-500">Bitcoin Allocation:</span>
-          <span class="font-medium text-neutral-900 ml-1">{{ store.bitcoinAllocation }}%</span>
+          <span class="font-medium text-neutral-900 ml-1">{{ momentumStore.bitcoinAllocation }}%</span>
         </div>
         <div>
           <span class="text-neutral-500">Positive Momentum Holdings:</span>
           <span class="font-medium text-success-600 ml-1">
-            {{ Object.values(store.portfolioMomentumInsight).filter(i => i.absoluteMomentum).length }}
+            {{ Object.values(momentumStore.portfolioMomentumInsight).filter(i => i.absoluteMomentum).length }}
           </span>
         </div>
         <div>
           <span class="text-neutral-500">Negative Momentum Holdings:</span>
           <span class="font-medium text-error-600 ml-1">
-            {{ Object.values(store.portfolioMomentumInsight).filter(i => !i.absoluteMomentum).length }}
+            {{ Object.values(momentumStore.portfolioMomentumInsight).filter(i => !i.absoluteMomentum).length }}
           </span>
         </div>
       </div>

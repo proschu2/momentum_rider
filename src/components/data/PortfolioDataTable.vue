@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { useMomentumRiderStore, type Holding } from '@/stores/momentum-rider'
+import { usePortfolioStore, type Holding } from '@/stores/portfolio'
+import { useMomentumStore } from '@/stores/momentum'
+import { useETFConfigStore } from '@/stores/etf-config'
 
 interface TableRow {
   id: string
@@ -23,7 +25,9 @@ interface TableRow {
   isTopAsset: boolean
 }
 
-const store = useMomentumRiderStore()
+const portfolioStore = usePortfolioStore()
+const momentumStore = useMomentumStore()
+const etfConfigStore = useETFConfigStore()
 const searchQuery = ref('')
 const sortBy = ref<'ticker' | 'value' | 'allocation' | 'momentum'>('momentum')
 const sortDirection = ref<'asc' | 'desc'>('desc')
@@ -33,7 +37,7 @@ const selectedRows = ref<Set<string>>(new Set())
 
 // Available categories
 const categories = computed(() => {
-  const cats = ['all', ...Object.keys(store.etfUniverse)]
+  const cats = ['all', ...Object.keys(etfConfigStore.etfUniverse)]
   return cats
 })
 
@@ -42,11 +46,11 @@ const tableData = computed<TableRow[]>(() => {
   const data: TableRow[] = []
 
   // Add current holdings
-  Object.entries(store.currentHoldings).forEach(([ticker, holding]) => {
-    const momentum = store.momentumData[ticker]
+  Object.entries(portfolioStore.currentHoldings).forEach(([ticker, holding]) => {
+    const momentum = momentumStore.momentumData[ticker]
     const category = getCategoryForTicker(ticker)
     const value = holding.value
-    const allocation = (value / store.totalPortfolioValue) * 100
+    const allocation = (value / portfolioStore.totalPortfolioValue) * 100
 
     data.push({
       id: ticker,
@@ -65,22 +69,22 @@ const tableData = computed<TableRow[]>(() => {
         '9month': 0,
         '12month': 0
       },
-      isSelected: store.selectedETFs.includes(ticker),
-      isTopAsset: store.selectedTopETFs.includes(ticker)
+      isSelected: etfConfigStore.selectedETFs.includes(ticker),
+      isTopAsset: etfConfigStore.selectedTopETFs.includes(ticker)
     })
   })
 
   // Add cash
-  if (store.additionalCash > 0) {
+  if (portfolioStore.additionalCash > 0) {
     data.push({
       id: 'CASH',
       ticker: 'CASH',
       name: 'Cash',
       category: 'CASH',
       currentPrice: 1,
-      shares: store.additionalCash,
-      value: store.additionalCash,
-      allocation: (store.additionalCash / store.totalPortfolioValue) * 100,
+      shares: portfolioStore.additionalCash,
+      value: portfolioStore.additionalCash,
+      allocation: (portfolioStore.additionalCash / portfolioStore.totalPortfolioValue) * 100,
       momentum: 0,
       momentumStatus: 'positive',
       periods: {
@@ -145,10 +149,10 @@ const filteredData = computed(() => {
 const summaryStats = computed(() => {
   const data = tableData.value
   return {
-    totalValue: store.totalPortfolioValue,
+    totalValue: portfolioStore.totalPortfolioValue,
     totalHoldings: data.length,
     positiveMomentum: data.filter(row => row.momentumStatus === 'positive').length,
-    topAssets: store.selectedTopETFs.length,
+    topAssets: etfConfigStore.selectedTopETFs.length,
     averageAllocation: data.length > 0 ? data.reduce((sum, row) => sum + row.allocation, 0) / data.length : 0
   }
 })
@@ -200,7 +204,7 @@ function formatPercentage(value: number) {
 }
 
 // Watch for data changes
-watch(() => store.currentHoldings, () => {
+watch(() => portfolioStore.currentHoldings, () => {
   expandedRows.value.clear()
   selectedRows.value.clear()
 }, { deep: true })
@@ -477,13 +481,13 @@ watch(() => store.currentHoldings, () => {
 
                 <div class="row-actions">
                   <button
-                    @click="store.removeHolding(row.ticker)"
+                    @click="portfolioStore.removeHolding(row.ticker)"
                     class="action-btn remove-btn"
                   >
                     Remove Holding
                   </button>
                   <button
-                    @click="store.refreshCurrentPrices()"
+                    @click="portfolioStore.refreshCurrentPrices()"
                     class="action-btn refresh-btn"
                   >
                     Refresh Price

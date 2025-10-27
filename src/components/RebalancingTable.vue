@@ -1,15 +1,17 @@
 <script setup lang="ts">
-import { useMomentumRiderStore } from '@/stores/momentum-rider'
+import { useRebalancingStore } from '@/stores/rebalancing'
+import { usePortfolioStore } from '@/stores/portfolio'
 import { generateAriaLabel, ScreenReader } from '@/utils/accessibility'
 
-const store = useMomentumRiderStore()
+const rebalancingStore = useRebalancingStore()
+const portfolioStore = usePortfolioStore()
 
 // Generate accessible table description
-const tableDescription = `Rebalancing orders showing buy and sell recommendations for portfolio optimization. ${store.rebalancingOrders.length} total orders.`
+const tableDescription = `Rebalancing orders showing buy and sell recommendations for portfolio optimization. ${rebalancingStore.rebalancingOrders.length} total orders.`
 
 // Announce table updates
-if (store.rebalancingOrders.length > 0) {
-  ScreenReader.announceTableUpdate('Rebalancing orders', store.rebalancingOrders.length)
+if (rebalancingStore.rebalancingOrders.length > 0) {
+  ScreenReader.announceTableUpdate('Rebalancing orders', rebalancingStore.rebalancingOrders.length)
 }
 
 // Row interaction handlers
@@ -30,11 +32,11 @@ function handleRowKeydown(event: KeyboardEvent, order: any) {
   <div class="bg-surface rounded-xl border border-neutral-200 p-6">
     <h2 class="text-lg font-semibold text-neutral-900 mb-4">Rebalancing Orders</h2>
 
-    <div v-if="store.rebalancingOrders.length > 0" class="overflow-hidden border border-neutral-200 rounded-lg">
+    <div v-if="rebalancingStore.rebalancingOrders.length > 0" class="overflow-hidden border border-neutral-200 rounded-lg">
       <!-- Desktop table controls -->
       <div class="hidden lg:flex items-center justify-between px-4 py-3 bg-neutral-50 border-b border-neutral-200">
         <div class="flex items-center space-x-4">
-          <span class="text-sm text-neutral-600">{{ store.rebalancingOrders.length }} orders</span>
+          <span class="text-sm text-neutral-600">{{ rebalancingStore.rebalancingOrders.length }} orders</span>
           <div class="flex items-center space-x-1 text-xs text-neutral-400">
             <kbd class="px-1.5 py-0.5 text-xs bg-white border border-neutral-300 rounded">Tab</kbd>
             <span class="text-neutral-500">to navigate</span>
@@ -83,7 +85,7 @@ function handleRowKeydown(event: KeyboardEvent, order: any) {
         </thead>
         <tbody class="bg-surface divide-y divide-neutral-200">
           <tr
-            v-for="(order, index) in store.rebalancingOrders"
+            v-for="(order, index) in rebalancingStore.rebalancingOrders"
             :key="order.ticker"
             class="hover:bg-neutral-50 transition-colors group cursor-pointer"
             role="row"
@@ -161,7 +163,7 @@ function handleRowKeydown(event: KeyboardEvent, order: any) {
               Total Portfolio Value:
             </td>
             <td class="px-4 py-3 text-sm font-bold text-neutral-900" role="gridcell">
-              ${{ store.totalPortfolioValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+              ${{ portfolioStore.totalPortfolioValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
             </td>
             <td colspan="2" role="gridcell"></td>
           </tr>
@@ -187,11 +189,11 @@ function handleRowKeydown(event: KeyboardEvent, order: any) {
     </div>
 
     <!-- Summary Statistics -->
-    <div v-if="store.rebalancingOrders.length > 0" class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4" role="status" aria-label="Rebalancing Summary">
+    <div v-if="rebalancingStore.rebalancingOrders.length > 0" class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4" role="status" aria-label="Rebalancing Summary">
       <div class="bg-primary-50 border border-primary-200 rounded-lg p-4" role="region" aria-label="Total Buy Orders">
         <div class="text-sm font-medium text-primary-800">Total Buys</div>
         <div class="text-2xl font-bold text-primary-900" aria-live="polite" aria-atomic="true">
-          ${{ store.rebalancingOrders
+          ${{ rebalancingStore.rebalancingOrders
             .filter(order => order.action === 'BUY')
             .reduce((sum, order) => sum + Math.abs(order.difference), 0)
             .toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
@@ -200,7 +202,7 @@ function handleRowKeydown(event: KeyboardEvent, order: any) {
       <div class="bg-error-50 border border-error-200 rounded-lg p-4" role="region" aria-label="Total Sell Orders">
         <div class="text-sm font-medium text-error-800">Total Sells</div>
         <div class="text-2xl font-bold text-error-900" aria-live="polite" aria-atomic="true">
-          ${{ store.rebalancingOrders
+          ${{ rebalancingStore.rebalancingOrders
             .filter(order => order.action === 'SELL')
             .reduce((sum, order) => sum + Math.abs(order.difference), 0)
             .toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
@@ -209,7 +211,7 @@ function handleRowKeydown(event: KeyboardEvent, order: any) {
       <div class="bg-success-50 border border-success-200 rounded-lg p-4" role="region" aria-label="Net Portfolio Change">
         <div class="text-sm font-medium text-success-800">Net Change</div>
         <div class="text-2xl font-bold text-success-900" aria-live="polite" aria-atomic="true">
-          ${{ store.rebalancingOrders
+          ${{ rebalancingStore.rebalancingOrders
             .reduce((sum, order) => sum + order.difference, 0)
             .toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
         </div>

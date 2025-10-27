@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { useMomentumRiderStore } from '@/stores/momentum-rider'
+import { usePortfolioStore } from '@/stores/portfolio'
+import { useMomentumStore } from '@/stores/momentum'
 import { ref } from 'vue'
 
-const store = useMomentumRiderStore()
+const portfolioStore = usePortfolioStore()
+const momentumStore = useMomentumStore()
 
 // Inline editing state
 const editingHoldings = ref<{[key: string]: boolean}>({})
@@ -14,7 +16,7 @@ function addNewHolding() {
   if (newHoldingTicker.value && newHoldingShares.value) {
     const shares = parseFloat(newHoldingShares.value)
     if (shares > 0) {
-      store.addHolding(newHoldingTicker.value.toUpperCase(), shares)
+      portfolioStore.addHolding(newHoldingTicker.value.toUpperCase(), shares)
       newHoldingTicker.value = ''
       newHoldingShares.value = ''
     }
@@ -28,7 +30,7 @@ function startEditHolding(ticker: string) {
 
 // Save edited holding
 function saveHolding(ticker: string, shares: number) {
-  store.addHolding(ticker, shares)
+  portfolioStore.addHolding(ticker, shares)
   editingHoldings.value[ticker] = false
 }
 
@@ -39,8 +41,8 @@ function cancelEditHolding(ticker: string) {
 
 // Get momentum insight for a holding
 function getMomentumInsight(ticker: string) {
-  const momentum = store.momentumData[ticker]
-  const portfolioInsight = store.portfolioMomentumInsight[ticker]
+  const momentum = momentumStore.momentumData[ticker]
+  const portfolioInsight = momentumStore.portfolioMomentumInsight[ticker]
   
   if (momentum && portfolioInsight) {
     return {
@@ -107,7 +109,7 @@ function getMomentumInsight(ticker: string) {
         </thead>
         <tbody class="bg-surface divide-y divide-neutral-200">
           <tr
-            v-for="[ticker, holding] in Object.entries(store.currentHoldings)"
+            v-for="[ticker, holding] in Object.entries(portfolioStore.currentHoldings)"
             :key="ticker"
             class="hover:bg-neutral-50 transition-colors"
           >
@@ -208,7 +210,7 @@ function getMomentumInsight(ticker: string) {
             <!-- Actions -->
             <td class="px-4 py-3 whitespace-nowrap text-sm">
               <button
-                @click="store.removeHolding(ticker)"
+                @click="portfolioStore.removeHolding(ticker)"
                 class="text-error-600 hover:text-error-800 transition-colors"
               >
                 Remove
@@ -217,7 +219,7 @@ function getMomentumInsight(ticker: string) {
           </tr>
 
           <!-- Empty State -->
-          <tr v-if="Object.keys(store.currentHoldings).length === 0">
+          <tr v-if="Object.keys(portfolioStore.currentHoldings).length === 0">
             <td colspan="7" class="px-4 py-8 text-center text-neutral-500">
               <svg class="mx-auto h-8 w-8 text-neutral-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
@@ -230,23 +232,23 @@ function getMomentumInsight(ticker: string) {
     </div>
 
     <!-- Summary -->
-    <div v-if="Object.keys(store.currentHoldings).length > 0" class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+    <div v-if="Object.keys(portfolioStore.currentHoldings).length > 0" class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
       <div class="bg-primary-50 border border-primary-200 rounded-lg p-3">
         <div class="font-medium text-primary-800">Total Holdings</div>
         <div class="text-lg font-bold text-primary-900">
-          {{ Object.keys(store.currentHoldings).length }}
+          {{ Object.keys(portfolioStore.currentHoldings).length }}
         </div>
       </div>
       <div class="bg-success-50 border border-success-200 rounded-lg p-3">
         <div class="font-medium text-success-800">Positive Momentum</div>
         <div class="text-lg font-bold text-success-900">
-          {{ Object.keys(store.currentHoldings).filter(t => getMomentumInsight(t)?.absoluteMomentum).length }}
+          {{ Object.keys(portfolioStore.currentHoldings).filter(t => getMomentumInsight(t)?.absoluteMomentum).length }}
         </div>
       </div>
       <div class="bg-neutral-50 border border-neutral-200 rounded-lg p-3">
         <div class="font-medium text-neutral-800">Total Value</div>
         <div class="text-lg font-bold text-neutral-900">
-          ${{ Object.values(store.currentHoldings).reduce((sum, h) => sum + h.value, 0).toLocaleString() }}
+          ${{ Object.values(portfolioStore.currentHoldings).reduce((sum, h) => sum + h.value, 0).toLocaleString() }}
         </div>
       </div>
     </div>

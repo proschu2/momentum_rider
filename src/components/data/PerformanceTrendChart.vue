@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { useMomentumRiderStore } from '@/stores/momentum-rider'
+import { useMomentumStore } from '@/stores/momentum'
+import { usePortfolioStore } from '@/stores/portfolio'
 
 interface TrendDataPoint {
   period: string
@@ -17,7 +18,8 @@ interface AssetTrendData {
   averageMomentum: number
 }
 
-const store = useMomentumRiderStore()
+const momentumStore = useMomentumStore()
+const portfolioStore = usePortfolioStore()
 const selectedTimeframe = ref<'1m' | '3m' | '6m' | '1y'>('1y')
 const hoveredPoint = ref<{ ticker: string; point: TrendDataPoint } | null>(null)
 const selectedAssets = ref<string[]>([])
@@ -70,16 +72,16 @@ function generateTrendData(ticker: string, baseValue: number, volatility: number
 }
 
 const trendData = computed<AssetTrendData[]>(() => {
-  if (Object.keys(store.momentumData).length === 0) return []
+  if (Object.keys(momentumStore.momentumData).length === 0) return []
 
   const assets = selectedAssets.value.length > 0
     ? selectedAssets.value
-    : store.selectedTopETFs.slice(0, 5)
+    : momentumStore.selectedTopETFs.slice(0, 5)
 
   return assets.map(ticker => {
-    const momentum = store.momentumData[ticker]
-    const price = store.etfPrices[ticker]?.price || 100
-    const name = store.etfPrices[ticker]?.name || ticker
+    const momentum = momentumStore.momentumData[ticker]
+    const price = portfolioStore.etfPrices[ticker]?.price || 100
+    const name = portfolioStore.etfPrices[ticker]?.name || ticker
 
     // Higher volatility for assets with higher momentum
     const volatility = Math.abs(momentum?.average || 0) * 0.5 + 1
@@ -175,7 +177,7 @@ function formatPercentage(value: number) {
 }
 
 // Watch for momentum data changes to update selected assets
-watch(() => store.selectedTopETFs, (newTopETFs) => {
+watch(() => momentumStore.selectedTopETFs, (newTopETFs) => {
   if (selectedAssets.value.length === 0) {
     selectedAssets.value = newTopETFs.slice(0, 5)
   }
@@ -350,7 +352,7 @@ watch(() => store.selectedTopETFs, (newTopETFs) => {
         <h4 class="selector-title">Select Assets</h4>
         <div class="asset-list">
           <div
-            v-for="asset in store.selectedTopETFs"
+            v-for="asset in momentumStore.selectedTopETFs"
             :key="asset"
             class="asset-item"
             @click="toggleAssetSelection(asset)"
@@ -365,8 +367,8 @@ watch(() => store.selectedTopETFs, (newTopETFs) => {
             </div>
             <div class="asset-color" :style="{ backgroundColor: assetColors[asset as keyof typeof assetColors] || '#6B7280' }"></div>
             <span class="asset-ticker">{{ asset }}</span>
-            <span class="asset-momentum" :class="{ positive: (store.momentumData[asset]?.average || 0) >= 0, negative: (store.momentumData[asset]?.average || 0) < 0 }">
-              {{ formatPercentage(store.momentumData[asset]?.average || 0) }}
+            <span class="asset-momentum" :class="{ positive: (momentumStore.momentumData[asset]?.average || 0) >= 0, negative: (momentumStore.momentumData[asset]?.average || 0) < 0 }">
+              {{ formatPercentage(momentumStore.momentumData[asset]?.average || 0) }}
             </span>
           </div>
         </div>

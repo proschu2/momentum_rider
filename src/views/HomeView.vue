@@ -1,6 +1,9 @@
 
 <script setup lang="ts">
-import { useMomentumRiderStore } from '@/stores/momentum-rider'
+import { useETFConfigStore } from '@/stores/etf-config'
+import { usePortfolioStore } from '@/stores/portfolio'
+import { useMomentumStore } from '@/stores/momentum'
+import { useRebalancingStore } from '@/stores/rebalancing'
 import StrategyParams from '@/components/StrategyParams.vue'
 import RebalancingTable from '@/components/RebalancingTable.vue'
 import ConsolidatedPortfolioTable from '@/components/ConsolidatedPortfolioTable.vue'
@@ -10,7 +13,10 @@ import ProgressBar from '@/components/ui/ProgressBar.vue'
 import { onMounted, ref, reactive, computed } from 'vue'
 import { financeAPI } from '@/services/finance-api'
 
-const store = useMomentumRiderStore()
+const etfConfigStore = useETFConfigStore()
+const portfolioStore = usePortfolioStore()
+const momentumStore = useMomentumStore()
+const rebalancingStore = useRebalancingStore()
 const isMounted = ref(false)
 
 // API status tracking
@@ -36,8 +42,8 @@ if (typeof window !== 'undefined') {
 // Initialize with some default selections after component is mounted
 onMounted(async () => {
   isMounted.value = true
-  if (store.selectedETFs.length === 0) {
-    store.selectedETFs = ['VTI', 'TLT', 'PDBC', 'IBIT', 'VEA', 'VWO', 'SGOL', 'BND', 'BWX']
+  if (etfConfigStore.selectedETFs.length === 0) {
+    etfConfigStore.selectedETFs = ['VTI', 'TLT', 'PDBC', 'IBIT', 'VEA', 'VWO', 'SGOL', 'BND', 'BWX']
   }
 
   // Get API base URL for display
@@ -58,11 +64,11 @@ onMounted(async () => {
 
 // Computed values for enhanced UX
 const positiveMomentumCount = computed(() => {
-  return Object.values(store.momentumData).filter(data => data.absoluteMomentum).length
+  return Object.values(momentumStore.momentumData).filter(data => data.absoluteMomentum).length
 })
 
 const totalAssetsCount = computed(() => {
-  return Object.keys(store.momentumData).length
+  return Object.keys(momentumStore.momentumData).length
 })
 
 const momentumScore = computed(() => {
@@ -87,7 +93,7 @@ const editingCash = ref(false)
         </div>
         <div class="text-center sm:text-right">
           <div class="text-2xl font-bold text-neutral-900">
-            ${{ store.totalPortfolioValue.toLocaleString() }}
+            ${{ portfolioStore.totalPortfolioValue.toLocaleString() }}
           </div>
           <div class="text-xs text-neutral-500">Total Portfolio Value</div>
         </div>
@@ -96,7 +102,7 @@ const editingCash = ref(false)
 
     <!-- Error Display -->
     <div
-      v-if="store.error"
+      v-if="portfolioStore.error || momentumStore.error"
       class="bg-error-50 border border-error-200 rounded-xl p-4"
     >
       <div class="flex items-start space-x-3">
@@ -108,7 +114,7 @@ const editingCash = ref(false)
         <div>
           <h3 class="text-sm font-medium text-error-800">Error</h3>
           <div class="mt-1 text-sm text-error-700">
-            {{ store.error }}
+            {{ portfolioStore.error || momentumStore.error }}
           </div>
         </div>
       </div>
@@ -131,28 +137,28 @@ const editingCash = ref(false)
           </p>
           <div class="flex flex-wrap gap-2">
             <Tooltip
-              v-for="category in Object.keys(store.etfUniverse)"
+              v-for="category in Object.keys(etfConfigStore.etfUniverse)"
               :key="category"
-              :content="`${store.etfUniverse[category as keyof typeof store.etfUniverse].length} ETFs in ${category} category`"
+              :content="`${etfConfigStore.etfUniverse[category as keyof typeof etfConfigStore.etfUniverse].length} ETFs in ${category} category`"
               position="top"
             >
               <button
-                @click="store.toggleCategory(category as any)"
+                @click="etfConfigStore.toggleCategory(category as keyof typeof etfConfigStore.enabledCategories)"
                 class="inline-flex items-center px-4 py-2 rounded-lg border text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
-                :class="store.enabledCategories[category as keyof typeof store.enabledCategories]
+                :class="etfConfigStore.enabledCategories[category as keyof typeof etfConfigStore.enabledCategories]
                   ? 'bg-primary-100 text-primary-800 border-primary-300'
                   : 'bg-neutral-100 text-neutral-700 border-neutral-300 hover:bg-neutral-200'"
-                :aria-pressed="store.enabledCategories[category as keyof typeof store.enabledCategories]"
+                :aria-pressed="etfConfigStore.enabledCategories[category as keyof typeof etfConfigStore.enabledCategories]"
               >
                 <svg
-                  v-if="store.enabledCategories[category as keyof typeof store.enabledCategories]"
+                  v-if="etfConfigStore.enabledCategories[category as keyof typeof etfConfigStore.enabledCategories]"
                   class="w-4 h-4 mr-2"
                   fill="currentColor"
                   viewBox="0 0 20 20"
                 >
                   <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
                 </svg>
-                {{ category }} ({{ store.etfUniverse[category as keyof typeof store.etfUniverse].length }})
+                {{ category }} ({{ etfConfigStore.etfUniverse[category as keyof typeof etfConfigStore.etfUniverse].length }})
               </button>
             </Tooltip>
           </div>
@@ -171,17 +177,17 @@ const editingCash = ref(false)
         >
           <div class="space-y-4">
             <Tooltip
-              :content="store.selectedETFs.length === 0 ? 'Select ETFs first' : 'Calculate momentum scores for selected ETFs'"
+              :content="etfConfigStore.selectedETFs.length === 0 ? 'Select ETFs first' : 'Calculate momentum scores for selected ETFs'"
               position="top"
             >
               <button
-                @click="store.calculateMomentum()"
-                :disabled="store.isLoading || store.selectedETFs.length === 0"
+                @click="momentumStore.calculateMomentum()"
+                :disabled="momentumStore.isLoading || etfConfigStore.selectedETFs.length === 0"
                 class="w-full inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-lg text-white bg-primary-500 hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 aria-label="Calculate momentum scores"
               >
                 <svg
-                  v-if="store.isLoading"
+                  v-if="momentumStore.isLoading"
                   class="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
                   xmlns="http://www.w3.org/2000/svg"
                   fill="none"
@@ -190,17 +196,17 @@ const editingCash = ref(false)
                   <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                   <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                {{ store.isLoading ? 'Calculating Momentum...' : 'Calculate Momentum' }}
+                {{ momentumStore.isLoading ? 'Calculating Momentum...' : 'Calculate Momentum' }}
               </button>
             </Tooltip>
 
             <Tooltip
-              :content="Object.keys(store.momentumData).length === 0 ? 'Calculate momentum first' : 'Generate rebalancing orders based on momentum scores'"
+              :content="Object.keys(momentumStore.momentumData).length === 0 ? 'Calculate momentum first' : 'Generate rebalancing orders based on momentum scores'"
               position="top"
             >
               <button
-                @click="store.calculateRebalancing()"
-                :disabled="Object.keys(store.momentumData).length === 0"
+                @click="rebalancingStore.calculateRebalancing()"
+                :disabled="Object.keys(momentumStore.momentumData).length === 0"
                 class="w-full inline-flex items-center justify-center px-6 py-3 border border-neutral-300 text-base font-medium rounded-lg text-neutral-700 bg-surface hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 aria-label="Generate rebalancing orders"
               >
@@ -218,7 +224,7 @@ const editingCash = ref(false)
         >
           <div class="space-y-4">
             <!-- Momentum Score Progress Bar -->
-            <div v-if="Object.keys(store.momentumData).length > 0">
+            <div v-if="Object.keys(momentumStore.momentumData).length > 0">
               <div class="flex justify-between items-center mb-2">
                 <span class="text-sm font-medium text-neutral-700">Momentum Score</span>
                 <span class="text-sm font-semibold text-primary-600">{{ momentumScore.toFixed(1) }}%</span>
@@ -242,7 +248,7 @@ const editingCash = ref(false)
                 <span class="text-neutral-500">$</span>
                 <input
                   v-if="editingCash"
-                  v-model.number="store.additionalCash"
+                  v-model.number="portfolioStore.additionalCash"
                   type="number"
                   min="0"
                   step="1000"
@@ -255,7 +261,7 @@ const editingCash = ref(false)
                   class="flex-1 px-3 py-2 border border-transparent rounded-lg hover:bg-neutral-50 cursor-pointer"
                   @click="editingCash = true"
                 >
-                  ${{ store.additionalCash.toLocaleString() }}
+                  ${{ portfolioStore.additionalCash.toLocaleString() }}
                 </span>
               </div>
             </div>
@@ -263,7 +269,7 @@ const editingCash = ref(false)
             <!-- Stats Grid -->
             <div class="grid grid-cols-2 gap-4">
               <div class="text-center p-4 bg-neutral-50 rounded-lg border border-neutral-200">
-                <div class="text-xl font-bold text-neutral-900">{{ store.selectedETFs.length }}</div>
+                <div class="text-xl font-bold text-neutral-900">{{ etfConfigStore.selectedETFs.length }}</div>
                 <div class="text-sm text-neutral-600">Selected ETFs</div>
               </div>
               <div class="text-center p-4 bg-neutral-50 rounded-lg border border-neutral-200">
@@ -271,12 +277,12 @@ const editingCash = ref(false)
                 <div class="text-sm text-neutral-600">Positive Momentum</div>
               </div>
               <div class="text-center p-4 bg-neutral-50 rounded-lg border border-neutral-200">
-                <div class="text-xl font-bold text-primary-600">{{ store.topAssets }}</div>
+                <div class="text-xl font-bold text-primary-600">{{ rebalancingStore.topAssets }}</div>
                 <div class="text-sm text-neutral-600">Top Assets</div>
               </div>
               <div class="text-center p-4 bg-neutral-50 rounded-lg border border-neutral-200">
                 <div class="text-xl font-bold text-neutral-900">
-                  ${{ (store.totalPortfolioValue / 1000).toFixed(0) }}K
+                  ${{ (portfolioStore.totalPortfolioValue / 1000).toFixed(0) }}K
                 </div>
                 <div class="text-sm text-neutral-600">Portfolio Value</div>
               </div>
@@ -300,7 +306,7 @@ const editingCash = ref(false)
         <CollapsibleSection
           title="Portfolio Management"
           :default-open="sections.portfolio"
-          :badge="Object.keys(store.currentHoldings).length"
+          :badge="Object.keys(portfolioStore.currentHoldings).length"
         >
           <ConsolidatedPortfolioTable />
         </CollapsibleSection>
@@ -308,12 +314,12 @@ const editingCash = ref(false)
     </div>
 
     <!-- Results Section -->
-    <div v-if="Object.keys(store.momentumData).length > 0" class="space-y-6">
+    <div v-if="Object.keys(momentumStore.momentumData).length > 0" class="space-y-6">
       <!-- Momentum Results -->
       <CollapsibleSection
         title="Momentum Results"
         :default-open="sections.results"
-        :badge="Object.keys(store.momentumData).length"
+        :badge="Object.keys(momentumStore.momentumData).length"
       >
         <template #description>
           Sorted by momentum ranking - showing performance across different time periods
@@ -334,11 +340,11 @@ const editingCash = ref(false)
             </thead>
             <tbody class="divide-y divide-neutral-200">
               <tr
-                v-for="([ticker, data], index) in store.sortedMomentumData"
+                v-for="([ticker, data], index) in momentumStore.sortedMomentumData"
                 :key="ticker"
                 class="hover:bg-neutral-50 transition-colors group"
                 :class="[
-                  data.absoluteMomentum && store.selectedTopETFs.includes(ticker)
+                  data.absoluteMomentum && momentumStore.selectedTopETFs.includes(ticker)
                     ? 'bg-primary-50 border-l-4 border-primary-500'
                     : data.absoluteMomentum
                     ? 'bg-success-50'
@@ -352,18 +358,18 @@ const editingCash = ref(false)
                   <div class="flex items-center space-x-2">
                     <span class="text-sm font-semibold text-neutral-900">{{ ticker }}</span>
                     <span
-                      v-if="store.selectedTopETFs.includes(ticker)"
+                      v-if="momentumStore.selectedTopETFs.includes(ticker)"
                       class="text-xs px-2 py-1 rounded-full font-medium bg-primary-100 text-primary-800 border border-primary-200"
                     >
-                      Top {{ store.selectedTopETFs.indexOf(ticker) + 1 }}
+                      Top {{ momentumStore.selectedTopETFs.indexOf(ticker) + 1 }}
                     </span>
                   </div>
                 </td>
-                <td class="px-6 py-4 text-sm text-neutral-600 max-w-xs truncate" :title="store.etfPrices[ticker]?.name || ticker">
-                  {{ store.etfPrices[ticker]?.name || ticker }}
+                <td class="px-6 py-4 text-sm text-neutral-600 max-w-xs truncate" :title="portfolioStore.etfPrices[ticker]?.name || ticker">
+                  {{ portfolioStore.etfPrices[ticker]?.name || ticker }}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-neutral-900">
-                  ${{ store.etfPrices[ticker]?.price?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || 'N/A' }}
+                  ${{ portfolioStore.etfPrices[ticker]?.price?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || 'N/A' }}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
                   <div class="relative group/momentum">
@@ -399,26 +405,26 @@ const editingCash = ref(false)
         <div class="lg:hidden p-6">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div
-              v-for="[ticker, data] in store.sortedMomentumData"
+              v-for="[ticker, data] in momentumStore.sortedMomentumData"
               :key="ticker"
               class="border-2 rounded-xl p-4 transition-all hover:shadow-card-hover"
               :class="[
                 data.absoluteMomentum
-                  ? store.selectedTopETFs.includes(ticker)
+                  ? momentumStore.selectedTopETFs.includes(ticker)
                     ? 'border-primary-500 bg-primary-50 shadow-md' // Highlighted positive momentum (chosen)
                     : 'border-success-200 bg-success-50' // Positive momentum (not chosen)
                   : 'border-error-200 bg-error-50', // Negative momentum
-                store.selectedTopETFs.includes(ticker) ? 'ring-2 ring-primary-200' : ''
+                momentumStore.selectedTopETFs.includes(ticker) ? 'ring-2 ring-primary-200' : ''
               ]"
             >
               <div class="flex justify-between items-start mb-3">
                 <div class="flex items-center space-x-2">
                   <span class="font-semibold text-neutral-900">{{ ticker }}</span>
                   <span
-                    v-if="store.selectedTopETFs.includes(ticker)"
+                    v-if="momentumStore.selectedTopETFs.includes(ticker)"
                     class="text-xs px-2 py-1 rounded-full font-medium bg-primary-100 text-primary-800 border border-primary-200"
                   >
-                    Top {{ store.selectedTopETFs.indexOf(ticker) + 1 }}
+                    Top {{ momentumStore.selectedTopETFs.indexOf(ticker) + 1 }}
                   </span>
                 </div>
                 <span
@@ -435,12 +441,12 @@ const editingCash = ref(false)
               <div class="text-xs text-neutral-500 space-y-1.5 mb-3">
                 <div class="flex justify-between">
                   <span>Price:</span>
-                  <span class="font-medium">${{ store.etfPrices[ticker]?.price?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || 'N/A' }}</span>
+                  <span class="font-medium">${{ portfolioStore.etfPrices[ticker]?.price?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || 'N/A' }}</span>
                 </div>
                 <div class="flex justify-between">
                   <span>Name:</span>
-                  <span class="font-medium truncate max-w-[120px]" :title="store.etfPrices[ticker]?.name || ticker">
-                    {{ store.etfPrices[ticker]?.name || ticker }}
+                  <span class="font-medium truncate max-w-[120px]" :title="portfolioStore.etfPrices[ticker]?.name || ticker">
+                    {{ portfolioStore.etfPrices[ticker]?.name || ticker }}
                   </span>
                 </div>
               </div>

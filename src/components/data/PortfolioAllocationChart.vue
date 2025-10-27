@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { useMomentumRiderStore, type Holding } from '@/stores/momentum-rider'
+import { usePortfolioStore, type Holding } from '@/stores/portfolio'
 
 interface ChartData {
   ticker: string
@@ -11,7 +11,7 @@ interface ChartData {
   category: string
 }
 
-const store = useMomentumRiderStore()
+const store = usePortfolioStore()
 const chartType = ref<'pie' | 'donut'>('donut')
 const hoveredSlice = ref<ChartData | null>(null)
 const isLoading = ref(false)

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from 'vue'
-import { useMomentumRiderStore } from '@/stores/momentum-rider'
+import { usePortfolioStore } from '@/stores/portfolio'
+import { useMomentumStore } from '@/stores/momentum'
 
 interface RealTimeUpdate {
   timestamp: number
@@ -8,7 +9,8 @@ interface RealTimeUpdate {
   data: any
 }
 
-const store = useMomentumRiderStore()
+const portfolioStore = usePortfolioStore()
+const momentumStore = useMomentumStore()
 
 // Real-time configuration
 const realTimeConfig = ref({
@@ -34,15 +36,15 @@ const performanceMetrics = ref({
 })
 
 // Watch for store changes to trigger real-time updates
-watch(() => store.currentHoldings, () => {
+watch(() => portfolioStore.currentHoldings, () => {
   if (realTimeConfig.value.enabled) {
-    addUpdate('portfolio', store.currentHoldings)
+    addUpdate('portfolio', portfolioStore.currentHoldings)
   }
 }, { deep: true })
 
-watch(() => store.momentumData, () => {
+watch(() => momentumStore.momentumData, () => {
   if (realTimeConfig.value.enabled) {
-    addUpdate('momentum', store.momentumData)
+    addUpdate('momentum', momentumStore.momentumData)
   }
 }, { deep: true })
 
@@ -73,15 +75,15 @@ async function performRealTimeUpdate() {
 
   try {
     // Refresh prices if enabled
-    if (realTimeConfig.value.autoRefreshPrices && Object.keys(store.currentHoldings).length > 0) {
-      await store.refreshCurrentPrices()
-      addUpdate('price', { holdings: store.currentHoldings })
+    if (realTimeConfig.value.autoRefreshPrices && Object.keys(portfolioStore.currentHoldings).length > 0) {
+      await portfolioStore.refreshCurrentPrices()
+      addUpdate('price', { holdings: portfolioStore.currentHoldings })
     }
 
     // Recalculate momentum if enabled
-    if (realTimeConfig.value.autoRecalculateMomentum && store.selectedETFs.length > 0) {
-      await store.calculateMomentum()
-      addUpdate('momentum', { momentumData: store.momentumData })
+    if (realTimeConfig.value.autoRecalculateMomentum && momentumStore.selectedETFs.length > 0) {
+      await momentumStore.calculateMomentum()
+      addUpdate('momentum', { momentumData: momentumStore.momentumData })
     }
 
     const duration = Date.now() - startTime
@@ -181,7 +183,7 @@ function getUpdateTypeIcon(type: RealTimeUpdate['type']) {
 // Lifecycle hooks
 onMounted(() => {
   // Auto-start real-time updates if there are holdings
-  if (Object.keys(store.currentHoldings).length > 0) {
+  if (Object.keys(portfolioStore.currentHoldings).length > 0) {
     startRealTimeUpdates()
   }
 })
@@ -347,9 +349,9 @@ onUnmounted(() => {
         <span class="last-update-time">{{ formatTimestamp(lastUpdateTime) }}</span>
       </div>
       <div class="update-stats">
-        <span class="stat">Total Value: {{ store.totalPortfolioValue.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) }}</span>
-        <span class="stat">Holdings: {{ Object.keys(store.currentHoldings).length }}</span>
-        <span class="stat">Positive Momentum: {{ Object.values(store.momentumData).filter(data => data.absoluteMomentum).length }}</span>
+        <span class="stat">Total Value: {{ portfolioStore.totalPortfolioValue.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) }}</span>
+        <span class="stat">Holdings: {{ Object.keys(portfolioStore.currentHoldings).length }}</span>
+        <span class="stat">Positive Momentum: {{ Object.values(momentumStore.momentumData).filter(data => data.absoluteMomentum).length }}</span>
       </div>
     </div>
   </div>

@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { useMomentumRiderStore } from '@/stores/momentum-rider'
+import { usePortfolioStore } from '@/stores/portfolio'
 import { ref, computed, watch } from 'vue'
 import ConfirmationDialog from '@/components/ui/ConfirmationDialog.vue'
 import { ScreenReader } from '@/utils/accessibility'
 
-const store = useMomentumRiderStore()
+const store = usePortfolioStore()
 
 // Drag and drop state
 const dragItem = ref<string | null>(null)

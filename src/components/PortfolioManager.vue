@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { useMomentumRiderStore } from '@/stores/momentum-rider'
+import { usePortfolioStore } from '@/stores/portfolio'
 import { ref } from 'vue'
 
-const store = useMomentumRiderStore()
+const store = usePortfolioStore()
 
 const newHolding = ref({
   ticker: '',
