@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { usePortfolioStore } from '@/stores/portfolio'
 import { useMomentumStore } from '@/stores/momentum'
+import { useRebalancingStore } from '@/stores/rebalancing'
 import { ref } from 'vue'
 
 const portfolioStore = usePortfolioStore()
 const momentumStore = useMomentumStore()
+const rebalancingStore = useRebalancingStore()
 
 // Inline editing state
 const editingHoldings = ref<{[key: string]: boolean}>({})
@@ -173,7 +175,13 @@ function getMomentumInsight(ticker: string) {
                 </span>
                 <template v-if="getMomentumInsight(ticker)">
                   <span
-                    v-if="getMomentumInsight(ticker)!.rank !== undefined && getMomentumInsight(ticker)!.rank > 0"
+                    v-if="ticker === 'IBIT' && momentumStore.shouldShowIBIT"
+                    class="text-xs px-2 py-1 bg-warning-100 text-warning-700 rounded"
+                  >
+                    Bitcoin
+                  </span>
+                  <span
+                    v-else-if="getMomentumInsight(ticker)!.rank !== undefined && getMomentumInsight(ticker)!.rank > 0"
                     class="text-xs px-2 py-1 bg-neutral-100 text-neutral-700 rounded"
                   >
                     #{{ getMomentumInsight(ticker)!.rank }}
@@ -192,7 +200,13 @@ function getMomentumInsight(ticker: string) {
             <!-- Status -->
             <td class="px-4 py-3 whitespace-nowrap">
               <span
-                v-if="getMomentumInsight(ticker) && getMomentumInsight(ticker)?.isSelectable"
+                v-if="ticker === 'IBIT' && momentumStore.shouldShowIBIT"
+                class="text-xs px-2 py-1 rounded-full font-medium bg-warning-100 text-warning-800 border border-warning-200"
+              >
+                Bitcoin ETF
+              </span>
+              <span
+                v-else-if="getMomentumInsight(ticker) && getMomentumInsight(ticker)?.isSelectable"
                 class="text-xs px-2 py-1 rounded-full font-medium"
                 :class="getMomentumInsight(ticker)?.absoluteMomentum ? 'bg-success-100 text-success-800' : 'bg-error-100 text-error-800'"
               >

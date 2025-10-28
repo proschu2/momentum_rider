@@ -1,13 +1,15 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { financeAPI, type MomentumResult } from '@/services/finance-api'
-import type { MomentumData } from './types'
+import { momentumService, type MomentumResult } from '@/services'
+import type { MomentumData, IBITMomentumData } from './types'
 import { useETFConfigStore } from './etf-config'
 import { usePortfolioStore } from './portfolio'
+import { useRebalancingStore } from './rebalancing'
 
 export const useMomentumStore = defineStore('momentum', () => {
     const etfConfigStore = useETFConfigStore()
     const portfolioStore = usePortfolioStore()
+    const rebalancingStore = useRebalancingStore()
 
     // Momentum Data
     const momentumData = ref<MomentumData>({})
@@ -24,7 +26,11 @@ export const useMomentumStore = defineStore('momentum', () => {
 
     const selectedTopETFs = computed(() => {
         return Object.entries(momentumData.value)
-            .filter(([ticker, data]) => data.absoluteMomentum && etfConfigStore.isSelectableETF(ticker))
+            .filter(([ticker, data]) =>
+                data.absoluteMomentum &&
+                etfConfigStore.isSelectableETF(ticker) &&
+                ticker !== 'IBIT' // Exclude IBIT from Top 1-4 rankings
+            )
             .sort(([_, a], [__, b]) => b.average - a.average)
             .slice(0, 4) // Default to top 4, can be overridden by rebalancing store
             .map(([ticker]) => ticker)
@@ -46,7 +52,10 @@ export const useMomentumStore = defineStore('momentum', () => {
                 let rank = 0
                 if (isSelectable) {
                     const selectableMomentumData = Object.entries(momentumData.value)
-                        .filter(([t, data]) => etfConfigStore.isSelectableETF(t))
+                        .filter(([t, data]) =>
+                            etfConfigStore.isSelectableETF(t) &&
+                            t !== 'IBIT' // Exclude IBIT from ranking calculations
+                        )
                         .map(([t, data]) => ({ ticker: t, ...data }))
                     const sortedMomentum = [...selectableMomentumData].sort((a, b) => b.average - a.average)
                     rank = sortedMomentum.findIndex(data => data.ticker === ticker) + 1
@@ -92,7 +101,7 @@ export const useMomentumStore = defineStore('momentum', () => {
             await portfolioStore.fetchAllETFPrices([...allTickers])
 
             // Use batch momentum calculation for better performance
-            const results: MomentumResult[] = await financeAPI.calculateBatchMomentum([...allTickers])
+            const results: MomentumResult[] = await momentumService.calculateBatchMomentum([...allTickers])
 
             for (const result of results) {
                 realMomentumData[result.ticker] = {
@@ -117,6 +126,25 @@ export const useMomentumStore = defineStore('momentum', () => {
         }
     }
 
+    // Computed property to check if IBIT should be shown with visual indicators
+    const shouldShowIBIT = computed(() => {
+        const bitcoinAllocation = rebalancingStore.bitcoinAllocation
+        const ibitMomentum = momentumData.value['IBIT']
+        return bitcoinAllocation > 0 && ibitMomentum !== undefined
+    })
+
+    // Computed property to get IBIT momentum data with special handling
+    const ibitMomentumData = computed<IBITMomentumData | null>(() => {
+        const ibitData = momentumData.value['IBIT']
+        if (!ibitData) return null
+        
+        return {
+            ...ibitData,
+            isBitcoinETF: true,
+            shouldShow: shouldShowIBIT.value
+        }
+    })
+
     return {
         // State
         momentumData,
@@ -127,6 +155,8 @@ export const useMomentumStore = defineStore('momentum', () => {
         sortedMomentumData,
         selectedTopETFs,
         portfolioMomentumInsight,
+        shouldShowIBIT,
+        ibitMomentumData,
 
         // Actions
         calculateMomentum

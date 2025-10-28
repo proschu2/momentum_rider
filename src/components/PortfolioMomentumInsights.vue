@@ -1,28 +1,66 @@
 <script setup lang="ts">
 import { usePortfolioStore } from '@/stores/portfolio'
 import { useMomentumStore } from '@/stores/momentum'
+import { useRebalancingStore } from '@/stores/rebalancing'
 
 const portfolioStore = usePortfolioStore()
 const momentumStore = useMomentumStore()
+const rebalancingStore = useRebalancingStore()
 </script>
 
 <template>
   <div class="bg-surface rounded-xl border border-neutral-200 p-6">
     <h2 class="text-lg font-semibold text-neutral-900 mb-4">Portfolio Momentum Insights</h2>
 
-    <div v-if="Object.keys(momentumStore.portfolioMomentumInsight).length > 0" class="space-y-3">
+    <div v-if="Object.keys(momentumStore.portfolioMomentumInsight as Record<string, any>).length > 0" class="space-y-3">
+      <!-- IBIT with special handling -->
       <div
-        v-for="[ticker, insight] in Object.entries(momentumStore.portfolioMomentumInsight)"
+        v-if="momentumStore.shouldShowIBIT && momentumStore.ibitMomentumData"
+        class="flex items-center justify-between p-3 border-2 border-warning-300 rounded-lg bg-warning-50"
+      >
+        <div class="flex items-center space-x-3">
+          <span class="text-sm font-medium text-neutral-900">IBIT</span>
+          <div class="flex items-center space-x-1">
+            <span
+              class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-warning-100 text-warning-800 border border-warning-200"
+            >
+              Bitcoin ETF
+            </span>
+            <span
+              class="inline-flex items-center px-2 py-1 rounded text-xs font-medium"
+              :class="momentumStore.ibitMomentumData.absoluteMomentum
+                ? 'bg-success-100 text-success-800 border border-success-200'
+                : 'bg-error-100 text-error-800 border border-error-200'"
+            >
+              {{ momentumStore.ibitMomentumData.absoluteMomentum ? 'Positive' : 'Negative' }}
+            </span>
+          </div>
+        </div>
+        
+        <div class="text-right">
+          <div class="text-sm font-medium text-neutral-900">
+            {{ momentumStore.ibitMomentumData.average.toFixed(2) }}%
+          </div>
+          <div class="text-xs text-neutral-500">
+            Bitcoin Allocation: {{ rebalancingStore.bitcoinAllocation }}%
+          </div>
+        </div>
+      </div>
+
+      <!-- Other ETFs -->
+      <div
+        v-for="[ticker, insight] in Object.entries(momentumStore.portfolioMomentumInsight as Record<string, any>)"
         :key="ticker"
+        v-if="ticker !== 'IBIT'"
         class="flex items-center justify-between p-3 border border-neutral-200 rounded-lg bg-neutral-50"
       >
         <div class="flex items-center space-x-3">
           <span class="text-sm font-medium text-neutral-900">{{ ticker }}</span>
           <div class="flex items-center space-x-1">
-            <span 
+            <span
               class="inline-flex items-center px-2 py-1 rounded text-xs font-medium"
-              :class="insight.absoluteMomentum 
-                ? 'bg-success-100 text-success-800 border border-success-200' 
+              :class="insight.absoluteMomentum
+                ? 'bg-success-100 text-success-800 border border-success-200'
                 : 'bg-error-100 text-error-800 border border-error-200'"
             >
               {{ insight.absoluteMomentum ? 'Positive' : 'Negative' }}
@@ -75,11 +113,11 @@ const momentumStore = useMomentumStore()
       <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
         <div>
           <span class="text-neutral-500">Top ETFs:</span>
-          <span class="font-medium text-neutral-900 ml-1">{{ momentumStore.topAssets }}</span>
+          <span class="font-medium text-neutral-900 ml-1">{{ momentumStore.selectedTopETFs.length }}</span>
         </div>
         <div>
           <span class="text-neutral-500">Bitcoin Allocation:</span>
-          <span class="font-medium text-neutral-900 ml-1">{{ momentumStore.bitcoinAllocation }}%</span>
+          <span class="font-medium text-neutral-900 ml-1">{{ rebalancingStore.bitcoinAllocation }}%</span>
         </div>
         <div>
           <span class="text-neutral-500">Positive Momentum Holdings:</span>

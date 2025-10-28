@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { useMomentumStore } from '@/stores/momentum'
 import { usePortfolioStore } from '@/stores/portfolio'
+import { useRebalancingStore } from '@/stores/rebalancing'
 
 interface TrendDataPoint {
   period: string
@@ -20,6 +21,7 @@ interface AssetTrendData {
 
 const momentumStore = useMomentumStore()
 const portfolioStore = usePortfolioStore()
+const rebalancingStore = useRebalancingStore()
 const selectedTimeframe = ref<'1m' | '3m' | '6m' | '1y'>('1y')
 const hoveredPoint = ref<{ ticker: string; point: TrendDataPoint } | null>(null)
 const selectedAssets = ref<string[]>([])
@@ -370,6 +372,27 @@ watch(() => momentumStore.selectedTopETFs, (newTopETFs) => {
             <span class="asset-momentum" :class="{ positive: (momentumStore.momentumData[asset]?.average || 0) >= 0, negative: (momentumStore.momentumData[asset]?.average || 0) < 0 }">
               {{ formatPercentage(momentumStore.momentumData[asset]?.average || 0) }}
             </span>
+          </div>
+          <!-- IBIT with special handling -->
+          <div
+            v-if="rebalancingStore.bitcoinAllocation > 0 && momentumStore.ibitMomentumData"
+            class="asset-item"
+            @click="toggleAssetSelection('IBIT')"
+          >
+            <div class="asset-checkbox">
+              <input
+                type="checkbox"
+                :checked="selectedAssets.includes('IBIT') || selectedAssets.length === 0"
+                @change="toggleAssetSelection('IBIT')"
+              />
+              <div class="checkbox-indicator"></div>
+            </div>
+            <div class="asset-color" :style="{ backgroundColor: '#f59e0b' }"></div>
+            <span class="asset-ticker">IBIT</span>
+            <span class="asset-momentum" :class="{ positive: (momentumStore.ibitMomentumData.average || 0) >= 0, negative: (momentumStore.ibitMomentumData.average || 0) < 0 }">
+              {{ formatPercentage(momentumStore.ibitMomentumData.average || 0) }}
+            </span>
+            <span class="text-xs text-warning-600 ml-1">(Bitcoin)</span>
           </div>
         </div>
       </div>

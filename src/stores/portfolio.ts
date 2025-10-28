@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { financeAPI } from '@/services/finance-api'
+import { quoteService } from '@/services'
 import type { Holding, ETFPrice } from './types'
 
 export const usePortfolioStore = defineStore('portfolio', () => {
@@ -54,7 +54,7 @@ export const usePortfolioStore = defineStore('portfolio', () => {
     async function addHolding(ticker: string, shares: number, price?: number) {
         try {
             // Fetch current quote data
-            const quoteData = await financeAPI.getCurrentQuote(ticker)
+            const quoteData = await quoteService.getCurrentQuote(ticker)
 
             const currentPrice = quoteData.regularMarketPrice || quoteData.price || price || 1
             const name = quoteData.longName || quoteData.shortName || ticker
@@ -92,7 +92,7 @@ export const usePortfolioStore = defineStore('portfolio', () => {
 
         for (const ticker of tickers) {
             try {
-                const quoteData = await financeAPI.getCurrentQuote(ticker)
+                const quoteData = await quoteService.getCurrentQuote(ticker)
                 const holding = currentHoldings.value[ticker]
                 if (!holding) continue
 
@@ -114,7 +114,7 @@ export const usePortfolioStore = defineStore('portfolio', () => {
 
     async function fetchETFPrice(ticker: string) {
         try {
-            const quoteData = await financeAPI.getCurrentQuote(ticker)
+            const quoteData = await quoteService.getCurrentQuote(ticker)
             const price = quoteData.regularMarketPrice || quoteData.price || 1
             const name = quoteData.longName || quoteData.shortName || ticker
 

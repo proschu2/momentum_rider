@@ -81,7 +81,7 @@ async function performRealTimeUpdate() {
     }
 
     // Recalculate momentum if enabled
-    if (realTimeConfig.value.autoRecalculateMomentum && momentumStore.selectedETFs.length > 0) {
+    if (realTimeConfig.value.autoRecalculateMomentum && momentumStore.selectedTopETFs.length > 0) {
       await momentumStore.calculateMomentum()
       addUpdate('momentum', { momentumData: momentumStore.momentumData })
     }

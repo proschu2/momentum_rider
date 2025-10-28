@@ -22,6 +22,20 @@ export interface MomentumData {
     }
 }
 
+export interface IBITMomentumData {
+    periods: {
+        '3month': number
+        '6month': number
+        '9month': number
+        '12month': number
+    }
+    average: number
+    absoluteMomentum: boolean
+    error?: string
+    isBitcoinETF: boolean
+    shouldShow: boolean
+}
+
 export interface RebalancingOrder {
     ticker: string
     action: 'BUY' | 'SELL' | 'HOLD'
