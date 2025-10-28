@@ -60,11 +60,12 @@ export const useRebalancingStore = defineStore('rebalancing', () => {
             ? remainingPercent / nonBitcoinETFs.length
             : 0
 
-        // Generate rebalancing orders
+        // Generate rebalancing orders with budget-aware allocation
         const orders: RebalancingOrder[] = []
         const totalValue = portfolioStore.totalPortfolioValue
 
-        for (const ticker of positiveMomentumETFs) {
+        // First pass: Calculate target values and differences
+        const targetData = positiveMomentumETFs.map(ticker => {
             const isBitcoin = ticker === 'IBIT'
             const targetPercent = isBitcoin ? bitcoinTargetPercent : nonBitcoinTargetPercent
             const targetValue = (totalValue * targetPercent) / 100
@@ -73,29 +74,129 @@ export const useRebalancingStore = defineStore('rebalancing', () => {
             const currentValue = currentHolding?.value || 0
             const difference = targetValue - currentValue
 
-            let action: 'BUY' | 'SELL' | 'HOLD' = 'HOLD'
-            if (difference > 0) action = 'BUY'
-            else if (difference < 0) action = 'SELL'
-
-            const currentPrice = currentHolding?.price || portfolioStore.etfPrices[ticker]?.price || 1
-            let shares = 0
-
-            if (action !== 'HOLD') {
-                if (action === 'BUY') {
-                    shares = Math.floor(Math.abs(difference) / currentPrice)
-                } else if (action === 'SELL' && currentHolding) {
-                    shares = Math.min(Math.floor(Math.abs(difference) / currentPrice), currentHolding.shares)
-                }
-            }
-
-            orders.push({
+            return {
                 ticker,
-                action,
-                shares,
+                isBitcoin,
+                targetPercent,
                 targetValue,
                 currentValue,
-                difference: action === 'BUY' ? shares * currentPrice :
-                    action === 'SELL' ? -shares * currentPrice : 0
+                difference,
+                currentHolding
+            }
+        })
+
+        // Calculate total buy amount needed
+        const totalBuyAmount = targetData
+            .filter(data => data.difference > 0)
+            .reduce((sum, data) => sum + data.difference, 0)
+
+        // Calculate total sell amount available
+        const totalSellAmount = targetData
+            .filter(data => data.difference < 0)
+            .reduce((sum, data) => sum + Math.abs(data.difference), 0)
+
+        // Available budget for buys (cash + sales proceeds)
+        const availableBudget = portfolioStore.additionalCash + totalSellAmount
+
+        // Budget-aware allocation algorithm for buy orders
+        const buyOrders = targetData.filter(data => data.difference > 0)
+        
+        if (buyOrders.length > 0) {
+            // Step 1: Calculate exact fractional shares for all buy orders
+            const buyOrderData = buyOrders.map(data => {
+                const currentPrice = data.currentHolding?.price || portfolioStore.etfPrices[data.ticker]?.price || 1
+                const exactShares = Math.abs(data.difference) / currentPrice
+                const floorShares = Math.floor(exactShares)
+                const remainder = exactShares - floorShares
+                
+                return {
+                    ticker: data.ticker,
+                    exactShares,
+                    floorShares,
+                    remainder,
+                    price: currentPrice,
+                    targetValue: data.targetValue,
+                    currentValue: data.currentValue,
+                    difference: data.difference,
+                    currentHolding: data.currentHolding
+                }
+            })
+            
+            // Step 2: Calculate total cost of floor allocations
+            const totalFloorCost = buyOrderData.reduce((sum, order) => sum + (order.floorShares * order.price), 0)
+            
+            // Step 3: Calculate leftover budget after floor allocations
+            const leftoverBudget = availableBudget - totalFloorCost
+            
+            // Step 4: Sort buy orders by remainder (highest first) for promotion
+            const sortedBuyOrders = [...buyOrderData].sort((a, b) => b.remainder - a.remainder)
+            
+            // Step 5: Distribute leftover budget to allocations with highest remainders
+            let remainingBudget = leftoverBudget
+            const finalShares = new Map<string, number>()
+            
+            // Initialize all with floor shares
+            buyOrderData.forEach(order => {
+                finalShares.set(order.ticker, order.floorShares)
+            })
+            
+            // Promote allocations with highest remainders until budget is exhausted
+            for (const order of sortedBuyOrders) {
+                if (remainingBudget >= order.price) {
+                    finalShares.set(order.ticker, order.floorShares + 1)
+                    remainingBudget -= order.price
+                }
+            }
+            
+            // Step 6: Create buy orders with final share counts
+            for (const order of buyOrderData) {
+                const shares = finalShares.get(order.ticker) || 0
+                const actualDifference = shares * order.price
+                
+                orders.push({
+                    ticker: order.ticker,
+                    action: 'BUY',
+                    shares,
+                    targetValue: order.targetValue,
+                    currentValue: order.currentValue,
+                    difference: actualDifference
+                })
+            }
+        }
+        
+        // Process sell orders (unchanged logic)
+        for (const data of targetData.filter(data => data.difference < 0)) {
+            const { ticker, targetValue, currentValue, difference, currentHolding } = data
+            const currentPrice = currentHolding?.price || portfolioStore.etfPrices[ticker]?.price || 1
+            
+            if (currentHolding) {
+                const exactShares = Math.abs(difference) / currentPrice
+                const calculatedShares = Math.round(exactShares)
+                const shares = Math.min(calculatedShares, currentHolding.shares)
+                const actualDifference = -shares * currentPrice
+                
+                orders.push({
+                    ticker,
+                    action: 'SELL',
+                    shares,
+                    targetValue,
+                    currentValue,
+                    difference: actualDifference
+                })
+            }
+        }
+        
+        // Process hold orders
+        for (const data of targetData.filter(data => data.difference === 0)) {
+            const { ticker, targetValue, currentValue } = data
+            
+            orders.push({
+                ticker,
+                action: 'HOLD',
+                shares: 0,
+                targetValue,
+                currentValue,
+                difference: 0
             })
         }
 
