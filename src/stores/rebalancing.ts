@@ -1,9 +1,214 @@
+
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { RebalancingOrder, RebalancingFrequency, AllocationMethod } from './types'
+import type {
+    RebalancingOrder,
+    RebalancingFrequency,
+    AllocationMethod,
+    AllocationStrategy,
+    AllocationStrategyConfig,
+    BudgetAllocationResult,
+    BuyOrderData,
+    PromotionStrategy,
+    MomentumData
+} from './types'
 import { useETFConfigStore } from './etf-config'
 import { usePortfolioStore } from './portfolio'
 import { useMomentumStore } from './momentum'
+
+// Strategy Implementations
+class RemainderFirstPromotion implements PromotionStrategy {
+    name = 'Remainder-First'
+    description = 'Prioritize ETFs closest to target allocation percentages'
+    
+    calculatePromotions(buyOrders: BuyOrderData[], leftoverBudget: number): Map<string, number> {
+        const finalShares = new Map<string, number>()
+        buyOrders.forEach(order => finalShares.set(order.ticker, order.floorShares))
+        
+        // Current logic: sort by remainder, promote one share per ETF
+        const sortedByRemainder = [...buyOrders].sort((a, b) => b.remainder - a.remainder)
+        let remainingBudget = leftoverBudget
+        
+        for (const order of sortedByRemainder) {
+            if (remainingBudget >= order.price) {
+                finalShares.set(order.ticker, order.floorShares + 1)
+                remainingBudget -= order.price
+            }
+        }
+        
+        return finalShares
+    }
+}
+
+class MultiSharePromotion implements PromotionStrategy {
+    name = 'Multi-Share'
+    description = 'Maximize total shares purchased, minimize leftover budget'
+    
+    calculatePromotions(buyOrders: BuyOrderData[], leftoverBudget: number): Map<string, number> {
+        const finalShares = new Map<string, number>()
+        buyOrders.forEach(order => finalShares.set(order.ticker, order.floorShares))
+        
+        let remainingBudget = leftoverBudget
+        const sortedByPrice = [...buyOrders].sort((a, b) => a.price - b.price)
+        
+        while (remainingBudget > 0) {
+            let promoted = false
+            
+            for (const order of sortedByPrice) {
+                if (order.price <= remainingBudget) {
+                    const currentShares = finalShares.get(order.ticker) || 0
+                    finalShares.set(order.ticker, currentShares + 1)
+                    remainingBudget -= order.price
+                    promoted = true
+                    break
+                }
+            }
+            
+            if (!promoted) break
+        }
+        
+        return finalShares
+    }
+}
+
+class MomentumWeightedPromotion implements PromotionStrategy {
+    name = 'Momentum-Weighted'
+    description = 'Prioritize ETFs with highest momentum scores'
+    
+    constructor(private momentumData: MomentumData) {}
+    
+    calculatePromotions(buyOrders: BuyOrderData[], leftoverBudget: number): Map<string, number> {
+        const finalShares = new Map<string, number>()
+        buyOrders.forEach(order => finalShares.set(order.ticker, order.floorShares))
+        
+        let remainingBudget = leftoverBudget
+        
+        // Calculate momentum efficiency score: momentum / price
+        const efficiencyScores = buyOrders.map(order => ({
+            ...order,
+            efficiency: (this.momentumData[order.ticker]?.average || 0) / order.price
+        }))
+        
+        // Sort by efficiency descending
+        const sortedByEfficiency = [...efficiencyScores].sort((a, b) => b.efficiency - a.efficiency)
+        
+        while (remainingBudget > 0) {
+            let promoted = false
+            
+            for (const order of sortedByEfficiency) {
+                if (order.price <= remainingBudget) {
+                    const currentShares = finalShares.get(order.ticker) || 0
+                    finalShares.set(order.ticker, currentShares + 1)
+                    remainingBudget -= order.price
+                    promoted = true
+                    break
+                }
+            }
+            
+            if (!promoted) break
+        }
+        
+        return finalShares
+    }
+}
+
+class PriceEfficientPromotion implements PromotionStrategy {
+    name = 'Price-Efficient'
+    description = 'Prioritize cheaper ETFs for more share promotions'
+    
+    calculatePromotions(buyOrders: BuyOrderData[], leftoverBudget: number): Map<string, number> {
+        const finalShares = new Map<string, number>()
+        buyOrders.forEach(order => finalShares.set(order.ticker, order.floorShares))
+        
+        let remainingBudget = leftoverBudget
+        const sortedByPrice = [...buyOrders].sort((a, b) => a.price - b.price)
+        
+        while (remainingBudget > 0) {
+            let promoted = false
+            
+            for (const order of sortedByPrice) {
+                if (order.price <= remainingBudget) {
+                    const currentShares = finalShares.get(order.ticker) || 0
+                    finalShares.set(order.ticker, currentShares + 1)
+                    remainingBudget -= order.price
+                    promoted = true
+                    break
+                }
+            }
+            
+            if (!promoted) break
+        }
+        
+        return finalShares
+    }
+}
+
+class HybridPromotion implements PromotionStrategy {
+    name = 'Hybrid'
+    description = 'Balance momentum and price efficiency'
+    
+    constructor(private momentumData: MomentumData) {}
+    
+    calculatePromotions(buyOrders: BuyOrderData[], leftoverBudget: number): Map<string, number> {
+        const finalShares = new Map<string, number>()
+        buyOrders.forEach(order => finalShares.set(order.ticker, order.floorShares))
+        
+        let remainingBudget = leftoverBudget
+        
+        // Calculate hybrid score: (momentum * 0.7) + (1/price * 0.3)
+        const hybridScores = buyOrders.map(order => {
+            const momentumScore = this.momentumData[order.ticker]?.average || 0
+            const priceEfficiency = 1 / order.price
+            const hybridScore = (momentumScore * 0.7) + (priceEfficiency * 0.3)
+            
+            return {
+                ...order,
+                hybridScore
+            }
+        })
+        
+        // Sort by hybrid score descending
+        const sortedByHybrid = [...hybridScores].sort((a, b) => b.hybridScore - a.hybridScore)
+        
+        while (remainingBudget > 0) {
+            let promoted = false
+            
+            for (const order of sortedByHybrid) {
+                if (order.price <= remainingBudget) {
+                    const currentShares = finalShares.get(order.ticker) || 0
+                    finalShares.set(order.ticker, currentShares + 1)
+                    remainingBudget -= order.price
+                    promoted = true
+                    break
+                }
+            }
+            
+            if (!promoted) break
+        }
+        
+        return finalShares
+    }
+}
+
+// Strategy Factory
+class AllocationStrategyFactory {
+    static createStrategy(config: AllocationStrategyConfig, momentumData: MomentumData): PromotionStrategy {
+        switch (config.primaryStrategy) {
+            case 'remainder-first':
+                return new RemainderFirstPromotion()
+            case 'multi-share':
+                return new MultiSharePromotion()
+            case 'momentum-weighted':
+                return new MomentumWeightedPromotion(momentumData)
+            case 'price-efficient':
+                return new PriceEfficientPromotion()
+            case 'hybrid':
+                return new HybridPromotion(momentumData)
+            default:
+                return new MultiSharePromotion() // Default to most efficient
+        }
+    }
+}
 
 export const useRebalancingStore = defineStore('rebalancing', () => {
     const etfConfigStore = useETFConfigStore()
@@ -17,10 +222,132 @@ export const useRebalancingStore = defineStore('rebalancing', () => {
     const momentumPeriods = ref([3, 6, 9, 12])
     const allocationMethod = ref<AllocationMethod>('Proportional')
 
+    // Budget Allocation Strategy
+    const allocationStrategy = ref<AllocationStrategy>('multi-share')
+    const allocationStrategyConfig = ref<AllocationStrategyConfig>({
+        primaryStrategy: 'multi-share',
+        enableFallback: true,
+        fallbackStrategy: 'price-efficient',
+        maxIterations: 1000
+    })
+    const leftoverBudget = ref(0)
+    const promotionsApplied = ref(0)
+
     // Rebalancing Orders
     const rebalancingOrders = ref<RebalancingOrder[]>([])
 
+    // Budget Minimization Engine
+    function calculateBudgetAllocation(
+        buyOrders: BuyOrderData[],
+        availableBudget: number
+    ): BudgetAllocationResult {
+        // Step 1: Calculate budget-aware floor allocations
+        let totalFloorCost = buyOrders.reduce((sum, order) => sum + (order.floorShares * order.price), 0)
+        let leftoverBudget = availableBudget - totalFloorCost
+        
+        // If floor allocation exceeds budget, scale down floor shares proportionally
+        if (leftoverBudget < 0) {
+            const scaleFactor = availableBudget / totalFloorCost
+            const adjustedBuyOrders = buyOrders.map(order => ({
+                ...order,
+                floorShares: Math.floor(order.floorShares * scaleFactor)
+            }))
+            
+            // Recalculate with adjusted floor shares
+            totalFloorCost = adjustedBuyOrders.reduce((sum, order) => sum + (order.floorShares * order.price), 0)
+            leftoverBudget = availableBudget - totalFloorCost
+            
+            // Use adjusted buy orders for the rest of the calculation
+            buyOrders = adjustedBuyOrders
+        }
+        
+        if (leftoverBudget <= 0) {
+            const finalShares = new Map(buyOrders.map(order => [order.ticker, order.floorShares]))
+            return {
+                finalShares,
+                leftoverBudget: Math.max(0, leftoverBudget),
+                promotions: 0,
+                strategyUsed: allocationStrategyConfig.value.primaryStrategy
+            }
+        }
+        
+        // Step 2: Apply primary strategy
+        const primaryStrategy = AllocationStrategyFactory.createStrategy(allocationStrategyConfig.value, momentumStore.momentumData)
+        let finalShares = primaryStrategy.calculatePromotions(buyOrders, leftoverBudget)
+        
+        // Step 3: Calculate remaining budget after primary strategy
+        const totalFinalCost = Array.from(finalShares.entries()).reduce((sum, [ticker, shares]) => {
+            const order = buyOrders.find(o => o.ticker === ticker)
+            return sum + (shares * (order?.price || 0))
+        }, 0)
+        
+        leftoverBudget = availableBudget - totalFinalCost
+        
+        // Step 4: Apply fallback strategy if enabled and budget remains
+        if (allocationStrategyConfig.value.enableFallback && leftoverBudget > 0 && allocationStrategyConfig.value.fallbackStrategy) {
+            const fallbackConfig = {
+                ...allocationStrategyConfig.value,
+                primaryStrategy: allocationStrategyConfig.value.fallbackStrategy
+            }
+            const fallbackStrategy = AllocationStrategyFactory.createStrategy(fallbackConfig, momentumStore.momentumData)
+            
+            const fallbackShares = fallbackStrategy.calculatePromotions(buyOrders, leftoverBudget)
+            
+            // Merge results
+            fallbackShares.forEach((shares, ticker) => {
+                const currentShares = finalShares.get(ticker) || 0
+                finalShares.set(ticker, currentShares + shares)
+            })
+            
+            // Recalculate leftover budget
+            const totalFallbackCost = Array.from(fallbackShares.entries()).reduce((sum, [ticker, shares]) => {
+                const order = buyOrders.find(o => o.ticker === ticker)
+                return sum + (shares * (order?.price || 0))
+            }, 0)
+            
+            leftoverBudget -= totalFallbackCost
+        }
+        
+        const promotions = Array.from(finalShares.entries()).reduce((sum, [ticker, shares]) => {
+            const order = buyOrders.find(o => o.ticker === ticker)
+            return sum + (shares - (order?.floorShares || 0))
+        }, 0)
+        
+        return {
+            finalShares,
+            leftoverBudget: Math.max(0, leftoverBudget),
+            promotions,
+            strategyUsed: allocationStrategyConfig.value.primaryStrategy
+        }
+    }
+
     // Actions
+    function setAllocationStrategy(strategy: AllocationStrategy) {
+        allocationStrategy.value = strategy
+        allocationStrategyConfig.value.primaryStrategy = strategy
+    }
+
+    function updateStrategyConfig(config: Partial<AllocationStrategyConfig>) {
+        allocationStrategyConfig.value = { ...allocationStrategyConfig.value, ...config }
+    }
+
+    function getStrategyDescription(strategy: AllocationStrategy): string {
+        switch (strategy) {
+            case 'remainder-first':
+                return 'Prioritize ETFs closest to target allocation percentages'
+            case 'multi-share':
+                return 'Maximize total shares purchased, minimize leftover budget'
+            case 'momentum-weighted':
+                return 'Prioritize ETFs with highest momentum scores'
+            case 'price-efficient':
+                return 'Prioritize cheaper ETFs for more share promotions'
+            case 'hybrid':
+                return 'Balance momentum and price efficiency'
+            default:
+                return 'Unknown strategy'
+        }
+    }
+
     function calculateRebalancing() {
         if (Object.keys(momentumStore.momentumData).length === 0) {
             portfolioStore.error = 'Please calculate momentum first'
@@ -122,35 +449,16 @@ export const useRebalancingStore = defineStore('rebalancing', () => {
                 }
             })
             
-            // Step 2: Calculate total cost of floor allocations
-            const totalFloorCost = buyOrderData.reduce((sum, order) => sum + (order.floorShares * order.price), 0)
+            // Step 2: Use budget minimization engine
+            const allocationResult = calculateBudgetAllocation(buyOrderData, availableBudget)
             
-            // Step 3: Calculate leftover budget after floor allocations
-            const leftoverBudget = availableBudget - totalFloorCost
+            // Update store state with allocation results
+            leftoverBudget.value = allocationResult.leftoverBudget
+            promotionsApplied.value = allocationResult.promotions
             
-            // Step 4: Sort buy orders by remainder (highest first) for promotion
-            const sortedBuyOrders = [...buyOrderData].sort((a, b) => b.remainder - a.remainder)
-            
-            // Step 5: Distribute leftover budget to allocations with highest remainders
-            let remainingBudget = leftoverBudget
-            const finalShares = new Map<string, number>()
-            
-            // Initialize all with floor shares
-            buyOrderData.forEach(order => {
-                finalShares.set(order.ticker, order.floorShares)
-            })
-            
-            // Promote allocations with highest remainders until budget is exhausted
-            for (const order of sortedBuyOrders) {
-                if (remainingBudget >= order.price) {
-                    finalShares.set(order.ticker, order.floorShares + 1)
-                    remainingBudget -= order.price
-                }
-            }
-            
-            // Step 6: Create buy orders with final share counts
+            // Step 3: Create buy orders with final share counts
             for (const order of buyOrderData) {
-                const shares = finalShares.get(order.ticker) || 0
+                const shares = allocationResult.finalShares.get(order.ticker) || 0
                 const actualDifference = shares * order.price
                 
                 orders.push({
@@ -162,6 +470,9 @@ export const useRebalancingStore = defineStore('rebalancing', () => {
                     difference: actualDifference
                 })
             }
+        } else {
+            leftoverBudget.value = availableBudget
+            promotionsApplied.value = 0
         }
         
         // Process sell orders (unchanged logic)
@@ -208,17 +519,14 @@ export const useRebalancingStore = defineStore('rebalancing', () => {
 
         nonStrategyHoldings.forEach(ticker => {
             const currentHolding = portfolioStore.currentHoldings[ticker]
-            if (currentHolding && currentHolding.shares > 0) {
-                const currentPrice = currentHolding.price || portfolioStore.etfPrices[ticker]?.price || 1
-                const shares = currentHolding.shares
-
+            if (currentHolding) {
                 orders.push({
                     ticker,
                     action: 'SELL',
-                    shares,
-                    targetValue: 0, // Target is to sell completely (not part of strategy)
+                    shares: currentHolding.shares,
+                    targetValue: 0,
                     currentValue: currentHolding.value,
-                    difference: -shares * currentPrice
+                    difference: -currentHolding.value
                 })
             }
         })
@@ -227,15 +535,27 @@ export const useRebalancingStore = defineStore('rebalancing', () => {
     }
 
     return {
-        // State
+        // Strategy Parameters
         topAssets,
         bitcoinAllocation,
         rebalancingFrequency,
         momentumPeriods,
         allocationMethod,
+        
+        // Budget Allocation Strategy
+        allocationStrategy,
+        allocationStrategyConfig,
+        leftoverBudget,
+        promotionsApplied,
+        
+        // Rebalancing Orders
         rebalancingOrders,
-
+        
         // Actions
-        calculateRebalancing
+        setAllocationStrategy,
+        updateStrategyConfig,
+        getStrategyDescription,
+        calculateRebalancing,
+        calculateBudgetAllocation
     }
 })

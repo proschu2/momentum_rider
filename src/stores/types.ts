@@ -67,3 +67,47 @@ export interface EnabledCategories {
 export type RebalancingFrequency = 'monthly' | 'quarterly'
 
 export type AllocationMethod = 'Proportional' | 'Underweight Only'
+
+// Budget Allocation Strategy Types
+export type AllocationStrategy =
+  | 'remainder-first'      // Current approach - sort by remainder
+  | 'multi-share'          // New: maximize shares, minimize leftover budget
+  | 'momentum-weighted'    // New: prioritize high momentum ETFs
+  | 'price-efficient'      // New: prioritize cheaper ETFs for more shares
+  | 'hybrid'               // New: combine momentum and price efficiency
+
+export interface AllocationStrategyConfig {
+  primaryStrategy: AllocationStrategy;
+  enableFallback: boolean;
+  fallbackStrategy?: AllocationStrategy;
+  maxIterations?: number;  // For while loop safety
+}
+
+export interface BudgetAllocationResult {
+  finalShares: Map<string, number>;
+  leftoverBudget: number;
+  promotions: number;
+  strategyUsed: AllocationStrategy;
+}
+
+export interface BuyOrderData {
+  ticker: string;
+  exactShares: number;
+  floorShares: number;
+  remainder: number;
+  price: number;
+  targetValue: number;
+  currentValue: number;
+  difference: number;
+  currentHolding?: Holding;
+}
+
+export interface PromotionStrategy {
+  name: string;
+  description: string;
+  calculatePromotions(
+    buyOrders: BuyOrderData[],
+    leftoverBudget: number,
+    momentumData?: MomentumData
+  ): Map<string, number>;
+}

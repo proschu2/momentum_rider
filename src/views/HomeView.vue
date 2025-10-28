@@ -5,6 +5,7 @@ import { usePortfolioStore } from '@/stores/portfolio'
 import { useMomentumStore } from '@/stores/momentum'
 import { useRebalancingStore } from '@/stores/rebalancing'
 import StrategyParams from '@/components/StrategyParams.vue'
+import StrategyConfiguration from '@/components/StrategyConfiguration.vue'
 import RebalancingTable from '@/components/RebalancingTable.vue'
 import ConsolidatedPortfolioTable from '@/components/ConsolidatedPortfolioTable.vue'
 import CollapsibleSection from '@/components/ui/CollapsibleSection.vue'
@@ -166,143 +167,131 @@ const editingCash = ref(false)
       </div>
     </CollapsibleSection>
 
-    <!-- Primary Actions and Configuration -->
-    <div class="space-y-6">
-      <!-- Action Buttons -->
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <CollapsibleSection
-          title="Analysis Actions"
-          :default-open="sections.configuration"
-          :show-toggle="false"
-        >
-          <div class="space-y-4">
-            <Tooltip
-              :content="etfConfigStore.selectedETFs.length === 0 ? 'Select ETFs first' : 'Calculate momentum scores for selected ETFs'"
-              position="top"
+    <!-- Compact Action & Stats Section -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <!-- Action Card -->
+      <div class="bg-surface rounded-xl border border-neutral-200 p-4">
+        <h3 class="text-sm font-semibold text-neutral-900 mb-3">Quick Actions</h3>
+        <div class="space-y-2">
+          <Tooltip
+            :content="etfConfigStore.selectedETFs.length === 0 ? 'Select ETFs first' : 'Calculate momentum scores for selected ETFs'"
+            position="top"
+          >
+            <button
+              @click="momentumStore.calculateMomentum()"
+              :disabled="momentumStore.isLoading || etfConfigStore.selectedETFs.length === 0"
+              class="w-full inline-flex items-center justify-center px-3 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-primary-500 hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              aria-label="Calculate momentum scores"
             >
-              <button
-                @click="momentumStore.calculateMomentum()"
-                :disabled="momentumStore.isLoading || etfConfigStore.selectedETFs.length === 0"
-                class="w-full inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-lg text-white bg-primary-500 hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                aria-label="Calculate momentum scores"
+              <svg
+                v-if="momentumStore.isLoading"
+                class="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
               >
-                <svg
-                  v-if="momentumStore.isLoading"
-                  class="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                {{ momentumStore.isLoading ? 'Calculating Momentum...' : 'Calculate Momentum' }}
-              </button>
-            </Tooltip>
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              {{ momentumStore.isLoading ? 'Calculating...' : 'Calculate Momentum' }}
+            </button>
+          </Tooltip>
 
-            <Tooltip
-              :content="Object.keys(momentumStore.momentumData).length === 0 ? 'Calculate momentum first' : 'Generate rebalancing orders based on momentum scores'"
-              position="top"
+          <Tooltip
+            :content="Object.keys(momentumStore.momentumData).length === 0 ? 'Calculate momentum first' : 'Generate rebalancing orders based on momentum scores'"
+            position="top"
+          >
+            <button
+              @click="rebalancingStore.calculateRebalancing()"
+              :disabled="Object.keys(momentumStore.momentumData).length === 0"
+              class="w-full inline-flex items-center justify-center px-3 py-2 border border-neutral-300 text-sm font-medium rounded-lg text-neutral-700 bg-surface hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              aria-label="Generate rebalancing orders"
             >
-              <button
-                @click="rebalancingStore.calculateRebalancing()"
-                :disabled="Object.keys(momentumStore.momentumData).length === 0"
-                class="w-full inline-flex items-center justify-center px-6 py-3 border border-neutral-300 text-base font-medium rounded-lg text-neutral-700 bg-surface hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                aria-label="Generate rebalancing orders"
-              >
-                Generate Rebalancing Orders
-              </button>
-            </Tooltip>
-          </div>
-        </CollapsibleSection>
-
-        <!-- Quick Stats -->
-        <CollapsibleSection
-          title="Portfolio Overview"
-          :default-open="sections.configuration"
-          :show-toggle="false"
-        >
-          <div class="space-y-4">
-            <!-- Momentum Score Progress Bar -->
-            <div v-if="Object.keys(momentumStore.momentumData).length > 0">
-              <div class="flex justify-between items-center mb-2">
-                <span class="text-sm font-medium text-neutral-700">Momentum Score</span>
-                <span class="text-sm font-semibold text-primary-600">{{ momentumScore.toFixed(1) }}%</span>
-              </div>
-              <ProgressBar
-                :value="momentumScore"
-                :max="100"
-                size="sm"
-                color="primary"
-                :show-label="false"
-              />
-              <p class="text-xs text-neutral-500 mt-1">
-                {{ positiveMomentumCount }} of {{ totalAssetsCount }} assets with positive momentum
-              </p>
-            </div>
-
-            <!-- Cash Input -->
-            <div class="space-y-2">
-              <label class="text-sm font-medium text-neutral-700">Additional Cash</label>
-              <div class="flex items-center space-x-2">
-                <span class="text-neutral-500">$</span>
-                <input
-                  v-if="editingCash"
-                  v-model.number="portfolioStore.additionalCash"
-                  type="number"
-                  min="0"
-                  step="1000"
-                  class="flex-1 px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                  @blur="editingCash = false"
-                  @keydown.enter="editingCash = false"
-                />
-                <span
-                  v-else
-                  class="flex-1 px-3 py-2 border border-transparent rounded-lg hover:bg-neutral-50 cursor-pointer"
-                  @click="editingCash = true"
-                >
-                  ${{ portfolioStore.additionalCash.toLocaleString() }}
-                </span>
-              </div>
-            </div>
-
-            <!-- Stats Grid -->
-            <div class="grid grid-cols-2 gap-4">
-              <div class="text-center p-4 bg-neutral-50 rounded-lg border border-neutral-200">
-                <div class="text-xl font-bold text-neutral-900">{{ etfConfigStore.selectedETFs.length }}</div>
-                <div class="text-sm text-neutral-600">Selected ETFs</div>
-              </div>
-              <div class="text-center p-4 bg-neutral-50 rounded-lg border border-neutral-200">
-                <div class="text-xl font-bold text-success-600">{{ positiveMomentumCount }}</div>
-                <div class="text-sm text-neutral-600">Positive Momentum</div>
-              </div>
-              <div class="text-center p-4 bg-neutral-50 rounded-lg border border-neutral-200">
-                <div class="text-xl font-bold text-primary-600">{{ rebalancingStore.topAssets }}</div>
-                <div class="text-sm text-neutral-600">Top Assets</div>
-              </div>
-              <div class="text-center p-4 bg-neutral-50 rounded-lg border border-neutral-200">
-                <div class="text-xl font-bold text-neutral-900">
-                  ${{ (portfolioStore.totalPortfolioValue / 1000).toFixed(0) }}K
-                </div>
-                <div class="text-sm text-neutral-600">Portfolio Value</div>
-              </div>
-            </div>
-          </div>
-        </CollapsibleSection>
+              Generate Orders
+            </button>
+          </Tooltip>
+        </div>
       </div>
+      
+      <!-- Stats Card -->
+      <div class="bg-surface rounded-xl border border-neutral-200 p-4">
+        <h3 class="text-sm font-semibold text-neutral-900 mb-3">Portfolio Stats</h3>
+        <div class="space-y-2">
+          <div class="flex justify-between items-center">
+            <span class="text-xs text-neutral-600">Selected ETFs</span>
+            <span class="text-sm font-semibold text-neutral-900">{{ etfConfigStore.selectedETFs.length }}</span>
+          </div>
+          <div class="flex justify-between items-center">
+            <span class="text-xs text-neutral-600">Positive Momentum</span>
+            <span class="text-sm font-semibold text-success-600">{{ positiveMomentumCount }}</span>
+          </div>
+          <div class="flex justify-between items-center">
+            <span class="text-xs text-neutral-600">Top Assets</span>
+            <span class="text-sm font-semibold text-primary-600">{{ rebalancingStore.topAssets }}</span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Momentum Score Card -->
+      <div class="bg-surface rounded-xl border border-neutral-200 p-4" v-if="Object.keys(momentumStore.momentumData).length > 0">
+        <h3 class="text-sm font-semibold text-neutral-900 mb-3">Momentum Score</h3>
+        <div class="text-center">
+          <div class="text-2xl font-bold text-primary-600 mb-1">{{ momentumScore.toFixed(1) }}%</div>
+          <div class="text-xs text-neutral-500">
+            {{ positiveMomentumCount }}/{{ totalAssetsCount }} assets
+          </div>
+        </div>
+      </div>
+      <div class="bg-surface rounded-xl border border-neutral-200 p-4" v-else>
+        <h3 class="text-sm font-semibold text-neutral-900 mb-3">Momentum Score</h3>
+        <div class="text-center">
+          <div class="text-lg text-neutral-400 mb-1">—</div>
+          <div class="text-xs text-neutral-500">
+            Calculate momentum first
+          </div>
+        </div>
+      </div>
+      
+      <!-- Cash Input Card -->
+      <div class="bg-surface rounded-xl border border-neutral-200 p-4">
+        <h3 class="text-sm font-semibold text-neutral-900 mb-3">Additional Cash</h3>
+        <div class="space-y-2">
+          <div class="flex items-center space-x-2">
+            <span class="text-neutral-500 text-sm">$</span>
+            <input
+              v-model.number="portfolioStore.additionalCash"
+              type="number"
+              min="0"
+              step="1000"
+              class="flex-1 px-2 py-1 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
+              placeholder="Enter amount"
+            />
+          </div>
+          <div class="text-xs text-neutral-500">
+            Available for investment
+          </div>
+        </div>
+      </div>
+    </div>
 
-      <!-- Configuration Sections -->
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <!-- Strategy Parameters -->
+    <!-- Strategy Configuration & Portfolio Management -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <!-- Strategy Configuration -->
+      <div class="lg:col-span-1">
         <CollapsibleSection
-          title="Strategy Parameters"
+          title="Strategy Configuration"
           :default-open="sections.configuration"
           badge="Settings"
         >
           <StrategyParams />
+          <div class="mt-4 pt-4 border-t border-neutral-200">
+            <StrategyConfiguration />
+          </div>
         </CollapsibleSection>
-
-        <!-- Portfolio Management -->
+      </div>
+      
+      <!-- Portfolio Management & Results -->
+      <div class="lg:col-span-2">
         <CollapsibleSection
           title="Portfolio Management"
           :default-open="sections.portfolio"
