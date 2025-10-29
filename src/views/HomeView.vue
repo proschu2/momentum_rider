@@ -276,22 +276,26 @@ const editingCash = ref(false)
 
     <!-- Strategy Configuration & Portfolio Management -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <!-- Strategy Configuration -->
-      <div class="lg:col-span-1">
+      <!-- Strategy Configuration - Full Width -->
+      <div class="lg:col-span-3">
         <CollapsibleSection
           title="Strategy Configuration"
           :default-open="sections.configuration"
           badge="Settings"
         >
-          <StrategyParams />
-          <div class="mt-4 pt-4 border-t border-neutral-200">
-            <StrategyConfiguration />
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div>
+              <StrategyParams />
+            </div>
+            <div>
+              <StrategyConfiguration />
+            </div>
           </div>
         </CollapsibleSection>
       </div>
       
       <!-- Portfolio Management & Results -->
-      <div class="lg:col-span-2">
+      <div class="lg:col-span-3">
         <CollapsibleSection
           title="Portfolio Management"
           :default-open="sections.portfolio"
