@@ -277,7 +277,7 @@ export const useRebalancingStore = defineStore('rebalancing', () => {
         const targetETFs = buyOrders.map(order => ({
             name: order.ticker,
             targetPercentage: Math.floor( (order.targetValue / portfolioStore.totalPortfolioValue) * 100),
-            allowedDeviation: order.ticker == 'IBIT' ? 2 : 5, // Default 5% deviation, 2% for IBIT
+            allowedDeviation: order.ticker == 'IBIT' ? 2  : 5, // Default 5% deviation, 2% for IBIT
             pricePerShare: order.price
         }));
 
@@ -297,6 +297,9 @@ export const useRebalancingStore = defineStore('rebalancing', () => {
      */
     function convertFromOptimizationOutput(backendResult: OptimizationOutput, buyOrders: BuyOrderData[]): BudgetAllocationResult {
         const finalShares = new Map<string, number>();
+        const backendDeviations = new Map<string, number>();
+        const backendFinalValues = new Map<string, number>();
+        const backendDifferences = new Map<string, number>();
         let promotions = 0;
 
         // Process allocations from backend
@@ -304,6 +307,9 @@ export const useRebalancingStore = defineStore('rebalancing', () => {
             const order = buyOrders.find(o => o.ticker === allocation.etfName);
             if (order) {
                 finalShares.set(allocation.etfName, allocation.finalShares);
+                backendDeviations.set(allocation.etfName, allocation.deviation);
+                backendFinalValues.set(allocation.etfName, allocation.finalValue);
+                backendDifferences.set(allocation.etfName, allocation.costOfPurchase);
                 promotions += Math.max(0, allocation.finalShares - order.floorShares);
             }
         });
@@ -313,7 +319,10 @@ export const useRebalancingStore = defineStore('rebalancing', () => {
             leftoverBudget: backendResult.optimizationMetrics.unusedBudget,
             promotions,
             strategyUsed: 'backend-optimization',
-            backendResult: backendResult
+            backendResult: backendResult,
+            backendDeviations,
+            backendFinalValues,
+            backendDifferences
         };
     }
 
@@ -550,7 +559,16 @@ export const useRebalancingStore = defineStore('rebalancing', () => {
             // Step 3: Create buy orders with final share counts
             for (const order of buyOrderData) {
                 const shares = allocationResult.finalShares.get(order.ticker) || 0
-                const actualDifference = shares * order.price
+                
+                // Use backend values if available, otherwise calculate locally
+                const backendFinalValue = allocationResult.backendFinalValues?.get(order.ticker)
+                const backendDifference = allocationResult.backendDifferences?.get(order.ticker)
+                const backendDeviation = allocationResult.backendDeviations?.get(order.ticker)
+                
+                const finalValue = backendFinalValue !== undefined ? backendFinalValue : order.currentValue + (order.targetValue - order.currentValue)
+                const actualDifference = backendDifference !== undefined ? backendDifference : order.targetValue - order.currentValue
+                const deviationPercentage = backendDeviation !== undefined ? backendDeviation :
+                    ((finalValue / portfolioStore.totalPortfolioValue) * 100) - ((order.targetValue / portfolioStore.totalPortfolioValue) * 100)
                 
                 orders.push({
                     ticker: order.ticker,
@@ -558,7 +576,9 @@ export const useRebalancingStore = defineStore('rebalancing', () => {
                     shares,
                     targetValue: order.targetValue,
                     currentValue: order.currentValue,
-                    difference: actualDifference
+                    finalValue,
+                    difference: actualDifference,
+                    deviationPercentage
                 })
             }
         } else {
@@ -576,6 +596,8 @@ export const useRebalancingStore = defineStore('rebalancing', () => {
                 const calculatedShares = Math.round(exactShares)
                 const shares = Math.min(calculatedShares, currentHolding.shares)
                 const actualDifference = -shares * currentPrice
+                const finalValue = currentValue + actualDifference
+                const deviationPercentage = ((finalValue / portfolioStore.totalPortfolioValue) * 100) - ((targetValue / portfolioStore.totalPortfolioValue) * 100)
                 
                 orders.push({
                     ticker,
@@ -583,7 +605,9 @@ export const useRebalancingStore = defineStore('rebalancing', () => {
                     shares,
                     targetValue,
                     currentValue,
-                    difference: actualDifference
+                    finalValue,
+                    difference: actualDifference,
+                    deviationPercentage
                 })
             }
         }
@@ -591,6 +615,8 @@ export const useRebalancingStore = defineStore('rebalancing', () => {
         // Process hold orders
         for (const data of targetData.filter(data => data.difference === 0)) {
             const { ticker, targetValue, currentValue } = data
+            const finalValue = currentValue
+            const deviationPercentage = ((finalValue / portfolioStore.totalPortfolioValue) * 100) - ((targetValue / portfolioStore.totalPortfolioValue) * 100)
             
             orders.push({
                 ticker,
@@ -598,7 +624,9 @@ export const useRebalancingStore = defineStore('rebalancing', () => {
                 shares: 0,
                 targetValue,
                 currentValue,
-                difference: 0
+                finalValue,
+                difference: 0,
+                deviationPercentage
             })
         }
 
@@ -617,7 +645,9 @@ export const useRebalancingStore = defineStore('rebalancing', () => {
                     shares: currentHolding.shares,
                     targetValue: 0,
                     currentValue: currentHolding.value,
-                    difference: -currentHolding.value
+                    finalValue: 0,
+                    difference: -currentHolding.value,
+                    deviationPercentage: -100 // Complete deviation since target is 0
                 })
             }
         })

@@ -76,10 +76,13 @@ function handleRowKeydown(event: KeyboardEvent, order: any) {
               Current Value
             </th>
             <th scope="col" role="columnheader" class="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
-              Target Value
+              Final Value
             </th>
             <th scope="col" role="columnheader" class="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
               Difference
+            </th>
+            <th scope="col" role="columnheader" class="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
+              Deviation
             </th>
           </tr>
         </thead>
@@ -147,19 +150,24 @@ function handleRowKeydown(event: KeyboardEvent, order: any) {
               ${{ order.currentValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
             </td>
             <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-neutral-900" role="gridcell">
-              <span class="sr-only">Target Value: </span>
-              ${{ order.targetValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+              <span class="sr-only">Final Value: </span>
+              ${{ order.finalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
             </td>
             <td class="px-4 py-3 whitespace-nowrap text-sm font-medium" role="gridcell"
                 :class="order.difference >= 0 ? 'text-success-600' : 'text-error-600'">
               <span class="sr-only">Difference: </span>
               {{ order.difference >= 0 ? '+' : '' }}${{ order.difference.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
             </td>
+            <td class="px-4 py-3 whitespace-nowrap text-sm font-medium" role="gridcell"
+                :class="Math.abs(order.deviationPercentage) <= 1 ? 'text-neutral-600' : order.deviationPercentage > 0 ? 'text-success-600' : 'text-error-600'">
+              <span class="sr-only">Deviation: </span>
+              {{ order.deviationPercentage >= 0 ? '+' : '' }}{{ order.deviationPercentage.toFixed(2) }}%
+            </td>
           </tr>
         </tbody>
         <tfoot class="bg-neutral-50">
           <tr role="row">
-            <td colspan="3" class="px-4 py-3 text-sm font-medium text-neutral-900 text-right" role="gridcell">
+            <td colspan="4" class="px-4 py-3 text-sm font-medium text-neutral-900 text-right" role="gridcell">
               Total Portfolio Value:
             </td>
             <td class="px-4 py-3 text-sm font-bold text-neutral-900" role="gridcell">
@@ -195,7 +203,7 @@ function handleRowKeydown(event: KeyboardEvent, order: any) {
         <div class="text-2xl font-bold text-primary-900" aria-live="polite" aria-atomic="true">
           ${{ rebalancingStore.rebalancingOrders
             .filter(order => order.action === 'BUY')
-            .reduce((sum, order) => sum + Math.abs(order.difference), 0)
+            .reduce((sum, order) => sum + order.difference, 0)
             .toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
         </div>
       </div>

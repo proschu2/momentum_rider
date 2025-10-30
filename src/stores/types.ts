@@ -42,7 +42,9 @@ export interface RebalancingOrder {
     shares: number
     targetValue: number
     currentValue: number
+    finalValue: number
     difference: number
+    deviationPercentage: number
 }
 
 export interface ETFPrice {
@@ -90,6 +92,9 @@ export interface BudgetAllocationResult {
   promotions: number;
   strategyUsed: AllocationStrategy;
   backendResult?: OptimizationOutput;
+  backendDeviations?: Map<string, number>;
+  backendFinalValues?: Map<string, number>;
+  backendDifferences?: Map<string, number>;
 }
 
 export interface BuyOrderData {
