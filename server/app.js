@@ -12,6 +12,7 @@ const pricesRoutes = require('./routes/prices');
 const batchRoutes = require('./routes/batch');
 const cacheRoutes = require('./routes/cache');
 const healthRoutes = require('./routes/health');
+const optimizationRoutes = require('./routes/optimization');
 
 const app = express();
 
@@ -32,6 +33,7 @@ app.use('/api/momentum', momentumRoutes);
 app.use('/api/prices', pricesRoutes);
 app.use('/api/batch', batchRoutes);
 app.use('/api/cache', cacheRoutes);
+app.use('/api/optimization', optimizationRoutes);
 app.use('/health', healthRoutes);
 
 // Global error handler

@@ -3,6 +3,53 @@
 import { httpClient } from './http-client';
 import type { MomentumResult, BatchMomentumRequest, ApiError } from './types';
 
+// Optimization types for backend linear programming
+export interface OptimizationInput {
+  currentHoldings: Array<{
+    name: string;
+    shares: number;
+    price: number;
+  }>;
+  targetETFs: Array<{
+    name: string;
+    targetPercentage: number;
+    allowedDeviation?: number;
+    pricePerShare: number;
+  }>;
+  extraCash: number;
+  optimizationStrategy?: 'minimize-leftover' | 'maximize-shares' | 'momentum-weighted';
+}
+
+export interface OptimizationOutput {
+  solverStatus: 'optimal' | 'infeasible' | 'heuristic' | 'error';
+  allocations: Array<{
+    etfName: string;
+    currentShares: number;
+    sharesToBuy: number;
+    finalShares: number;
+    costOfPurchase: number;
+    finalValue: number;
+    targetPercentage: number;
+    actualPercentage: number;
+    deviation: number;
+  }>;
+  holdingsToSell: Array<{
+    name: string;
+    shares: number;
+    pricePerShare: number;
+    totalValue: number;
+  }>;
+  optimizationMetrics: {
+    totalBudgetUsed: number;
+    unusedBudget: number;
+    unusedPercentage: number;
+    optimizationTime: number;
+  };
+  fallbackUsed?: boolean;
+  cached?: boolean;
+  error?: string;
+}
+
 export class MomentumService {
   private readonly http: typeof httpClient;
 
@@ -77,6 +124,47 @@ export class MomentumService {
     }
     
     throw lastError || new Error(`Failed to calculate momentum for ${ticker} after ${maxRetries} attempts`);
+  }
+
+  /**
+   * Optimize portfolio allocation using backend linear programming
+   */
+  async optimizePortfolio(input: OptimizationInput): Promise<OptimizationOutput> {
+    try {
+      return await this.http.post<OptimizationOutput>('/optimization/rebalance', input);
+    } catch (error) {
+      console.error('Backend optimization failed:', error);
+      
+      // Return fallback result with error
+      return {
+        solverStatus: 'error',
+        allocations: [],
+        holdingsToSell: [],
+        optimizationMetrics: {
+          totalBudgetUsed: 0,
+          unusedBudget: input.extraCash,
+          unusedPercentage: 100,
+          optimizationTime: 0
+        },
+        error: (error as ApiError).message || 'Backend optimization service unavailable'
+      };
+    }
+  }
+
+  /**
+   * Test optimization service health
+   */
+  async checkOptimizationHealth(): Promise<{ status: string; service: string; testResult?: any }> {
+    try {
+      return await this.http.get('/optimization/health');
+    } catch (error) {
+      console.error('Optimization health check failed:', error);
+      return {
+        status: 'unhealthy',
+        service: 'portfolio-optimization',
+        error: (error as ApiError).message
+      };
+    }
   }
 }
 

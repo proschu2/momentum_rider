@@ -75,8 +75,15 @@ async function calculateMomentum(ticker, includeName = false) {
   // Calculate average return
   const average = (return3mo + return6mo + return9mo + return12mo) / 4;
 
-  // Determine absolute momentum (all periods positive)
-  const absoluteMomentum = return3mo > 0 && return6mo > 0 && return9mo > 0 && return12mo > 0;
+  // Determine absolute momentum using composite score with recent bias
+  const recentBias = 0.6; // 60% weight to recent 3-6 month performance
+  const longTermBias = 0.4; // 40% weight to 9-12 month performance
+
+  const recentPerformance = (return3mo + return6mo) / 2;
+  const longTermPerformance = (return9mo + return12mo) / 2;
+
+  const compositeScore = (recentPerformance * recentBias) + (longTermPerformance * longTermBias);
+  const absoluteMomentum = compositeScore > 0;
 
   const result = {
     ticker,

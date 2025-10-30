@@ -10,11 +10,14 @@ import type {
     BudgetAllocationResult,
     BuyOrderData,
     PromotionStrategy,
-    MomentumData
+    MomentumData,
+    OptimizationInput,
+    OptimizationOutput
 } from './types'
 import { useETFConfigStore } from './etf-config'
 import { usePortfolioStore } from './portfolio'
 import { useMomentumStore } from './momentum'
+import { momentumService } from '../services/momentum-service'
 
 // Strategy Implementations
 class RemainderFirstPromotion implements PromotionStrategy {
@@ -236,11 +239,88 @@ export const useRebalancingStore = defineStore('rebalancing', () => {
     // Rebalancing Orders
     const rebalancingOrders = ref<RebalancingOrder[]>([])
 
-    // Budget Minimization Engine
-    function calculateBudgetAllocation(
+    // Budget Minimization Engine with Backend Linear Programming
+    async function calculateBudgetAllocation(
         buyOrders: BuyOrderData[],
         availableBudget: number
-    ): BudgetAllocationResult {
+    ): Promise<BudgetAllocationResult> {
+        try {
+            // Convert to backend optimization input format
+            const optimizationInput = convertToOptimizationInput(buyOrders, availableBudget);
+            
+            // Try backend linear programming optimization
+            const backendResult = await momentumService.optimizePortfolio(optimizationInput);
+            
+            if (backendResult.solverStatus === 'optimal' || backendResult.solverStatus === 'heuristic') {
+                // Convert backend result to frontend format
+                return convertFromOptimizationOutput(backendResult, buyOrders);
+            } else {
+                console.warn('Backend optimization failed, falling back to frontend heuristics:', backendResult.error);
+                return calculateFrontendFallback(buyOrders, availableBudget);
+            }
+        } catch (error) {
+            console.error('Backend optimization service unavailable, using frontend heuristics:', error);
+            return calculateFrontendFallback(buyOrders, availableBudget);
+        }
+    }
+
+    /**
+     * Convert buy orders to backend optimization input
+     */
+    function convertToOptimizationInput(buyOrders: BuyOrderData[], availableBudget: number): OptimizationInput {
+        const currentHoldings = Object.entries(portfolioStore.currentHoldings).map(([ticker, holding]) => ({
+            name: ticker,
+            shares: holding.shares,
+            price: holding.price
+        }));
+
+        const targetETFs = buyOrders.map(order => ({
+            name: order.ticker,
+            targetPercentage: Math.floor( (order.targetValue / portfolioStore.totalPortfolioValue) * 100),
+            allowedDeviation: order.ticker == 'IBIT' ? 2 : 5, // Default 5% deviation, 2% for IBIT
+            pricePerShare: order.price
+        }));
+
+        // Calculate extra cash (just the additional cash input)
+        const extraCash = portfolioStore.additionalCash;
+
+        return {
+            currentHoldings,
+            targetETFs,
+            extraCash: Math.max(0, extraCash),
+            optimizationStrategy: 'minimize-leftover'
+        };
+    }
+
+    /**
+     * Convert backend optimization output to frontend format
+     */
+    function convertFromOptimizationOutput(backendResult: OptimizationOutput, buyOrders: BuyOrderData[]): BudgetAllocationResult {
+        const finalShares = new Map<string, number>();
+        let promotions = 0;
+
+        // Process allocations from backend
+        backendResult.allocations.forEach(allocation => {
+            const order = buyOrders.find(o => o.ticker === allocation.etfName);
+            if (order) {
+                finalShares.set(allocation.etfName, allocation.finalShares);
+                promotions += Math.max(0, allocation.finalShares - order.floorShares);
+            }
+        });
+
+        return {
+            finalShares,
+            leftoverBudget: backendResult.optimizationMetrics.unusedBudget,
+            promotions,
+            strategyUsed: 'backend-optimization',
+            backendResult: backendResult
+        };
+    }
+
+    /**
+     * Fallback to frontend heuristic strategies when backend is unavailable
+     */
+    function calculateFrontendFallback(buyOrders: BuyOrderData[], availableBudget: number): BudgetAllocationResult {
         // Step 1: Calculate budget-aware floor allocations
         let totalFloorCost = buyOrders.reduce((sum, order) => sum + (order.floorShares * order.price), 0)
         let leftoverBudget = availableBudget - totalFloorCost
@@ -348,53 +428,48 @@ export const useRebalancingStore = defineStore('rebalancing', () => {
         }
     }
 
-    function calculateRebalancing() {
+    async function calculateRebalancing() {
         if (Object.keys(momentumStore.momentumData).length === 0) {
             portfolioStore.error = 'Please calculate momentum first'
             return
         }
 
-        // Get top ETFs with positive momentum (excluding Bitcoin)
+        // Get top ETFs with positive momentum (excluding IBIT)
         const positiveMomentumETFs = Object.entries(momentumStore.momentumData)
             .filter(([ticker, data]) =>
                 data.absoluteMomentum &&
-                ticker !== 'IBIT' &&
-                etfConfigStore.availableETFs.includes(ticker)
+                etfConfigStore.availableETFs.includes(ticker) &&
+                ticker !== 'IBIT' // Exclude IBIT from main ETF selection
             )
             .sort(([_, a], [__, b]) => b.average - a.average)
-            .slice(0, topAssets.value)
+            .slice(0, topAssets.value) // Always select 4 traditional ETFs regardless of IBIT status
             .map(([ticker]) => ticker)
 
-        // Add Bitcoin if it has positive momentum and is available
-        const bitcoinMomentum = momentumStore.momentumData['IBIT']
-        if (bitcoinMomentum?.absoluteMomentum && etfConfigStore.availableETFs.includes('IBIT')) {
-            positiveMomentumETFs.push('IBIT')
-        }
-
-        if (positiveMomentumETFs.length === 0) {
+        // Check if IBIT should be included as separate asset class
+        const ibitMomentum = momentumStore.momentumData['IBIT']
+        const includeIBIT = ibitMomentum?.absoluteMomentum && bitcoinAllocation.value > 0
+        
+        if (positiveMomentumETFs.length === 0 && !includeIBIT) {
             portfolioStore.error = 'No ETFs with positive momentum found'
             return
         }
 
-        // Calculate target allocations - Top ETFs + Bitcoin allocation
+        // Calculate target allocations - Reserve IBIT allocation separately
         const totalAllocation = 100
-        const bitcoinTargetPercent = bitcoinAllocation.value
-        const remainingPercent = totalAllocation - bitcoinTargetPercent
-
-        // Distribute remaining allocation among non-Bitcoin ETFs
-        const nonBitcoinETFs = positiveMomentumETFs.filter(etf => etf !== 'IBIT')
-        const nonBitcoinTargetPercent = nonBitcoinETFs.length > 0
-            ? remainingPercent / nonBitcoinETFs.length
+        const ibitAllocation = includeIBIT ? bitcoinAllocation.value : 0
+        const remainingAllocation = totalAllocation - ibitAllocation
+        
+        // Calculate allocation for traditional ETFs
+        const targetPercent = positiveMomentumETFs.length > 0
+            ? remainingAllocation / positiveMomentumETFs.length
             : 0
 
         // Generate rebalancing orders with budget-aware allocation
         const orders: RebalancingOrder[] = []
         const totalValue = portfolioStore.totalPortfolioValue
 
-        // First pass: Calculate target values and differences
+        // First pass: Calculate target values and differences for traditional ETFs
         const targetData = positiveMomentumETFs.map(ticker => {
-            const isBitcoin = ticker === 'IBIT'
-            const targetPercent = isBitcoin ? bitcoinTargetPercent : nonBitcoinTargetPercent
             const targetValue = (totalValue * targetPercent) / 100
 
             const currentHolding = portfolioStore.currentHoldings[ticker]
@@ -403,7 +478,6 @@ export const useRebalancingStore = defineStore('rebalancing', () => {
 
             return {
                 ticker,
-                isBitcoin,
                 targetPercent,
                 targetValue,
                 currentValue,
@@ -411,6 +485,23 @@ export const useRebalancingStore = defineStore('rebalancing', () => {
                 currentHolding
             }
         })
+
+        // Add IBIT as separate asset class if applicable
+        if (includeIBIT) {
+            const ibitTargetValue = (totalValue * ibitAllocation) / 100
+            const currentIBITHolding = portfolioStore.currentHoldings['IBIT']
+            const currentIBITValue = currentIBITHolding?.value || 0
+            const ibitDifference = ibitTargetValue - currentIBITValue
+
+            targetData.push({
+                ticker: 'IBIT',
+                targetPercent: ibitAllocation,
+                targetValue: ibitTargetValue,
+                currentValue: currentIBITValue,
+                difference: ibitDifference,
+                currentHolding: currentIBITHolding
+            })
+        }
 
         // Calculate total buy amount needed
         const totalBuyAmount = targetData
@@ -449,8 +540,8 @@ export const useRebalancingStore = defineStore('rebalancing', () => {
                 }
             })
             
-            // Step 2: Use budget minimization engine
-            const allocationResult = calculateBudgetAllocation(buyOrderData, availableBudget)
+            // Step 2: Use budget minimization engine with backend optimization
+            const allocationResult = await calculateBudgetAllocation(buyOrderData, availableBudget)
             
             // Update store state with allocation results
             leftoverBudget.value = allocationResult.leftoverBudget

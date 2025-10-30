@@ -9,10 +9,13 @@
     "test": "node test-server.js"
   },
   "dependencies": {
+    "axios": "^1.13.1",
     "cors": "^2.8.5",
     "express": "^4.21.1",
+    "javascript-lp-solver": "^0.4.24",
     "node-fetch": "^3.3.2",
-    "yahoo-finance2": "^3.10.0"
+    "yahoo-finance2": "^3.10.0",
+    "yalps": "^0.5.7"
   },
   "engines": {
     "node": ">=18.0.0"
