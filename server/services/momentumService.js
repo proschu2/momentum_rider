@@ -11,9 +11,9 @@ const { calculateReturnFromPrice, findClosestWeeklyPrice } = require('../utils/c
  */
 async function calculateMomentum(ticker, includeName = false) {
   const cacheKey = `momentum_${ticker}_${includeName}`;
-  
+
   // Check cache first
-  const cached = cacheService.getCachedData(cacheKey);
+  const cached = await cacheService.getCachedData(cacheKey);
   if (cached) {
     return cached;
   }
@@ -82,7 +82,7 @@ async function calculateMomentum(ticker, includeName = false) {
   const recentPerformance = (return3mo + return6mo) / 2;
   const longTermPerformance = (return9mo + return12mo) / 2;
 
-  const compositeScore = (recentPerformance * recentBias) + (longTermPerformance * longTermBias);
+  const compositeScore = recentPerformance * recentBias + longTermPerformance * longTermBias;
   const absoluteMomentum = compositeScore > 0;
 
   const result = {
@@ -102,9 +102,9 @@ async function calculateMomentum(ticker, includeName = false) {
  */
 async function getDetailedPrices(ticker, includeName = false) {
   const cacheKey = `prices_${ticker}_${includeName}`;
-  
+
   // Check cache first
-  const cached = cacheService.getCachedData(cacheKey);
+  const cached = await cacheService.getCachedData(cacheKey);
   if (cached) {
     return cached;
   }
@@ -158,15 +158,15 @@ async function getDetailedPrices(ticker, includeName = false) {
       '3month': price3moAgo,
       '6month': price6moAgo,
       '9month': price9moAgo,
-      '12month': price12moAgo
+      '12month': price12moAgo,
     },
     quote: {
       price: currentPrice,
       change: 0, // We don't have daily change data from weekly quotes
       changePercent: 0,
       marketState: 'CLOSED', // Assume closed since we're using weekly data
-      timestamp: latestQuote.date.toISOString()
-    }
+      timestamp: latestQuote.date.toISOString(),
+    },
   };
 
   cacheService.setCachedData(cacheKey, result);
@@ -175,5 +175,5 @@ async function getDetailedPrices(ticker, includeName = false) {
 
 module.exports = {
   calculateMomentum,
-  getDetailedPrices
+  getDetailedPrices,
 };
