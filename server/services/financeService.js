@@ -14,9 +14,9 @@ const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey', 'ripHis
  */
 async function getQuote(ticker) {
   const cacheKey = `quote_${ticker}`;
-  
+
   // Check cache first
-  const cached = cacheService.getCachedData(cacheKey);
+  const cached = await cacheService.getCachedData(cacheKey);
   if (cached) {
     return cached;
   }
@@ -32,9 +32,9 @@ async function getQuote(ticker) {
  */
 async function getHistoricalWeeklyData(ticker, years = 2) {
   const cacheKey = `historical_weekly_${ticker}_${years}y`;
-  
+
   // Check cache first
-  const cached = cacheService.getCachedData(cacheKey);
+  const cached = await cacheService.getCachedData(cacheKey);
   if (cached) {
     return cached;
   }
@@ -45,7 +45,7 @@ async function getHistoricalWeeklyData(ticker, years = 2) {
   const weeklyQuotes = await yahooFinance.historical(ticker, {
     period1: startDate.toISOString().split('T')[0] || '',
     period2: new Date().toISOString().split('T')[0] || '',
-    interval: '1wk'
+    interval: '1wk',
   });
 
   cacheService.setCachedData(cacheKey, weeklyQuotes);
@@ -57,9 +57,9 @@ async function getHistoricalWeeklyData(ticker, years = 2) {
  */
 async function getTickerName(ticker) {
   const cacheKey = `${ticker}_name`;
-  
+
   // Check cache first
-  const cached = cacheService.getCachedData(cacheKey);
+  const cached = await cacheService.getCachedData(cacheKey);
   if (cached) {
     return cached;
   }
@@ -76,5 +76,5 @@ module.exports = {
   getHistoricalWeeklyData,
   getTickerName,
   findClosestWeeklyPrice,
-  calculateReturnFromPrice
+  calculateReturnFromPrice,
 };
