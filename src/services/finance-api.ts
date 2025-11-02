@@ -93,7 +93,7 @@ class FinanceAPIService {
    */
   async calculateBatchMomentum(tickers: string[]): Promise<MomentumResult[]> {
     try {
-      const url = `${this.API_BASE_URL}/momentum/batch`;
+      const url = `${this.API_BASE_URL}/batch/momentum`;
       const response = await fetch(url, {
         method: 'POST',
         headers: {

@@ -1,0 +1,10 @@
+node_modules/
+logs/
+coverage/
+dist/
+.git/
+.husky/
+*.min.js
+package-lock.json
+yarn.lock
+.env*

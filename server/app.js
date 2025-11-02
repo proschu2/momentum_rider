@@ -5,6 +5,25 @@
 const express = require('express');
 const cors = require('cors');
 
+// Import logger
+const logger = require('./config/logger');
+const { requestLogger } = require('./middleware/logger');
+
+// Import validation middleware
+const { sanitizeOutput } = require('./middleware/validation');
+
+// Import rate limiter middleware
+const { combinedRateLimiter } = require('./middleware/rateLimiter');
+
+// Import authentication middleware
+const { verifyToken } = require('./middleware/auth');
+
+// Import Redis configuration
+const { getRedisClient, checkRedisHealth } = require('./config/redis');
+
+// Import cache service for initialization
+const cacheService = require('./services/cacheService');
+
 // Import route handlers
 const quoteRoutes = require('./routes/quote');
 const momentumRoutes = require('./routes/momentum');
@@ -13,21 +32,82 @@ const batchRoutes = require('./routes/batch');
 const cacheRoutes = require('./routes/cache');
 const healthRoutes = require('./routes/health');
 const optimizationRoutes = require('./routes/optimization');
+const authRoutes = require('./routes/auth');
+
+// Import error handlers
+const { globalErrorHandler, notFoundHandler } = require('./middleware/errorHandler');
 
 const app = express();
 
+// Redis initialization flag
+let redisInitialized = false;
+
+/**
+ * Initialize Redis connection and cache
+ */
+async function initializeRedis() {
+  try {
+    logger.logInfo('Initializing Redis connection');
+    const redis = getRedisClient();
+
+    // Check Redis health
+    const health = await checkRedisHealth();
+
+    if (health.status === 'healthy') {
+      logger.logInfo('Redis connection established');
+
+      // Warm up cache with frequently accessed data
+      await cacheService.warmCache();
+      logger.logInfo('Cache warmed successfully');
+
+      redisInitialized = true;
+      return true;
+    } else {
+      logger.logWarn('Redis unavailable, falling back to in-memory cache', {
+        error: health.error,
+      });
+      redisInitialized = false;
+      return false;
+    }
+  } catch (error) {
+    logger.logError(error, null);
+    logger.logInfo('Falling back to in-memory cache');
+    redisInitialized = false;
+    return false;
+  }
+}
+
+/**
+ * Get Redis initialization status
+ */
+function isRedisInitialized() {
+  return redisInitialized;
+}
+
 // Middleware
-app.use(cors({
-  origin: process.env.NODE_ENV === 'production'
-    ? process.env.ALLOWED_ORIGINS?.split(',') || []
-    : true, // Allow all origins in development
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+app.use(
+  cors({
+    origin:
+      process.env.NODE_ENV === 'production' ? process.env.ALLOWED_ORIGINS?.split(',') || [] : true, // Allow all origins in development
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  })
+);
 app.use(express.json());
 
+// Request logging middleware (should be early in the middleware stack)
+app.use(requestLogger);
+
+// Note: sanitizeOutput middleware removed - JSON responses don't need HTML escaping
+// Output sanitization is only needed for HTML responses, not JSON APIs
+
+// Apply rate limiting to all API routes
+app.use('/api', combinedRateLimiter);
+
 // Mount routes
+app.use('/api/auth', authRoutes);
+// Note: Authentication disabled for single-user access
 app.use('/api/quote', quoteRoutes);
 app.use('/api/momentum', momentumRoutes);
 app.use('/api/prices', pricesRoutes);
@@ -36,18 +116,12 @@ app.use('/api/cache', cacheRoutes);
 app.use('/api/optimization', optimizationRoutes);
 app.use('/health', healthRoutes);
 
-// Global error handler
-app.use((error, req, res, next) => {
-  console.error('Unhandled error:', error);
-  res.status(500).json({
-    error: 'Internal server error',
-    message: process.env.NODE_ENV === 'production' ? 'Something went wrong' : error.message
-  });
-});
-
 // 404 handler
-app.use('*', (req, res) => {
-  res.status(404).json({ error: 'Route not found' });
-});
+app.use(notFoundHandler);
+
+// Global error handler
+app.use(globalErrorHandler);
 
 module.exports = app;
+module.exports.initializeRedis = initializeRedis;
+module.exports.isRedisInitialized = isRedisInitialized;

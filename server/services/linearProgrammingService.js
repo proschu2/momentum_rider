@@ -3,6 +3,7 @@
  * Uses javascript-lp-solver for Mixed Integer Linear Programming (MILP)
  */
 
+const logger = require('../config/logger');
 const solver = require('javascript-lp-solver');
 
 class LinearProgrammingService {
@@ -14,23 +15,22 @@ class LinearProgrammingService {
   solve(input) {
     try {
       const startTime = Date.now();
-      
+
       // Validate input
       this.validateInput(input);
-      
+
       // Build LP model
       const model = this.buildModel(input);
-      
+
       // Solve the model using javascript-lp-solver
       const solution = solver.Solve(model);
-      
+
       // Process solution
       const result = this.processSolution(solution, input, startTime);
-      
+
       return result;
-      
     } catch (error) {
-      console.error('Linear programming optimization failed:', error);
+      logger.logError(error, null);
       throw new Error(`Optimization failed: ${error.message}`);
     }
   }
@@ -40,15 +40,15 @@ class LinearProgrammingService {
    */
   validateInput(input) {
     const { currentHoldings, targetETFs, extraCash } = input;
-    
+
     if (!Array.isArray(targetETFs) || targetETFs.length === 0) {
       throw new Error('Target ETFs array is required and cannot be empty');
     }
-    
+
     if (typeof extraCash !== 'number' || extraCash < 0) {
       throw new Error('Extra cash must be a non-negative number');
     }
-    
+
     // Validate target ETFs
     targetETFs.forEach((etf, index) => {
       if (!etf.name || typeof etf.name !== 'string') {
@@ -61,7 +61,7 @@ class LinearProgrammingService {
         throw new Error(`Target ETF ${etf.name} must have a valid positive price`);
       }
     });
-    
+
     // Validate current holdings if provided
     if (currentHoldings) {
       if (!Array.isArray(currentHoldings)) {
@@ -86,52 +86,54 @@ class LinearProgrammingService {
    */
   buildModel(input) {
     const { currentHoldings = [], targetETFs, extraCash } = input;
-    
+
     // Calculate total available budget (current holdings value + additional cash)
-    const currentHoldingsValue = currentHoldings.reduce((sum, holding) =>
-      sum + (holding.shares * holding.price), 0);
+    const currentHoldingsValue = currentHoldings.reduce(
+      (sum, holding) => sum + holding.shares * holding.price,
+      0
+    );
     const totalAvailableBudget = currentHoldingsValue + extraCash;
-    
+
     const model = {
       optimize: 'totalBudgetUsed',
       opType: 'max',
       constraints: {},
       variables: {},
-      ints: {}
+      ints: {},
     };
 
     // Create variables for each target ETF (shares to buy)
-    targetETFs.forEach(etf => {
+    targetETFs.forEach((etf) => {
       const varName = `buy_${etf.name.replace(/[^a-zA-Z0-9]/g, '_')}`;
-      
+
       // Get current shares for this ETF
-      const currentHolding = currentHoldings.find(h => h.name === etf.name);
+      const currentHolding = currentHoldings.find((h) => h.name === etf.name);
       const currentShares = currentHolding ? currentHolding.shares : 0;
       const currentValue = currentShares * etf.pricePerShare;
-      
+
       // Calculate target value bounds
       const targetValue = (totalAvailableBudget * etf.targetPercentage) / 100;
       const allowedDeviation = etf.allowedDeviation || 5; // Default 5% deviation
-      const minValue = Math.max(0, targetValue - (totalAvailableBudget * allowedDeviation / 100));
-      const maxValue = targetValue + (totalAvailableBudget * allowedDeviation / 100);
-      
+      const minValue = Math.max(0, targetValue - (totalAvailableBudget * allowedDeviation) / 100);
+      const maxValue = targetValue + (totalAvailableBudget * allowedDeviation) / 100;
+
       // Create variable for shares to buy
       model.variables[varName] = {
         totalBudgetUsed: etf.pricePerShare, // POSITIVE coefficient to maximize budget usage
         [`min_${etf.name}`]: etf.pricePerShare,
         [`max_${etf.name}`]: etf.pricePerShare,
-        budget: etf.pricePerShare
+        budget: etf.pricePerShare,
       };
-      
+
       // Integer constraint for shares
       model.ints[varName] = 1;
-      
+
       // Minimum value constraint (current + new >= minValue)
       model.constraints[`min_${etf.name}`] = { min: minValue - currentValue };
-      
+
       // Maximum value constraint (current + new <= maxValue)
       model.constraints[`max_${etf.name}`] = { max: maxValue - currentValue };
-      
+
       // Non-negativity constraint
       model.constraints[varName] = { min: 0 };
     });
@@ -142,7 +144,7 @@ class LinearProgrammingService {
     // Total budget used variable (sum of all ETF purchases)
     model.variables.totalBudgetUsed = {
       totalBudgetUsed: 1,
-      budget: 0 // Doesn't affect budget constraint
+      budget: 0, // Doesn't affect budget constraint
     };
     model.constraints.totalBudgetUsed = { min: 0 };
 
@@ -154,7 +156,7 @@ class LinearProgrammingService {
    */
   processSolution(solution, input, startTime) {
     const { currentHoldings = [], targetETFs, extraCash } = input;
-    
+
     if (solution.feasible !== true) {
       return {
         solverStatus: 'infeasible',
@@ -165,25 +167,27 @@ class LinearProgrammingService {
           totalBudgetUsed: 0,
           unusedBudget: extraCash,
           unusedPercentage: 100,
-          optimizationTime: Date.now() - startTime
-        }
+          optimizationTime: Date.now() - startTime,
+        },
       };
     }
 
     // Calculate total available budget (current holdings value + additional cash)
-    const currentHoldingsValue = currentHoldings.reduce((sum, holding) =>
-      sum + (holding.shares * holding.price), 0);
+    const currentHoldingsValue = currentHoldings.reduce(
+      (sum, holding) => sum + holding.shares * holding.price,
+      0
+    );
     const totalAvailableBudget = currentHoldingsValue + extraCash;
 
     // Extract allocations from solution
     const allocations = [];
     let totalBudgetUsed = 0;
 
-    targetETFs.forEach(etf => {
+    targetETFs.forEach((etf) => {
       const varName = `buy_${etf.name.replace(/[^a-zA-Z0-9]/g, '_')}`;
       const sharesToBuy = Math.round(solution[varName] || 0);
-      
-      const currentHolding = currentHoldings.find(h => h.name === etf.name);
+
+      const currentHolding = currentHoldings.find((h) => h.name === etf.name);
       const currentShares = currentHolding ? currentHolding.shares : 0;
       const finalShares = currentShares + sharesToBuy;
       const costOfPurchase = sharesToBuy * etf.pricePerShare;
@@ -203,7 +207,7 @@ class LinearProgrammingService {
         finalValue,
         targetPercentage,
         actualPercentage,
-        deviation
+        deviation,
       });
     });
 
@@ -218,8 +222,8 @@ class LinearProgrammingService {
         totalBudgetUsed,
         unusedBudget,
         unusedPercentage,
-        optimizationTime: Date.now() - startTime
-      }
+        optimizationTime: Date.now() - startTime,
+      },
     };
   }
 
@@ -227,15 +231,15 @@ class LinearProgrammingService {
    * Identify holdings that should be sold (non-target holdings)
    */
   identifyHoldingsToSell(currentHoldings, targetETFs) {
-    const targetNames = new Set(targetETFs.map(etf => etf.name));
-    
+    const targetNames = new Set(targetETFs.map((etf) => etf.name));
+
     return currentHoldings
-      .filter(holding => !targetNames.has(holding.name))
-      .map(holding => ({
+      .filter((holding) => !targetNames.has(holding.name))
+      .map((holding) => ({
         name: holding.name,
         shares: holding.shares,
         pricePerShare: holding.price,
-        totalValue: holding.shares * holding.price
+        totalValue: holding.shares * holding.price,
       }));
   }
 
@@ -246,21 +250,21 @@ class LinearProgrammingService {
     const testInput = {
       currentHoldings: [
         { name: 'ETF1', shares: 10, price: 100 },
-        { name: 'ETF2', shares: 5, price: 50 }
+        { name: 'ETF2', shares: 5, price: 50 },
       ],
       targetETFs: [
         { name: 'ETF1', targetPercentage: 60, pricePerShare: 100 },
-        { name: 'ETF2', targetPercentage: 40, pricePerShare: 50 }
+        { name: 'ETF2', targetPercentage: 40, pricePerShare: 50 },
       ],
-      extraCash: 1000
+      extraCash: 1000,
     };
 
     try {
       const result = this.solve(testInput);
-      console.log('Solver test result:', result);
+      logger.logDebug('Solver test result', { result });
       return result;
     } catch (error) {
-      console.error('Solver test failed:', error);
+      logger.logError(error, null);
       throw error;
     }
   }

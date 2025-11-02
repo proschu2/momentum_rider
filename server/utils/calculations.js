@@ -37,5 +37,5 @@ function findClosestWeeklyPrice(weeklyQuotes, targetDate) {
 
 module.exports = {
   calculateReturnFromPrice,
-  findClosestWeeklyPrice
+  findClosestWeeklyPrice,
 };

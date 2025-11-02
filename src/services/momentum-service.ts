@@ -84,7 +84,7 @@ export class MomentumService {
   async calculateBatchMomentum(tickers: string[]): Promise<MomentumResult[]> {
     try {
       const request: BatchMomentumRequest = { tickers };
-      return await this.http.post<MomentumResult[]>('/momentum/batch', request);
+      return await this.http.post<MomentumResult[]>('/batch/momentum', request);
     } catch (error) {
       console.error('Error in batch momentum calculation:', error);
       
