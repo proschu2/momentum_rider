@@ -44,7 +44,7 @@ if (typeof window !== 'undefined') {
 onMounted(async () => {
   isMounted.value = true
   if (etfConfigStore.selectedETFs.length === 0) {
-    etfConfigStore.selectedETFs = ['VTI', 'TLT', 'PDBC', 'IBIT', 'VEA', 'VWO', 'SGOL', 'BND', 'BWX']
+    etfConfigStore.selectedETFs = ['VTI', 'TLT', 'PDBC', 'IBIT', 'VEA', 'VWO', 'GLDM', 'BND', 'BWX']
   }
 
   // Get API base URL for display
@@ -367,7 +367,7 @@ const editingCash = ref(false)
                 <td class="px-6 py-4 whitespace-nowrap">
                   <div class="relative group/momentum">
                     <span class="text-sm font-bold cursor-help" :class="data.average >= 0 ? 'text-success-600' : 'text-error-600'">
-                      {{ data.average.toFixed(2) }}%
+                      {{ data.average?.toFixed(2) || 'N/A' }}%
                     </span>
                     <!-- Period Returns Tooltip -->
                     <div class="absolute left-0 bottom-full mb-2 hidden group-hover/momentum:block bg-neutral-800 text-white text-xs rounded-lg p-3 shadow-lg z-10 min-w-[180px]">
@@ -375,7 +375,7 @@ const editingCash = ref(false)
                       <div class="space-y-1">
                         <div v-for="period in ['3month', '6month', '9month', '12month']" :key="period" class="flex justify-between">
                           <span>{{ period.replace('month', 'm') }}:</span>
-                          <span class="font-medium">{{ data.periods[period as keyof typeof data.periods].toFixed(2) }}%</span>
+                          <span class="font-medium">{{ data.periods?.[period as keyof typeof data.periods]?.toFixed(2) || 'N/A' }}%</span>
                         </div>
                       </div>
                     </div>
@@ -428,7 +428,7 @@ const editingCash = ref(false)
                 </span>
               </div>
               <div class="text-xl font-bold mb-3" :class="data.average >= 0 ? 'text-success-600' : 'text-error-600'">
-                {{ data.average.toFixed(2) }}%
+                {{ data.average?.toFixed(2) || 'N/A' }}%
               </div>
               <!-- Price and Value Information -->
               <div class="text-xs text-neutral-500 space-y-1.5 mb-3">
@@ -446,7 +446,7 @@ const editingCash = ref(false)
               <div class="text-xs text-neutral-500 space-y-1.5">
                 <div v-for="period in ['3month', '6month', '9month', '12month']" :key="period" class="flex justify-between">
                   <span>{{ period.replace('month', 'm') }}:</span>
-                  <span class="font-medium">{{ data.periods[period as keyof typeof data.periods].toFixed(2) }}%</span>
+                  <span class="font-medium">{{ data.periods?.[period as keyof typeof data.periods]?.toFixed(2) || 'N/A' }}%</span>
                 </div>
               </div>
             </div>

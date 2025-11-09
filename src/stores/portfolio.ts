@@ -114,14 +114,16 @@ export const usePortfolioStore = defineStore('portfolio', () => {
 
     async function fetchETFPrice(ticker: string) {
         try {
+            console.debug(`[PortfolioStore] Fetching ETF price for ${ticker}`)
             const quoteData = await quoteService.getCurrentQuote(ticker)
             const price = quoteData.regularMarketPrice || quoteData.price || 1
             const name = quoteData.longName || quoteData.shortName || ticker
 
+            console.debug(`[PortfolioStore] Successfully fetched price for ${ticker}: $${price}`)
             etfPrices.value[ticker] = { price, name }
             return { price, name }
         } catch (error) {
-            console.warn(`Failed to fetch price for ${ticker}:`, error)
+            console.warn(`[PortfolioStore] Failed to fetch price for ${ticker}:`, error)
             etfPrices.value[ticker] = { price: 1, name: ticker }
             return { price: 1, name: ticker }
         }

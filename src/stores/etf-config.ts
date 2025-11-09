@@ -7,7 +7,7 @@ export const useETFConfigStore = defineStore('etfConfig', () => {
     const etfUniverse = ref<ETFUniverse>({
         STOCKS: ['VTI', 'VEA', 'VWO'],
         BONDS: ['TLT', 'BWX', 'BND'],
-        COMMODITIES: ['PDBC', 'SGOL'],
+        COMMODITIES: ['PDBC', 'GLDM'],
         ALTERNATIVES: ['IBIT']
     })
 

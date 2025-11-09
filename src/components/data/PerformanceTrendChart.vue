@@ -35,7 +35,7 @@ const assetColors = {
   BWX: '#34D399',
   BND: '#6EE7B7',
   PDBC: '#F59E0B',
-  SGOL: '#FBBF24',
+  GLDM: '#FBBF24',
   IBIT: '#8B5CF6'
 }
 

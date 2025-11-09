@@ -274,12 +274,25 @@ export const useRebalancingStore = defineStore('rebalancing', () => {
             price: holding.price
         }));
 
-        const targetETFs = buyOrders.map(order => ({
-            name: order.ticker,
-            targetPercentage: Math.floor( (order.targetValue / portfolioStore.totalPortfolioValue) * 100),
-            allowedDeviation: order.ticker == 'IBIT' ? 2  : 5, // Default 5% deviation, 2% for IBIT
-            pricePerShare: order.price
-        }));
+        console.debug('[Rebalancing] Converting buy orders to optimization input:', buyOrders.map(o => o.ticker));
+
+        // Include ALL target ETFs in the optimization, not just those with positive differences
+        // This ensures the backend optimization considers all top ETFs
+        const targetETFs = buyOrders.map(order => {
+            // Calculate target percentage based on target value and total portfolio value
+            const targetPercentage = Math.floor((order.targetValue / portfolioStore.totalPortfolioValue) * 100);
+            
+            console.debug(`[Rebalancing] ETF ${order.ticker}: targetValue=${order.targetValue}, totalValue=${portfolioStore.totalPortfolioValue}, targetPercentage=${targetPercentage}`);
+            
+            return {
+                name: order.ticker,
+                targetPercentage: targetPercentage,
+                allowedDeviation: order.ticker == 'IBIT' ? 2  : 5, // Default 5% deviation, 2% for IBIT
+                pricePerShare: order.price
+            };
+        });
+
+        console.debug('[Rebalancing] Target ETFs for optimization:', targetETFs);
 
         // Calculate extra cash (just the additional cash input)
         const extraCash = portfolioStore.additionalCash;
@@ -443,6 +456,10 @@ export const useRebalancingStore = defineStore('rebalancing', () => {
             return
         }
 
+        console.debug('[Rebalancing] Starting rebalancing calculation')
+        console.debug('[Rebalancing] Momentum data:', momentumStore.momentumData)
+        console.debug('[Rebalancing] Available ETFs:', etfConfigStore.availableETFs)
+
         // Get top ETFs with positive momentum (excluding IBIT)
         const positiveMomentumETFs = Object.entries(momentumStore.momentumData)
             .filter(([ticker, data]) =>
@@ -453,6 +470,9 @@ export const useRebalancingStore = defineStore('rebalancing', () => {
             .sort(([_, a], [__, b]) => b.average - a.average)
             .slice(0, topAssets.value) // Always select 4 traditional ETFs regardless of IBIT status
             .map(([ticker]) => ticker)
+
+        console.debug('[Rebalancing] Positive momentum ETFs:', positiveMomentumETFs)
+        console.debug('[Rebalancing] Top assets setting:', topAssets.value)
 
         // Check if IBIT should be included as separate asset class
         const ibitMomentum = momentumStore.momentumData['IBIT']
@@ -468,14 +488,24 @@ export const useRebalancingStore = defineStore('rebalancing', () => {
         const ibitAllocation = includeIBIT ? bitcoinAllocation.value : 0
         const remainingAllocation = totalAllocation - ibitAllocation
         
-        // Calculate allocation for traditional ETFs
+        // Calculate equal allocation for traditional ETFs
+        // Ensure equal distribution regardless of current holdings
         const targetPercent = positiveMomentumETFs.length > 0
             ? remainingAllocation / positiveMomentumETFs.length
             : 0
 
+        console.debug('[Rebalancing] Equal target allocation per ETF:', targetPercent)
+
+        console.debug('[Rebalancing] Target allocation calculation:')
+        console.debug('[Rebalancing] - IBIT allocation:', ibitAllocation)
+        console.debug('[Rebalancing] - Remaining allocation:', remainingAllocation)
+        console.debug('[Rebalancing] - Target percent per ETF:', targetPercent)
+
         // Generate rebalancing orders with budget-aware allocation
         const orders: RebalancingOrder[] = []
         const totalValue = portfolioStore.totalPortfolioValue
+
+        console.debug('[Rebalancing] Total portfolio value:', totalValue)
 
         // First pass: Calculate target values and differences for traditional ETFs
         const targetData = positiveMomentumETFs.map(ticker => {
@@ -484,6 +514,8 @@ export const useRebalancingStore = defineStore('rebalancing', () => {
             const currentHolding = portfolioStore.currentHoldings[ticker]
             const currentValue = currentHolding?.value || 0
             const difference = targetValue - currentValue
+
+            console.debug(`[Rebalancing] ETF ${ticker}: target=${targetValue}, current=${currentValue}, diff=${difference}`)
 
             return {
                 ticker,
@@ -527,14 +559,24 @@ export const useRebalancingStore = defineStore('rebalancing', () => {
 
         // Budget-aware allocation algorithm for buy orders
         const buyOrders = targetData.filter(data => data.difference > 0)
+        const sellOrders = targetData.filter(data => data.difference < 0)
+        const holdOrders = targetData.filter(data => data.difference === 0)
         
-        if (buyOrders.length > 0) {
-            // Step 1: Calculate exact fractional shares for all buy orders
-            const buyOrderData = buyOrders.map(data => {
+        console.debug('[Rebalancing] Buy orders (difference > 0):', buyOrders.map(o => ({ ticker: o.ticker, difference: o.difference })))
+        console.debug('[Rebalancing] Sell orders (difference < 0):', sellOrders.map(o => ({ ticker: o.ticker, difference: o.difference })))
+        console.debug('[Rebalancing] Hold orders (difference = 0):', holdOrders.map(o => ({ ticker: o.ticker, difference: o.difference })))
+        
+        // Unified order processing to ensure each ETF appears only once
+        if (targetData.length > 0) {
+            // Step 1: Calculate exact fractional shares for ALL target ETFs
+            const buyOrderData = targetData.map(data => {
                 const currentPrice = data.currentHolding?.price || portfolioStore.etfPrices[data.ticker]?.price || 1
-                const exactShares = Math.abs(data.difference) / currentPrice
+                // For ETFs that need selling, we still calculate shares but with 0 floor shares
+                const exactShares = Math.max(0, data.difference) / currentPrice
                 const floorShares = Math.floor(exactShares)
                 const remainder = exactShares - floorShares
+                
+                console.debug(`[Rebalancing] Processing ${data.ticker}: price=${currentPrice}, exact=${exactShares}, floor=${floorShares}, remainder=${remainder}, difference=${data.difference}`)
                 
                 return {
                     ticker: data.ticker,
@@ -549,33 +591,79 @@ export const useRebalancingStore = defineStore('rebalancing', () => {
                 }
             })
             
+            console.debug('[Rebalancing] Buy order data:', buyOrderData)
+            console.debug('[Rebalancing] Available budget:', availableBudget)
+            
             // Step 2: Use budget minimization engine with backend optimization
             const allocationResult = await calculateBudgetAllocation(buyOrderData, availableBudget)
+            
+            console.debug('[Rebalancing] Allocation result:', allocationResult)
             
             // Update store state with allocation results
             leftoverBudget.value = allocationResult.leftoverBudget
             promotionsApplied.value = allocationResult.promotions
             
-            // Step 3: Create buy orders with final share counts
-            for (const order of buyOrderData) {
-                const shares = allocationResult.finalShares.get(order.ticker) || 0
+            // Step 3: Create unified orders for all target ETFs
+            for (const data of targetData) {
+                const order = buyOrderData.find(o => o.ticker === data.ticker)
+                if (!order) continue
+                
+                const shares = allocationResult.finalShares.get(data.ticker) || 0
+                const currentPrice = data.currentHolding?.price || portfolioStore.etfPrices[data.ticker]?.price || 1
+                
+                // Determine action based on net position change
+                let action: 'BUY' | 'SELL' | 'HOLD' = 'HOLD'
+                let netShares = 0
+                
+                if (data.difference > 0) {
+                    // ETF needs buying
+                    action = 'BUY'
+                    // Calculate incremental shares to buy (not total final shares)
+                    const currentShares = data.currentHolding?.shares || 0
+                    netShares = shares - currentShares
+                } else if (data.difference < 0) {
+                    // ETF needs selling
+                    action = 'SELL'
+                    // Calculate sell shares based on the difference
+                    const exactSellShares = Math.abs(data.difference) / currentPrice
+                    netShares = -Math.min(Math.round(exactSellShares), data.currentHolding?.shares || 0)
+                } else {
+                    // ETF is at target
+                    action = 'HOLD'
+                    netShares = 0
+                }
                 
                 // Use backend values if available, otherwise calculate locally
-                const backendFinalValue = allocationResult.backendFinalValues?.get(order.ticker)
-                const backendDifference = allocationResult.backendDifferences?.get(order.ticker)
-                const backendDeviation = allocationResult.backendDeviations?.get(order.ticker)
+                const backendFinalValue = allocationResult.backendFinalValues?.get(data.ticker)
+                const backendDifference = allocationResult.backendDifferences?.get(data.ticker)
+                const backendDeviation = allocationResult.backendDeviations?.get(data.ticker)
                 
-                const finalValue = backendFinalValue !== undefined ? backendFinalValue : order.currentValue + (order.targetValue - order.currentValue)
-                const actualDifference = backendDifference !== undefined ? backendDifference : order.targetValue - order.currentValue
+                // Calculate final value based on action type
+                let finalValue = backendFinalValue !== undefined ? backendFinalValue : data.currentValue;
+                let actualDifference = backendDifference !== undefined ? backendDifference : 0;
+                
+                if (data.difference > 0) {
+                    // BUY action: add value of purchased shares (incremental value only)
+                    const incrementalValue = netShares * currentPrice;
+                    finalValue = data.currentValue + incrementalValue;
+                    actualDifference = incrementalValue;
+                } else if (data.difference < 0) {
+                    // SELL action: subtract value of sold shares
+                    const sellValue = Math.abs(netShares) * currentPrice;
+                    finalValue = Math.max(0, data.currentValue - sellValue);
+                    actualDifference = -sellValue;
+                }
+                // For HOLD actions, values remain the same
+                
                 const deviationPercentage = backendDeviation !== undefined ? backendDeviation :
-                    ((finalValue / portfolioStore.totalPortfolioValue) * 100) - ((order.targetValue / portfolioStore.totalPortfolioValue) * 100)
+                    ((finalValue / portfolioStore.totalPortfolioValue) * 100) - ((data.targetValue / portfolioStore.totalPortfolioValue) * 100)
                 
                 orders.push({
-                    ticker: order.ticker,
-                    action: 'BUY',
-                    shares,
-                    targetValue: order.targetValue,
-                    currentValue: order.currentValue,
+                    ticker: data.ticker,
+                    action,
+                    shares: netShares,
+                    targetValue: data.targetValue,
+                    currentValue: data.currentValue,
                     finalValue,
                     difference: actualDifference,
                     deviationPercentage
@@ -584,50 +672,6 @@ export const useRebalancingStore = defineStore('rebalancing', () => {
         } else {
             leftoverBudget.value = availableBudget
             promotionsApplied.value = 0
-        }
-        
-        // Process sell orders (unchanged logic)
-        for (const data of targetData.filter(data => data.difference < 0)) {
-            const { ticker, targetValue, currentValue, difference, currentHolding } = data
-            const currentPrice = currentHolding?.price || portfolioStore.etfPrices[ticker]?.price || 1
-            
-            if (currentHolding) {
-                const exactShares = Math.abs(difference) / currentPrice
-                const calculatedShares = Math.round(exactShares)
-                const shares = Math.min(calculatedShares, currentHolding.shares)
-                const actualDifference = -shares * currentPrice
-                const finalValue = currentValue + actualDifference
-                const deviationPercentage = ((finalValue / portfolioStore.totalPortfolioValue) * 100) - ((targetValue / portfolioStore.totalPortfolioValue) * 100)
-                
-                orders.push({
-                    ticker,
-                    action: 'SELL',
-                    shares,
-                    targetValue,
-                    currentValue,
-                    finalValue,
-                    difference: actualDifference,
-                    deviationPercentage
-                })
-            }
-        }
-        
-        // Process hold orders
-        for (const data of targetData.filter(data => data.difference === 0)) {
-            const { ticker, targetValue, currentValue } = data
-            const finalValue = currentValue
-            const deviationPercentage = ((finalValue / portfolioStore.totalPortfolioValue) * 100) - ((targetValue / portfolioStore.totalPortfolioValue) * 100)
-            
-            orders.push({
-                ticker,
-                action: 'HOLD',
-                shares: 0,
-                targetValue,
-                currentValue,
-                finalValue,
-                difference: 0,
-                deviationPercentage
-            })
         }
 
         // Identify and create sell orders for non-strategy holdings
@@ -642,7 +686,7 @@ export const useRebalancingStore = defineStore('rebalancing', () => {
                 orders.push({
                     ticker,
                     action: 'SELL',
-                    shares: currentHolding.shares,
+                    shares: -currentHolding.shares, // Negative for net shares to sell
                     targetValue: 0,
                     currentValue: currentHolding.value,
                     finalValue: 0,
@@ -652,6 +696,7 @@ export const useRebalancingStore = defineStore('rebalancing', () => {
             }
         })
 
+        console.debug('[Rebalancing] Final orders:', orders)
         rebalancingOrders.value = orders
     }
 

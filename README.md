@@ -79,7 +79,7 @@ The application provides a curated universe of 9 ETFs across 4 major asset class
 |----------|------|---------|
 | **STOCKS** | VTI, VEA, VWO | Equity exposure across US, Developed, and Emerging markets |
 | **BONDS** | TLT, BWX, BND | Treasury and aggregate bond exposure |
-| **COMMODITIES** | PDBC, SGOL | Broad commodities basket and gold exposure |
+| **COMMODITIES** | PDBC, GLDM | Broad commodities basket and gold exposure |
 | **ALTERNATIVES** | IBIT | Bitcoin ETF (managed separately at 4% allocation) |
 
 ### Rationale for ETF Selection
@@ -112,7 +112,7 @@ The application provides a curated universe of 9 ETFs across 4 major asset class
 - Broad commodities exposure
 - Inflation hedge and cycle exposure
 
-**SGOL (Aberdeen Physical Gold Shares)**
+**GLDM (Aberdeen Physical Gold Shares)**
 - Gold exposure
 - Crisis hedge and monetary inflation protection
 

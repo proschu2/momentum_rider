@@ -25,6 +25,9 @@ class LinearProgrammingService {
       // Solve the model using javascript-lp-solver
       const solution = solver.Solve(model);
 
+      console.log('LP Model:', JSON.stringify(model, null, 2));
+      console.log('LP Solution:', JSON.stringify(solution, null, 2));
+
       // Process solution
       const result = this.processSolution(solution, input, startTime);
 
@@ -95,8 +98,8 @@ class LinearProgrammingService {
     const totalAvailableBudget = currentHoldingsValue + extraCash;
 
     const model = {
-      optimize: 'totalBudgetUsed',
-      opType: 'max',
+      optimize: 'allocationFairness',
+      opType: 'min',
       constraints: {},
       variables: {},
       ints: {},
@@ -119,7 +122,7 @@ class LinearProgrammingService {
 
       // Create variable for shares to buy
       model.variables[varName] = {
-        totalBudgetUsed: etf.pricePerShare, // POSITIVE coefficient to maximize budget usage
+        allocationFairness: 0, // Will be set in deviation variables
         [`min_${etf.name}`]: etf.pricePerShare,
         [`max_${etf.name}`]: etf.pricePerShare,
         budget: etf.pricePerShare,
@@ -138,15 +141,46 @@ class LinearProgrammingService {
       model.constraints[varName] = { min: 0 };
     });
 
+    // Add deviation variables for allocation fairness
+    targetETFs.forEach((etf) => {
+      const currentHolding = currentHoldings.find((h) => h.name === etf.name);
+      const currentShares = currentHolding ? currentHolding.shares : 0;
+      const currentValue = currentShares * etf.pricePerShare;
+      const targetValue = (totalAvailableBudget * etf.targetPercentage) / 100;
+      
+      // Positive deviation variable (over-allocation)
+      const posDevVar = `pos_dev_${etf.name.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      model.variables[posDevVar] = {
+        allocationFairness: 1, // Minimize positive deviations
+        [`dev_${etf.name}`]: 1,
+      };
+      model.constraints[posDevVar] = { min: 0 };
+      
+      // Negative deviation variable (under-allocation)
+      const negDevVar = `neg_dev_${etf.name.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      model.variables[negDevVar] = {
+        allocationFairness: 1, // Minimize negative deviations
+        [`dev_${etf.name}`]: -1,
+      };
+      model.constraints[negDevVar] = { min: 0 };
+      
+      // Deviation constraint: (current + new) - target = pos_dev - neg_dev
+      const buyVarName = `buy_${etf.name.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      model.constraints[`dev_${etf.name}`] = {
+        equal: targetValue - currentValue
+      };
+      model.variables[buyVarName][`dev_${etf.name}`] = etf.pricePerShare;
+    });
+
     // Budget constraint: total cost <= total available budget
     model.constraints.budget = { max: totalAvailableBudget };
 
-    // Total budget used variable (sum of all ETF purchases)
-    model.variables.totalBudgetUsed = {
-      totalBudgetUsed: 1,
+    // Allocation fairness variable (sum of all deviations)
+    model.variables.allocationFairness = {
+      allocationFairness: 1,
       budget: 0, // Doesn't affect budget constraint
     };
-    model.constraints.totalBudgetUsed = { min: 0 };
+    model.constraints.allocationFairness = { min: 0 };
 
     return model;
   }

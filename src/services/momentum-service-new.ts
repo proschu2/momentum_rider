@@ -1,54 +1,13 @@
 // Momentum calculation service for ETF data
 
 import { apiClient } from './api-client';
-import type { MomentumResult, BatchMomentumRequest, ApiError } from './types';
-
-// Optimization types for backend linear programming
-export interface OptimizationInput {
-  currentHoldings: Array<{
-    name: string;
-    shares: number;
-    price: number;
-  }>;
-  targetETFs: Array<{
-    name: string;
-    targetPercentage: number;
-    allowedDeviation?: number;
-    pricePerShare: number;
-  }>;
-  extraCash: number;
-  optimizationStrategy?: 'minimize-leftover' | 'maximize-shares' | 'momentum-weighted';
-}
-
-export interface OptimizationOutput {
-  solverStatus: 'optimal' | 'infeasible' | 'heuristic' | 'error';
-  allocations: Array<{
-    etfName: string;
-    currentShares: number;
-    sharesToBuy: number;
-    finalShares: number;
-    costOfPurchase: number;
-    finalValue: number;
-    targetPercentage: number;
-    actualPercentage: number;
-    deviation: number;
-  }>;
-  holdingsToSell: Array<{
-    name: string;
-    shares: number;
-    pricePerShare: number;
-    totalValue: number;
-  }>;
-  optimizationMetrics: {
-    totalBudgetUsed: number;
-    unusedBudget: number;
-    unusedPercentage: number;
-    optimizationTime: number;
-  };
-  fallbackUsed?: boolean;
-  cached?: boolean;
-  error?: string;
-}
+import type {
+  MomentumResult,
+  BatchMomentumRequest,
+  ApiError,
+  OptimizationInput,
+  OptimizationOutput
+} from './types';
 
 export class MomentumService {
   private readonly http: typeof apiClient;
@@ -154,7 +113,7 @@ export class MomentumService {
   /**
    * Test optimization service health
    */
-  async checkOptimizationHealth(): Promise<{ status: string; service: string; testResult?: any }> {
+  async checkOptimizationHealth(): Promise<{ status: string; service: string; testResult?: any; error?: string }> {
     try {
       return await this.http.get('/optimization/health');
     } catch (error) {

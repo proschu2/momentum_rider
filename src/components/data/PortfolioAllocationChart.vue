@@ -50,7 +50,7 @@ const assetColors = {
   BWX: '#047857',
   BND: '#065F46',
   PDBC: '#D97706',
-  SGOL: '#92400E',
+  GLDM: '#92400E',
   IBIT: '#7C3AED'
 }
 
@@ -93,7 +93,7 @@ function getCategoryForTicker(ticker: string): keyof typeof categoryColors {
   if (['VTI', 'VEA', 'VWO'].includes(ticker)) return 'STOCKS'
   if (['TLT', 'BWX', 'BND'].includes(ticker)) return 'BONDS'
   if (['PDBC'].includes(ticker)) return 'COMMODITIES'
-  if (['SGOL', 'IBIT'].includes(ticker)) return 'ALTERNATIVES'
+  if (['GLDM', 'IBIT'].includes(ticker)) return 'ALTERNATIVES'
   return 'STOCKS'
 }
 

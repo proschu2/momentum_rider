@@ -18,12 +18,17 @@ class PortfolioOptimizationService {
       // Generate cache key
       const cacheKey = this.generateCacheKey(input);
 
+      console.log('Optimization cache key:', cacheKey);
+
       // Check cache first
       const cachedResult = await cacheService.getCachedData(cacheKey);
       if (cachedResult) {
         logger.logInfo('Using cached optimization result');
+        console.log('Found cached result for key:', cacheKey);
         return { ...cachedResult, cached: true };
       }
+
+      console.log('No cached result found, performing new optimization');
 
       const startTime = Date.now();
 
@@ -35,6 +40,7 @@ class PortfolioOptimizationService {
         if (result.solverStatus === 'optimal') {
           // Cache successful LP result
           await cacheService.setCachedData(cacheKey, result);
+          console.log('Cached new LP optimization result');
           return result;
         }
       } catch (lpError) {
@@ -50,6 +56,7 @@ class PortfolioOptimizationService {
 
       // Cache fallback result with shorter TTL
       await cacheService.setCachedData(cacheKey, result);
+      console.log('Cached fallback optimization result');
 
       return result;
     } catch (error) {
@@ -105,16 +112,16 @@ class PortfolioOptimizationService {
     // Apply different heuristic strategies based on optimization strategy
     let allocations;
     switch (optimizationStrategy) {
-      case 'maximize-shares':
-        allocations = this.maximizeSharesStrategy(buyOrders, totalAvailableBudget);
-        break;
-      case 'momentum-weighted':
-        allocations = this.momentumWeightedStrategy(buyOrders, totalAvailableBudget, input);
-        break;
-      case 'minimize-leftover':
-      default:
-        allocations = this.minimizeLeftoverStrategy(buyOrders, totalAvailableBudget);
-        break;
+    case 'maximize-shares':
+      allocations = this.maximizeSharesStrategy(buyOrders, totalAvailableBudget);
+      break;
+    case 'momentum-weighted':
+      allocations = this.momentumWeightedStrategy(buyOrders, totalAvailableBudget, input);
+      break;
+    case 'minimize-leftover':
+    default:
+      allocations = this.minimizeLeftoverStrategy(buyOrders, totalAvailableBudget);
+      break;
     }
 
     return this.formatHeuristicResult(allocations, input, totalAvailableBudget);
@@ -343,10 +350,18 @@ class PortfolioOptimizationService {
    */
   async clearCache() {
     try {
-      // In a real implementation, we would clear all optimization-related cache entries
-      // For now, we'll rely on the cache service's TTL mechanism
-      logger.logInfo('Optimization cache clearance requested');
-      return { success: true, message: 'Cache will expire automatically based on TTL' };
+      // Clear all optimization-related cache entries
+      const keys = await cacheService.getAllKeys();
+      const optimizationKeys = keys.filter(key => key.startsWith('optimization_'));
+      
+      for (const key of optimizationKeys) {
+        await cacheService.delete(key);
+      }
+      
+      logger.logInfo('Optimization cache cleared', {
+        clearedKeys: optimizationKeys.length
+      });
+      return { success: true, message: `Cleared ${optimizationKeys.length} optimization cache entries` };
     } catch (error) {
       logger.logError(error, null);
       throw error;

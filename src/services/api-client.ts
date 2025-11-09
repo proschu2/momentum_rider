@@ -16,8 +16,11 @@ export class ApiClient {
       // Construct API URL based on current window location
       const protocol = window.location.protocol
       const host = window.location.hostname
-      const port = '3001'
-      this.baseUrl = `${protocol}//${host}:${port}/api`
+      
+      // For Docker development, use localhost:3001
+      // For production, use the same host as frontend
+      const port = host === 'localhost' || host === '127.0.0.1' ? '3001' : ''
+      this.baseUrl = port ? `${protocol}//${host}:${port}/api` : `${protocol}//${host}/api`
     }
   }
 

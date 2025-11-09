@@ -6,6 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const cacheService = require('../services/cacheService');
+const logger = require('../config/logger');
 
 /**
  * Clear cache endpoint
@@ -13,9 +14,12 @@ const cacheService = require('../services/cacheService');
  */
 router.delete('/', async (req, res) => {
   try {
+    logger.logInfo('Cache clearance requested');
     const result = await cacheService.clearCache();
+    logger.logInfo('Cache cleared successfully');
     res.json(result);
   } catch (error) {
+    logger.logError(error, req);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -29,6 +33,7 @@ router.get('/stats', async (req, res) => {
     const stats = await cacheService.getCacheStats();
     res.json(stats);
   } catch (error) {
+    logger.logError(error, req);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -49,17 +54,16 @@ router.post('/warm', async (req, res) => {
       });
     }
 
-    // If specific keys provided, temporarily override WARM_CACHE_KEYS
-    let originalKeys = null;
-    if (keys) {
-      // We need to pass the keys through the request context
-      // For now, we'll just use the specific keys directly in warmCache logic
-    }
-
+    logger.logInfo('Cache warming requested', { keys: keys || 'all' });
     const result = await cacheService.warmCache();
+    logger.logInfo('Cache warming completed', {
+      success: result.success,
+      summary: result.summary
+    });
 
     res.json(result);
   } catch (error) {
+    logger.logError(error, req);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -74,6 +78,7 @@ router.get('/keys', async (req, res) => {
   try {
     const pattern = req.query.pattern || '*';
     const keys = await cacheService.getCachedKeys(pattern);
+    logger.logInfo('Cache keys retrieved', { pattern, count: keys.length });
     res.json({
       success: true,
       pattern,
@@ -81,6 +86,7 @@ router.get('/keys', async (req, res) => {
       keys,
     });
   } catch (error) {
+    logger.logError(error, req);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -92,9 +98,12 @@ router.get('/keys', async (req, res) => {
 router.delete('/:key', async (req, res) => {
   try {
     const { key } = req.params;
+    logger.logInfo('Cache deletion requested', { key });
     const result = await cacheService.deleteCachedData(key);
+    logger.logInfo('Cache deletion completed', { key, success: result.success });
     res.json(result);
   } catch (error) {
+    logger.logError(error, req);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -115,9 +124,12 @@ router.post('/invalidate', async (req, res) => {
       });
     }
 
+    logger.logInfo('Cache invalidation requested', { pattern });
     const result = await cacheService.invalidateCachePattern(pattern);
+    logger.logInfo('Cache invalidation completed', { pattern, success: result.success });
     res.json(result);
   } catch (error) {
+    logger.logError(error, req);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -132,6 +144,7 @@ router.get('/:key', async (req, res) => {
     const data = await cacheService.getCachedData(key);
 
     if (data === null) {
+      logger.logInfo('Cache key not found', { key });
       return res.status(404).json({
         success: false,
         error: 'Key not found in cache',
@@ -139,12 +152,14 @@ router.get('/:key', async (req, res) => {
       });
     }
 
+    logger.logInfo('Cache data retrieved', { key });
     res.json({
       success: true,
       key,
       data,
     });
   } catch (error) {
+    logger.logError(error, req);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -166,13 +181,16 @@ router.post('/:key', async (req, res) => {
       });
     }
 
+    logger.logInfo('Cache data set requested', { key, ttlSeconds });
     const result = await cacheService.setCachedData(key, data, ttlSeconds);
+    logger.logInfo('Cache data set completed', { key, success: result });
     res.json({
       success: result,
       key,
       ttlSeconds: ttlSeconds || null,
     });
   } catch (error) {
+    logger.logError(error, req);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -189,6 +207,7 @@ router.get('/market-status', async (req, res) => {
       data: status,
     });
   } catch (error) {
+    logger.logError(error, req);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -205,6 +224,7 @@ router.get('/popular-etfs', async (req, res) => {
       data: etfs,
     });
   } catch (error) {
+    logger.logError(error, req);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -221,6 +241,7 @@ router.get('/system-config', async (req, res) => {
       data: config,
     });
   } catch (error) {
+    logger.logError(error, req);
     res.status(500).json({ success: false, error: error.message });
   }
 });

@@ -161,7 +161,7 @@ function getCategoryForTicker(ticker: string): string {
   if (['VTI', 'VEA', 'VWO'].includes(ticker)) return 'STOCKS'
   if (['TLT', 'BWX', 'BND'].includes(ticker)) return 'BONDS'
   if (['PDBC'].includes(ticker)) return 'COMMODITIES'
-  if (['SGOL', 'IBIT'].includes(ticker)) return 'ALTERNATIVES'
+  if (['GLDM', 'IBIT'].includes(ticker)) return 'ALTERNATIVES'
   return 'OTHER'
 }
 
@@ -471,9 +471,9 @@ watch(() => portfolioStore.currentHoldings, () => {
                       <span class="period-label">{{ period.replace('month', 'm') }}</span>
                       <span
                         class="period-value"
-                        :class="{ positive: row.periods[period as keyof typeof row.periods] >= 0, negative: row.periods[period as keyof typeof row.periods] < 0 }"
+                        :class="{ positive: (row.periods?.[period as keyof typeof row.periods] || 0) >= 0, negative: (row.periods?.[period as keyof typeof row.periods] || 0) < 0 }"
                       >
-                        {{ formatPercentage(row.periods[period as keyof typeof row.periods]) }}
+                        {{ formatPercentage(row.periods?.[period as keyof typeof row.periods] || 0) }}
                       </span>
                     </div>
                   </div>

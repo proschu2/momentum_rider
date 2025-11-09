@@ -2,6 +2,7 @@
 import { useRebalancingStore } from '@/stores/rebalancing'
 import { usePortfolioStore } from '@/stores/portfolio'
 import { generateAriaLabel, ScreenReader } from '@/utils/accessibility'
+import { computed } from 'vue'
 
 const rebalancingStore = useRebalancingStore()
 const portfolioStore = usePortfolioStore()
@@ -13,6 +14,37 @@ const tableDescription = `Rebalancing orders showing buy and sell recommendation
 if (rebalancingStore.rebalancingOrders.length > 0) {
   ScreenReader.announceTableUpdate('Rebalancing orders', rebalancingStore.rebalancingOrders.length)
 }
+
+// Computed property to handle "SELL 0" → "HOLD" conversion and calculate net shares
+const processedOrders = computed(() => {
+  return rebalancingStore.rebalancingOrders.map(order => {
+    // Convert "SELL" action to "HOLD" when shares = 0
+    const processedAction = order.action === 'SELL' && order.shares === 0 ? 'HOLD' : order.action
+    
+    // Calculate net shares change
+    let netShares = 0
+    if (order.action === 'BUY') {
+      // For BUY actions, calculate the additional shares to buy
+      // currentValue / price = current shares, finalValue / price = final shares
+      const currentPrice = portfolioStore.etfPrices[order.ticker]?.price || 1
+      const currentShares = order.currentValue / currentPrice
+      const finalShares = order.finalValue / currentPrice
+      netShares = Math.round(finalShares - currentShares)
+    } else if (order.action === 'SELL') {
+      // For SELL actions, use the negative shares value (already represents net change)
+      netShares = order.shares
+    } else {
+      // For HOLD actions, net change is 0
+      netShares = 0
+    }
+    
+    return {
+      ...order,
+      processedAction,
+      netShares
+    }
+  })
+})
 
 // Row interaction handlers
 function handleRowClick(order: any) {
@@ -32,11 +64,11 @@ function handleRowKeydown(event: KeyboardEvent, order: any) {
   <div class="bg-surface rounded-xl border border-neutral-200 p-6">
     <h2 class="text-lg font-semibold text-neutral-900 mb-4">Rebalancing Orders</h2>
 
-    <div v-if="rebalancingStore.rebalancingOrders.length > 0" class="overflow-hidden border border-neutral-200 rounded-lg">
+    <div v-if="processedOrders.length > 0" class="overflow-hidden border border-neutral-200 rounded-lg">
       <!-- Desktop table controls -->
       <div class="hidden lg:flex items-center justify-between px-4 py-3 bg-neutral-50 border-b border-neutral-200">
         <div class="flex items-center space-x-4">
-          <span class="text-sm text-neutral-600">{{ rebalancingStore.rebalancingOrders.length }} orders</span>
+          <span class="text-sm text-neutral-600">{{ processedOrders.length }} orders</span>
           <div class="flex items-center space-x-1 text-xs text-neutral-400">
             <kbd class="px-1.5 py-0.5 text-xs bg-white border border-neutral-300 rounded">Tab</kbd>
             <span class="text-neutral-500">to navigate</span>
@@ -88,7 +120,7 @@ function handleRowKeydown(event: KeyboardEvent, order: any) {
         </thead>
         <tbody class="bg-surface divide-y divide-neutral-200">
           <tr
-            v-for="(order, index) in rebalancingStore.rebalancingOrders"
+            v-for="(order, index) in processedOrders"
             :key="order.ticker"
             class="hover:bg-neutral-50 transition-colors group cursor-pointer"
             role="row"
@@ -105,14 +137,14 @@ function handleRowKeydown(event: KeyboardEvent, order: any) {
               <span
                 class="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 group-hover:scale-105"
                 :class="{
-                  'bg-success-100 text-success-800 border border-success-200 shadow-sm': order.action === 'BUY',
-                  'bg-error-100 text-error-800 border border-error-200 shadow-sm': order.action === 'SELL',
-                  'bg-neutral-100 text-neutral-800 border border-neutral-200': order.action === 'HOLD'
+                  'bg-success-100 text-success-800 border border-success-200 shadow-sm': order.processedAction === 'BUY',
+                  'bg-error-100 text-error-800 border border-error-200 shadow-sm': order.processedAction === 'SELL',
+                  'bg-neutral-100 text-neutral-800 border border-neutral-200': order.processedAction === 'HOLD'
                 }"
-                :aria-label="`${order.action} action for ${order.ticker}`"
+                :aria-label="`${order.processedAction} action for ${order.ticker}`"
               >
                 <svg
-                  v-if="order.action === 'BUY'"
+                  v-if="order.processedAction === 'BUY'"
                   class="w-3 h-3 mr-1"
                   fill="none"
                   viewBox="0 0 24 24"
@@ -121,7 +153,7 @@ function handleRowKeydown(event: KeyboardEvent, order: any) {
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                 </svg>
                 <svg
-                  v-if="order.action === 'SELL'"
+                  v-if="order.processedAction === 'SELL'"
                   class="w-3 h-3 mr-1"
                   fill="none"
                   viewBox="0 0 24 24"
@@ -130,7 +162,7 @@ function handleRowKeydown(event: KeyboardEvent, order: any) {
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4" />
                 </svg>
                 <svg
-                  v-if="order.action === 'HOLD'"
+                  v-if="order.processedAction === 'HOLD'"
                   class="w-3 h-3 mr-1"
                   fill="none"
                   viewBox="0 0 24 24"
@@ -138,12 +170,13 @@ function handleRowKeydown(event: KeyboardEvent, order: any) {
                 >
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                 </svg>
-                {{ order.action }}
+                {{ order.processedAction }}
               </span>
             </td>
-            <td class="px-4 py-3 whitespace-nowrap text-sm text-neutral-600" role="gridcell">
+            <td class="px-4 py-3 whitespace-nowrap text-sm font-medium" role="gridcell"
+                :class="order.netShares > 0 ? 'text-success-600' : order.netShares < 0 ? 'text-error-600' : 'text-neutral-600'">
               <span class="sr-only">Shares: </span>
-              {{ order.shares.toLocaleString() }}
+              {{ order.netShares > 0 ? '+' : '' }}{{ order.netShares.toLocaleString() }}
             </td>
             <td class="px-4 py-3 whitespace-nowrap text-sm text-neutral-600" role="gridcell">
               <span class="sr-only">Current Value: </span>
@@ -197,30 +230,30 @@ function handleRowKeydown(event: KeyboardEvent, order: any) {
     </div>
 
     <!-- Summary Statistics -->
-    <div v-if="rebalancingStore.rebalancingOrders.length > 0" class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4" role="status" aria-label="Rebalancing Summary">
+    <div v-if="processedOrders.length > 0" class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4" role="status" aria-label="Rebalancing Summary">
       <div class="bg-primary-50 border border-primary-200 rounded-lg p-4" role="region" aria-label="Total Buy Orders">
         <div class="text-sm font-medium text-primary-800">Total Buys</div>
         <div class="text-2xl font-bold text-primary-900" aria-live="polite" aria-atomic="true">
-          ${{ rebalancingStore.rebalancingOrders
-            .filter(order => order.action === 'BUY')
-            .reduce((sum, order) => sum + order.difference, 0)
+          ${{ processedOrders
+            .filter(order => order.processedAction === 'BUY')
+            .reduce((sum, order) => sum + (order.finalValue - order.currentValue), 0)
             .toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
         </div>
       </div>
       <div class="bg-error-50 border border-error-200 rounded-lg p-4" role="region" aria-label="Total Sell Orders">
         <div class="text-sm font-medium text-error-800">Total Sells</div>
         <div class="text-2xl font-bold text-error-900" aria-live="polite" aria-atomic="true">
-          ${{ rebalancingStore.rebalancingOrders
-            .filter(order => order.action === 'SELL')
-            .reduce((sum, order) => sum + Math.abs(order.difference), 0)
+          ${{ processedOrders
+            .filter(order => order.processedAction === 'SELL')
+            .reduce((sum, order) => sum + Math.abs(order.currentValue - order.finalValue), 0)
             .toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
         </div>
       </div>
       <div class="bg-success-50 border border-success-200 rounded-lg p-4" role="region" aria-label="Net Portfolio Change">
         <div class="text-sm font-medium text-success-800">Net Change</div>
         <div class="text-2xl font-bold text-success-900" aria-live="polite" aria-atomic="true">
-          ${{ rebalancingStore.rebalancingOrders
-            .reduce((sum, order) => sum + order.difference, 0)
+          ${{ processedOrders
+            .reduce((sum, order) => sum + (order.finalValue - order.currentValue), 0)
             .toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
         </div>
       </div>

@@ -9,7 +9,7 @@
 - **IBIT**: $40.00 (iShares Bitcoin Trust)
 - **VEA**: $50.00 (Vanguard FTSE Developed Markets)
 - **VWO**: $42.00 (Vanguard FTSE Emerging Markets)
-- **SGOL**: $22.00 (Aberdeen Standard Physical Gold Shares)
+- **GLDM**: $22.00 (Aberdeen Standard Physical Gold Shares)
 - **BND**: $72.00 (Vanguard Total Bond Market)
 - **BWX**: $28.00 (SPDR Bloomberg International Treasury Bond)
 
@@ -54,14 +54,14 @@
 
 ### Input:
 - **Budget**: $1,000
-- **ETF Prices**: VTI($250), TLT($95), PDBC($13.50), IBIT($40), VEA($50), VWO($42), SGOL($22), BND($72), BWX($28)
+- **ETF Prices**: VTI($250), TLT($95), PDBC($13.50), IBIT($40), VEA($50), VWO($42), GLDM($22), BND($72), BWX($28)
 
 ### Process:
 1. **Floor Allocation**: Base shares calculated from target percentages
 2. **Leftover Budget**: ~$600 after floor allocation
 3. **Multi-Share Promotion**:
    - PDBC ($13.50): 26 promotions = $351
-   - SGOL ($22.00): 8 promotions = $176
+   - GLDM ($22.00): 8 promotions = $176
    - BWX ($28.00): 2 promotions = $56
    - VWO ($42.00): 1 promotion = $42
    - **Total Promotions**: 37 shares
@@ -85,7 +85,7 @@
 ## Key Insights
 
 ### 1. Price Variation Impact
-- **Cheap ETFs (PDBC, SGOL)**: Can get 20+ promotions each
+- **Cheap ETFs (PDBC, GLDM)**: Can get 20+ promotions each
 - **Medium ETFs (VWO, BWX)**: Can get 2-5 promotions each
 - **Expensive ETFs (VTI, TLT)**: Typically get 0-1 promotions
 
