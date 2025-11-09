@@ -58,7 +58,7 @@ export const useAuthStore = defineStore('auth', () => {
       user.value = data.user
 
       // Persist to localStorage
-      localStorage.setItem('auth_token', token.value)
+      localStorage.setItem('auth_token', token.value || '')
       localStorage.setItem('user', JSON.stringify(user.value))
 
       return true
@@ -104,7 +104,7 @@ export const useAuthStore = defineStore('auth', () => {
       user.value = data.user
 
       // Persist to localStorage
-      localStorage.setItem('auth_token', token.value)
+      localStorage.setItem('auth_token', token.value || '')
       localStorage.setItem('user', JSON.stringify(user.value))
 
       return true

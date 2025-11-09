@@ -68,8 +68,8 @@ export class ScreenReader {
     const { message, options } = this.announcementQueue.shift()!;
     const { priority, clearAfter } = options;
 
-    this.announcementElement.setAttribute('aria-live', priority);
-    this.announcementElement.textContent = message;
+    this.announcementElement.setAttribute('aria-live', priority || 'polite');
+    this.announcementElement.textContent = message || '';
 
     // Clear after announcement
     setTimeout(() => {

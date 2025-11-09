@@ -194,6 +194,8 @@ export const useMomentumStore = defineStore('momentum', () => {
 
         for (let i = 0; i < tickers.length; i++) {
             const ticker = tickers[i]
+            if (!ticker) continue; // Skip undefined tickers
+
             operationProgress.value = {
                 current: i + 1,
                 total,
@@ -206,9 +208,9 @@ export const useMomentumStore = defineStore('momentum', () => {
                 const momentumData = result
 
                 results[ticker] = {
-                    periods: momentumData.periods,
-                    average: momentumData.average,
-                    absoluteMomentum: momentumData.absoluteMomentum,
+                    periods: momentumData.periods || {'3month': 0, '6month': 0, '9month': 0, '12month': 0},
+                    average: momentumData.average || 0,
+                    absoluteMomentum: momentumData.absoluteMomentum || false,
                     error: momentumData.error
                 }
             } else {
@@ -240,7 +242,7 @@ export const useMomentumStore = defineStore('momentum', () => {
             ])
 
             const tickersArray = [...allTickers]
-            const cacheKey = tickersArray.sort().join(',')
+            const cacheKey = (tickersArray.sort().join(',') || 'default')
 
             // Check cache first but don't return early - we still need to fetch prices
             const cached = getCachedData(cacheKey)
@@ -281,7 +283,7 @@ export const useMomentumStore = defineStore('momentum', () => {
                     for (const result of results) {
                         // Use the result directly (no longer expecting cache wrapper objects)
                         const momentumData = result
-                        
+
                         if (momentumData.ticker) {
                             realMomentumData[momentumData.ticker] = {
                                 periods: momentumData.periods,
@@ -334,7 +336,7 @@ export const useMomentumStore = defineStore('momentum', () => {
                     connectionStatus.value = 'disconnected'
 
                     // Try fallback with cached data or empty results
-                    const cacheKey = [...new Set([...etfConfigStore.selectedETFs, ...Object.keys(portfolioStore.currentHoldings)])].sort().join(',')
+                    const cacheKey = [...new Set([...etfConfigStore.selectedETFs, ...Object.keys(portfolioStore.currentHoldings)])].sort().join(',') || 'default'
                     const cached = getCachedData(cacheKey)
 
                     if (cached) {

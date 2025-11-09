@@ -70,7 +70,7 @@ const tableData = computed<TableRow[]>(() => {
         '12month': 0
       },
       isSelected: etfConfigStore.selectedETFs.includes(ticker),
-      isTopAsset: etfConfigStore.selectedTopETFs.includes(ticker)
+      isTopAsset: etfConfigStore.selectedETFs.includes(ticker)
     })
   })
 
@@ -152,7 +152,7 @@ const summaryStats = computed(() => {
     totalValue: portfolioStore.totalPortfolioValue,
     totalHoldings: data.length,
     positiveMomentum: data.filter(row => row.momentumStatus === 'positive').length,
-    topAssets: etfConfigStore.selectedTopETFs.length,
+    topAssets: etfConfigStore.selectedETFs.length,
     averageAllocation: data.length > 0 ? data.reduce((sum, row) => sum + row.allocation, 0) / data.length : 0
   }
 })

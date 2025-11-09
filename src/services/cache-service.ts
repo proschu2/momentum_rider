@@ -31,7 +31,7 @@ export class CacheService {
       // Extract the actual data from the response wrapper
       const cachedData = response.data || response;
       this.saveToLocalCache(key, cachedData);
-      return cachedData;
+      return cachedData as T;
     } catch (error) {
       console.warn(`[CacheService] Error getting cached data for ${key}, using localStorage fallback:`, error);
       const fallbackData = this.getFromLocalCache<T>(key);

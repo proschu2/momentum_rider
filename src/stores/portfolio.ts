@@ -3,6 +3,8 @@ import { ref, computed } from 'vue'
 import { quoteService } from '@/services'
 import type { Holding, ETFPrice } from './types'
 
+export type { Holding }
+
 export const usePortfolioStore = defineStore('portfolio', () => {
     // Current Holdings
     const currentHoldings = ref<{ [ticker: string]: Holding }>({})

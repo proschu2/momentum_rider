@@ -61,10 +61,10 @@
           <div class="flex-1">
             <div class="flex items-center space-x-2 mb-1">
               <div class="font-medium text-sm text-neutral-900">
-                {{ getCurrentStrategy().name }}
+                {{ getCurrentStrategy()?.name || 'Unknown Strategy' }}
               </div>
               <Tooltip
-                :content="getCurrentStrategy().tooltip"
+                :content="getCurrentStrategy()?.tooltip || 'Strategy details not available'"
                 position="top"
                 :max-width="280"
               >
@@ -74,10 +74,10 @@
               </Tooltip>
             </div>
             <div class="text-xs text-neutral-600">
-              {{ getCurrentStrategy().description }}
+              {{ getCurrentStrategy()?.description || 'No description available' }}
             </div>
             <div class="text-xs text-neutral-500 mt-2">
-              <span class="font-medium">Best for:</span> {{ getCurrentStrategy().bestFor }}
+              <span class="font-medium">Best for:</span> {{ getCurrentStrategy()?.bestFor || 'General use' }}
             </div>
           </div>
         </div>

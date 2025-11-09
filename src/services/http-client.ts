@@ -100,9 +100,8 @@ export class HttpClientError extends Error {
     this.originalError = originalError;
 
     // Maintains proper stack trace for where our error was thrown
-    if (Error.captureStackTrace) {
-      Error.captureStackTrace(this, HttpClientError);
-    }
+    // Note: Error.captureStackTrace is Node.js specific, not available in browsers
+    // The stack trace is automatically captured in browser environments
   }
 }
 
