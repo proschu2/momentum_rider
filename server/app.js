@@ -4,6 +4,7 @@
 
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 
 // Import logger
 const logger = require('./config/logger');
@@ -19,7 +20,7 @@ const { combinedRateLimiter } = require('./middleware/rateLimiter');
 const { verifyToken } = require('./middleware/auth');
 
 // Import Redis configuration
-const { getRedisClient, checkRedisHealth } = require('./config/redis');
+const { getRedisClient, checkRedisHealth, isRedisConfigured } = require('./config/redis');
 
 // Import cache service for initialization
 const cacheService = require('./services/cacheService');
@@ -47,6 +48,13 @@ let redisInitialized = false;
  */
 async function initializeRedis() {
   try {
+    // Check if Redis is configured before attempting connection
+    if (!isRedisConfigured()) {
+      logger.logInfo('Redis not configured, using in-memory cache only');
+      redisInitialized = false;
+      return false;
+    }
+
     logger.logInfo('Initializing Redis connection');
     const redis = getRedisClient();
 
@@ -90,23 +98,25 @@ app.use(
     origin: (origin, callback) => {
       // Allow requests with no origin (like mobile apps or curl requests)
       if (!origin) return callback(null, true);
-
-      // Allow all origins in development and Docker environments
-      if (process.env.NODE_ENV !== 'production' || process.env.DOCKER_ENV === 'true') {
-        return callback(null, true);
+      
+      const allowedOrigins = process.env.ALLOWED_ORIGINS
+        ? process.env.ALLOWED_ORIGINS.split(',')
+        : [
+            'http://localhost:5173',
+            'http://localhost:3000',
+            'http://frontend:5173',
+            'http://backend:3001'
+          ];
+      
+      if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes('*')) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
       }
-
-      // In production, only allow specified origins
-      const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [];
-      if (allowedOrigins.indexOf(origin) !== -1) {
-        return callback(null, true);
-      }
-
-      return callback(new Error('Not allowed by CORS'));
     },
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
     preflightContinue: false,
     optionsSuccessStatus: 204
   })
@@ -122,7 +132,7 @@ app.use(requestLogger);
 // Apply rate limiting to all API routes
 app.use('/api', combinedRateLimiter);
 
-// Mount routes
+// Mount API routes BEFORE static file serving
 app.use('/api/auth', authRoutes);
 // Note: Authentication disabled for single-user access
 app.use('/api/quote', quoteRoutes);
@@ -132,6 +142,24 @@ app.use('/api/batch', batchRoutes);
 app.use('/api/cache', cacheRoutes);
 app.use('/api/optimization', optimizationRoutes);
 app.use('/health', healthRoutes);
+
+// Serve static files from frontend build directory in production mode
+if (process.env.NODE_ENV === 'production') {
+  const frontendBuildPath = path.join(__dirname, 'frontend/dist');
+  
+  // Serve static files (CSS, JS, images, etc.)
+  app.use(express.static(frontendBuildPath, {
+    maxAge: '1y', // Cache static assets for 1 year
+    etag: false   // Disable etag for better performance
+  }));
+  
+  // Handle SPA routing - serve index.html for all non-API routes
+  app.get('*', (req, res) => {
+    if (!req.path.startsWith('/api/')) {
+      res.sendFile(path.join(frontendBuildPath, 'index.html'));
+    }
+  });
+}
 
 // 404 handler
 app.use(notFoundHandler);

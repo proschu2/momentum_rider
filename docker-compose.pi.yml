@@ -1,0 +1,39 @@
+services:
+  momentum-rider:
+    build:
+      context: .
+    container_name: momentum-rider-pi
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      # Optional Redis - falls back to in-memory cache
+      - REDIS_HOST=${REDIS_HOST:-}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - "description=Momentum Rider Consolidated"
+      - "version=1.0.0"
+
+  # Optional Redis for production caching
+  redis:
+    image: redis:8.2.2-alpine
+    container_name: momentum-rider-redis-pi
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  redis_data:

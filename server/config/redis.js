@@ -6,11 +6,24 @@ const Redis = require('ioredis');
 const logger = require('./logger');
 
 /**
+ * Check if Redis is configured and should be used
+ */
+function isRedisConfigured() {
+  return process.env.REDIS_HOST && process.env.REDIS_HOST !== '';
+}
+
+/**
  * Create and configure Redis client
  */
 function createRedisClient() {
+  // Only create Redis client if Redis is explicitly configured
+  if (!isRedisConfigured()) {
+    logger.logInfo('Redis: Redis not configured, using in-memory cache only');
+    return null;
+  }
+
   const redisConfig = {
-    host: process.env.REDIS_HOST || 'localhost',
+    host: process.env.REDIS_HOST,
     port: process.env.REDIS_PORT || 6379,
     password: process.env.REDIS_PASSWORD || undefined,
     db: process.env.REDIS_DATABASE || 0,
@@ -59,7 +72,7 @@ function createRedisClient() {
 let redisClient = null;
 
 function getRedisClient() {
-  if (!redisClient) {
+  if (!redisClient && isRedisConfigured()) {
     redisClient = createRedisClient();
   }
   return redisClient;
@@ -84,8 +97,15 @@ async function closeRedisConnection() {
  * Check Redis connection health
  */
 async function checkRedisHealth() {
+  if (!isRedisConfigured()) {
+    return { status: 'not-configured', message: 'Redis not configured' };
+  }
+  
   try {
     const client = getRedisClient();
+    if (!client) {
+      return { status: 'unhealthy', error: 'Redis client not available' };
+    }
     const pong = await client.ping();
     return { status: 'healthy', response: pong };
   } catch (error) {
@@ -98,4 +118,5 @@ module.exports = {
   getRedisClient,
   closeRedisConnection,
   checkRedisHealth,
+  isRedisConfigured,
 };

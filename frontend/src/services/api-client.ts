@@ -7,20 +7,14 @@ export class ApiClient {
   private readonly baseUrl: string
 
   constructor(baseUrl?: string) {
-    // Use environment variable if available, otherwise construct from current host
+    // Use environment variable if available, otherwise use relative path
     if (baseUrl) {
       this.baseUrl = baseUrl
     } else if (import.meta.env.VITE_API_URL) {
       this.baseUrl = import.meta.env.VITE_API_URL
     } else {
-      // Construct API URL based on current window location
-      const protocol = window.location.protocol
-      const host = window.location.hostname
-      
-      // For Docker development, use localhost:3001
-      // For production, use the same host as frontend
-      const port = host === 'localhost' || host === '127.0.0.1' ? '3001' : ''
-      this.baseUrl = port ? `${protocol}//${host}:${port}/api` : `${protocol}//${host}/api`
+      // For consolidated deployment, use relative path
+      this.baseUrl = '/api'
     }
   }
 

@@ -1,0 +1,57 @@
+services:
+  momentum-rider:
+    build:
+      context: .
+      target: production
+    container_name: momentum-rider-prod
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - ALLOWED_ORIGINS=*
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - redis
+    networks:
+      - momentum-network-prod
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "description=Momentum Rider Production"
+      - "version=1.0.0"
+    restart: unless-stopped
+
+  redis:
+    image: redis:8.2.2-alpine
+    container_name: momentum-rider-redis-prod
+    ports:
+      - "6379:6379"
+    networks:
+      - momentum-network-prod
+    volumes:
+      - redis_data_prod:/data
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    labels:
+      - "description=Redis Cache for Momentum Rider Production"
+      - "version=1.0.0"
+
+volumes:
+  redis_data_prod:
+    name: momentum-rider-redis-data-prod
+
+networks:
+  momentum-network-prod:
+    driver: bridge
+    name: momentum-rider-network-prod

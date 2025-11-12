@@ -44,30 +44,8 @@ function parseBaseUrl(): string {
     }
   }
 
-  // Smart fallback: detect backend port from current environment
-  const hostname = window.location.hostname;
-  const protocol = window.location.protocol;
-
-  // Common development ports
-  const devPorts = [3000, 3001, 5173, 5174, 8080, 8000];
-  const isDevEnvironment = ['localhost', '127.0.0.1'].includes(hostname);
-
-  // For production or when hostname is not localhost, try same-origin with /api
-  if (!isDevEnvironment) {
-    return `${protocol}//${hostname}`;
-  }
-
-  // For local development, we need to guess the port
-  // Frontend typically runs on 5173, backend on 3000 or 3001
-  const currentPort = window.location.port;
-  const isVitePort = currentPort && currentPort.startsWith('5');
-  const backendPort = isVitePort ? '3001' : '3000';
-
-  console.warn(
-    `[HttpClient] No VITE_API_URL configured. Using smart fallback: ${protocol}//${hostname}:${backendPort}`
-  );
-
-  return `${protocol}//${hostname}:${backendPort}`;
+  // For consolidated deployment, use relative path
+  return '/api';
 }
 
 // Get configuration from environment variables
@@ -251,9 +229,14 @@ export class HttpClient {
       );
     }
 
-    // Add /api prefix to all non-absolute URLs that don't already have it
+    // Handle URL construction for consolidated deployment
     let processedUrl = url;
-    if (!url.startsWith('http') && !url.startsWith('/api')) {
+    
+    // If baseUrl already contains /api, don't add it again
+    if (this.config.baseUrl.includes('/api') && url.startsWith('/api')) {
+      // Remove the duplicate /api prefix
+      processedUrl = url.substring(4); // Remove '/api' from the beginning
+    } else if (!url.startsWith('http') && !url.startsWith('/api')) {
       processedUrl = `/api${url}`;
     }
     

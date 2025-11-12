@@ -37,7 +37,7 @@ export const useAuthStore = defineStore('auth', () => {
       error.value = null
 
       // Construct API URL using same pattern as other services
-      const API_BASE_URL = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:3001/api`
+      const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
 
       const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
@@ -80,7 +80,7 @@ export const useAuthStore = defineStore('auth', () => {
       error.value = null
 
       // Construct API URL using same pattern as other services
-      const API_BASE_URL = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:3001/api`
+      const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
 
       const response = await fetch(`${API_BASE_URL}/auth/register`, {
         method: 'POST',
