@@ -28,15 +28,12 @@ class FinanceAPIService {
   public readonly API_BASE_URL: string;
 
   constructor() {
-    // Use environment variable if available, otherwise construct from current host
+    // Use environment variable if available, otherwise use relative path
     if (import.meta.env.VITE_API_URL) {
       this.API_BASE_URL = import.meta.env.VITE_API_URL;
     } else {
-      // Construct API URL based on current window location
-      const protocol = window.location.protocol;
-      const host = window.location.hostname;
-      const port = '3001';
-      this.API_BASE_URL = `${protocol}//${host}:${port}/api`;
+      // For consolidated deployment, use relative path
+      this.API_BASE_URL = '/api';
     }
   }
 
