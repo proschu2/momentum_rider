@@ -1,0 +1,38 @@
+[
+  {
+    "id": "default-momentum",
+    "name": "Default Momentum",
+    "type": "momentum",
+    "parameters": {
+      "topN": 3,
+      "momentumThreshold": 0
+    },
+    "created": "2025-11-16T22:24:11.983Z",
+    "updated": "2025-11-16T22:24:11.983Z",
+    "description": "Default momentum-based allocation strategy"
+  },
+  {
+    "id": "strategy_1763331974219",
+    "name": "Momentum Top 4",
+    "type": "momentum",
+    "parameters": {
+      "topN": 4,
+      "momentumThreshold": 0
+    },
+    "created": "2025-11-16T22:26:14.219Z",
+    "updated": "2025-11-16T22:26:14.219Z",
+    "description": "Allocate equally to top 4 ETFs based on momentum scores"
+  },
+  {
+    "id": "strategy_1763332087118",
+    "name": "SMA 200 Trend",
+    "type": "sma",
+    "parameters": {
+      "smaPeriod": 200,
+      "trendThreshold": 0
+    },
+    "created": "2025-11-16T22:28:07.118Z",
+    "updated": "2025-11-16T22:28:07.118Z",
+    "description": "Allocate to ETFs above their 200-day SMA with positive trend"
+  }
+]

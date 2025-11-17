@@ -154,7 +154,7 @@ logger.logError = (error, req = null) => {
     name: error.name,
   };
 
-  if (req) {
+  if (req && req.connection) {
     errorData.request = {
       method: req.method,
       url: req.originalUrl,

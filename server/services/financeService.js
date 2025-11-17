@@ -76,6 +76,76 @@ async function getHistoricalWeeklyData(ticker, years = 2) {
 }
 
 /**
+ * Get historical daily data for a ticker
+ */
+async function getHistoricalDailyData(ticker, days = 500) {
+  try {
+    const cacheKey = `historical_daily_${ticker}_${days}d`;
+
+    // Check cache first
+    const cached = await cacheService.getCachedData(cacheKey);
+    if (cached) {
+      logger.logDebug('Historical daily data retrieved from cache', { ticker, days });
+      return cached;
+    }
+
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+
+    logger.logInfo('Fetching historical daily data from Yahoo Finance API', { ticker, days });
+    const dailyQuotes = await yahooFinance.historical(ticker, {
+      period1: startDate.toISOString().split('T')[0] || '',
+      period2: new Date().toISOString().split('T')[0] || '',
+      interval: '1d',
+    });
+
+    await cacheService.setCachedData(cacheKey, dailyQuotes);
+    logger.logInfo('Historical daily data fetched and cached successfully', {
+      ticker,
+      days,
+      dataPoints: dailyQuotes.length
+    });
+
+    return dailyQuotes;
+  } catch (error) {
+    logger.logError(error, { ticker, days });
+    throw new Error(`Failed to fetch historical daily data for ${ticker}: ${error.message}`);
+  }
+}
+
+/**
+ * Get current price for a ticker
+ */
+async function getCurrentPrice(ticker) {
+  try {
+    const cacheKey = `current_price_${ticker}`;
+
+    // Check cache first
+    const cached = await cacheService.getCachedData(cacheKey);
+    if (cached) {
+      logger.logDebug('Current price retrieved from cache', { ticker });
+      return cached;
+    }
+
+    logger.logInfo('Fetching current price from Yahoo Finance API', { ticker });
+    const quoteData = await yahooFinance.quote(ticker);
+    const priceData = {
+      price: quoteData.regularMarketPrice || quoteData.previousClose,
+      currency: quoteData.currency || 'USD',
+      timestamp: new Date().toISOString()
+    };
+
+    await cacheService.setCachedData(cacheKey, priceData, 300); // Cache for 5 minutes
+    logger.logInfo('Current price fetched and cached successfully', { ticker, price: priceData.price });
+
+    return priceData;
+  } catch (error) {
+    logger.logError(error, { ticker });
+    throw new Error(`Failed to fetch current price for ${ticker}: ${error.message}`);
+  }
+}
+
+/**
  * Get ticker name (longName or shortName)
  */
 async function getTickerName(ticker) {
@@ -107,6 +177,8 @@ async function getTickerName(ticker) {
 module.exports = {
   getQuote,
   getHistoricalWeeklyData,
+  getHistoricalDailyData,
+  getCurrentPrice,
   getTickerName,
   findClosestWeeklyPrice,
   calculateReturnFromPrice,

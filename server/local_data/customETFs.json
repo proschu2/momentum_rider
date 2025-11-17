@@ -1,0 +1,28 @@
+[
+  {
+    "ticker": "ARKK",
+    "name": "ARK Innovation ETF",
+    "category": "CUSTOM",
+    "expenseRatio": 0,
+    "inceptionDate": "2025-11-16",
+    "addedDate": "2025-11-16T22:42:35.792Z",
+    "isValid": true,
+    "lastValidation": "2025-11-16T22:42:35.792Z",
+    "description": "ARK Innovation ETF",
+    "currency": "USD",
+    "exchange": "BTS"
+  },
+  {
+    "ticker": "QQQ",
+    "name": "Invesco QQQ Trust",
+    "category": "CUSTOM",
+    "expenseRatio": 0,
+    "inceptionDate": "2025-11-16",
+    "addedDate": "2025-11-16T22:43:00.452Z",
+    "isValid": true,
+    "lastValidation": "2025-11-16T22:43:00.452Z",
+    "description": "Invesco QQQ Trust",
+    "currency": "USD",
+    "exchange": "NGM"
+  }
+]
