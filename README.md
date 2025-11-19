@@ -1,207 +1,359 @@
-# Momentum Rider - Consolidated Docker Deployment
+# Momentum Rider - Portfolio Strategy Management System
 
-This project provides a consolidated Docker setup for the Momentum Rider application, combining both frontend and backend into a single container for simplified deployment.
+🚀 **UNIFIED STRATEGY WORKFLOW COMPLETE** - A comprehensive portfolio management system with momentum-based ETF strategies, linear programming optimization, and real-time market data integration.
 
-## Quick Start
+## ✨ **Current Features**
 
-### Development (with Live Reload)
+### **🎯 Strategy Implementation**
+- **📈 Momentum Strategy**: Weighted scoring (3,6,9,12 month periods) with top-N selection
+- **🛡️ All-Weather Strategy**: Dalio-inspired allocation with SMA trend filters
+- **🎨 Custom Strategy**: User-defined allocation percentages
+- **💰 Portfolio Optimization**: Linear programming for optimal allocation
+- **📊 Trade Generation**: Automated execution planning
 
+### **💻 Technical Stack**
+- **Backend**: Node.js + Express + Redis caching
+- **Frontend**: Vue 3 + TypeScript + Tailwind CSS
+- **Data**: Yahoo Finance API with real-time market data
+- **Optimization**: JavaScript LP Solver with fallback strategies
+
+## 🚀 **Quick Start**
+
+### **Development Setup (Recommended)**
 ```bash
-# Start development environment with live reload
+# Clone and install dependencies
+git clone <repository>
+cd momentum-rider
+npm run install:all
+
+# Start backend server (Terminal 1)
+cd server && npm run dev
+# → http://localhost:3001
+
+# Start frontend server (Terminal 2)
+cd frontend && npm run dev
+# → http://localhost:5173
+
+# Access the unified StrategyHub interface
+# Frontend: http://localhost:5173
+# Backend API: http://localhost:3001/api
+```
+
+### **Docker Setup (Alternative)**
+```bash
+# Development with live reload
 docker-compose -f docker-compose.dev.yml up -d
+# → http://localhost:3000
 
-# Access the application
-# Frontend: http://localhost:3000
-# Backend API: http://localhost:3000/api
-# Redis: localhost:6379
-```
-
-### Production (Standalone)
-
-```bash
-# Build the consolidated image
+# Production standalone
 docker build -t momentum-rider .
-
-# Run the container
-docker run -d -p 3000:3000 --name momentum-rider momentum-rider
-
-# Access the application
-# Application: http://localhost:3000
+docker run -d -p 3000:3000 momentum-rider
+# → http://localhost:3000
 ```
 
-### Raspberry Pi Production
+## 🎯 **Strategy Examples**
 
+### **Momentum Strategy**
+```javascript
+{
+  "strategy": {
+    "type": "momentum",
+    "parameters": {
+      "topN": 3,
+      "includeIBIT": true,
+      "fallbackETF": "SGOV"
+    }
+  },
+  "selectedETFs": ["VTI", "QQQ", "VEA", "VWO"],
+  "additionalCapital": 10000
+}
+```
+
+### **All-Weather Strategy**
+```javascript
+{
+  "strategy": {
+    "type": "allweather",
+    "parameters": {
+      "smaPeriod": 200,
+      "bondFallbackPercent": 80
+    }
+  },
+  "selectedETFs": ["VTI", "TLT", "BND", "GLDM"],
+  "additionalCapital": 5000
+}
+```
+
+### **Custom Strategy**
+```javascript
+{
+  "strategy": {
+    "type": "custom",
+    "parameters": {
+      "allocations": {
+        "VTI": 40,
+        "QQQ": 30,
+        "IBIT": 10,
+        "BND": 20
+      }
+    }
+  }
+}
+```
+
+## 📊 **API Endpoints**
+
+### **Portfolio Management**
+- **POST** `/api/portfolio/analyze` - Strategy analysis and target allocation
+- **POST** `/api/portfolio/optimize` - Linear programming optimization
+- **POST** `/api/portfolio/execution-plan` - Trade generation
+- **GET** `/api/portfolio/status` - Current portfolio status
+
+### **Market Data**
+- **GET** `/api/quote/{ticker}` - Current price and quote data
+- **GET** `/api/momentum/{ticker}` - Momentum scores and analysis
+- **GET** `/api/prices/batch` - Batch price data
+
+### **System**
+- **GET** `/health` - System health check
+- **GET** `/api/health` - API health check
+
+## 🏗️ **Architecture**
+
+### **Backend Structure**
+```
+server/
+├── routes/
+│   ├── portfolio.js          # Portfolio API endpoints
+│   ├── quote.js              # Market data endpoints
+│   └── optimization.js       # Optimization endpoints
+├── services/
+│   ├── portfolioService.js   # Business logic
+│   ├── financeService.js     # Yahoo Finance integration
+│   ├── portfolioOptimizationService.js  # LP solver
+│   └── cacheService.js       # Caching layer
+├── middleware/               # Auth, logging, rate limiting
+└── config/                   # Redis, logging configuration
+```
+
+### **Frontend Structure**
+```
+frontend/src/
+├── components/
+│   ├── StrategyHub.vue       # Main unified interface
+│   ├── ETFUniverseStatus.vue # ETF status display
+│   └── StrategyTemplateSelector.vue  # Strategy templates
+├── services/
+│   ├── portfolio-service.ts  # API client
+│   └── etf-service.ts        # ETF management
+├── stores/                    # Pinia state management
+│   ├── etf-config.ts         # ETF configuration
+│   └── portfolio.ts          # Portfolio state
+└── utils/                     # Helper functions
+```
+
+### **Data Flow**
+```
+User Interface → StrategyHub → Pinia Store → API Client → Backend
+→ Finance Service → Yahoo Finance → Portfolio Analysis →
+Optimization Service → Trade Generation → Frontend Display
+```
+
+## 📈 **Strategy Algorithms**
+
+### **Momentum Scoring**
+```javascript
+// Weighted momentum calculation
+const weightedScore = (
+  momentum3m * 0.3 +      // 3-month momentum (30%)
+  momentum6m * 0.3 +      // 6-month momentum (30%)
+  momentum9m * 0.2 +      // 9-month momentum (20%)
+  momentum12m * 0.2      // 12-month momentum (20%)
+);
+
+// Select top N positive momentum ETFs
+// Add IBIT (4% fixed allocation) if enabled
+// Fallback to SGOV/VUBS if no positive momentum
+```
+
+### **All-Weather Allocation**
+```javascript
+// Dalio-inspired base allocation
+const baseAllocations = {
+  'VTI': 30,    // US Stocks (30%)
+  'VEA': 15,    // Developed International (15%)
+  'VWO': 5,     // Emerging Markets (5%)
+  'TLT': 40,    // Long-term Treasury (40%)
+  'BND': 7.5,   // Total Bond Market (7.5%)
+  'PDBC': 2.5,  // Commodities (2.5%)
+  'GLDM': 2.5,  // Gold (2.5%)
+  'IBIT': 4     // Bitcoin (4%)
+};
+
+// Adjust based on SMA trend analysis
+// Move stock allocations to bonds when below 200-day SMA
+```
+
+### **Linear Programming Optimization**
+```javascript
+// Objective: Minimize leftover budget
+// Constraints:
+// - Target allocation percentages
+// - Minimum trade sizes
+// - Maximum position limits
+// - Available capital
+
+// Fallback strategies:
+// 1. Relax allocation constraints
+// 2. Use equal weighting
+// 3. Prioritize high-conviction positions
+```
+
+## 🔧 **Configuration**
+
+### **Environment Variables**
 ```bash
-# Copy environment file and configure
-cp .env.example .env
-# Edit .env with your settings
-
-# Start production deployment
-docker-compose -f docker-compose.pi.yml up -d
-
-# Access the application
-# Application: http://localhost:3000
-```
-
-## Architecture
-
-The consolidated setup combines:
-
-- **Frontend**: Vue.js SPA served as static files
-- **Backend**: Node.js/Express API serving both static files and API endpoints
-- **Redis**: Optional caching layer with graceful in-memory fallback
-
-## Environment Configuration
-
-Copy `.env.example` to `.env` and configure:
-
-```env
 # Server Configuration
-NODE_ENV=production
-PORT=3000
+NODE_ENV=development
+PORT=3001
 
 # Redis Configuration (Optional)
-REDIS_HOST=redis
+REDIS_HOST=localhost
 REDIS_PORT=6379
 
-# JWT Configuration
-JWT_SECRET=your-super-secret-jwt-key
+# API Configuration
+API_BASE_URL=http://localhost:3001/api
+ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000
 ```
 
-## Deployment Options
+### **Frontend Configuration**
+```typescript
+// vite.config.ts
+export default defineConfig({
+  server: {
+    port: 5173,
+    proxy: {
+      '/api': 'http://localhost:3001'
+    }
+  }
+})
+```
 
-### 1. Development Mode
-- Uses `docker-compose.dev.yml`
-- Live reload for both frontend and backend
-- Volume mounts for instant code changes
-- Separate Redis container
+## 📊 **Current Status**
 
-### 2. Production Standalone
-- Single container deployment
-- Optimized multi-stage build
-- No external dependencies required
-- Works without Redis (in-memory cache fallback)
+### **✅ Completed Features**
+- [x] **Real-time Market Data**: Yahoo Finance API integration
+- [x] **Strategy Analysis**: Momentum, All-Weather, Custom strategies
+- [x] **Portfolio Optimization**: Linear programming with constraints
+- [x] **Trade Generation**: Automated buy/sell recommendations
+- [x] **Responsive Interface**: Mobile-friendly web application
+- [x] **Caching Layer**: Redis with in-memory fallback
+- [x] **API Rate Limiting**: Prevent abuse and manage costs
+- [x] **Error Handling**: Comprehensive error management
+- [x] **Development Setup**: Separate frontend/backend servers
 
-### 3. Raspberry Pi Production
-- Uses `docker-compose.pi.yml`
-- ARM64 optimized
-- Optional Redis for production caching
-- Automatic restart on failure
+### **🔄 Key Capabilities**
+- **Portfolio Analysis**: Real-time valuation and strategy recommendations
+- **Risk Management**: Diversification scoring and position limits
+- **Performance Metrics**: Expected returns, utilization rates
+- **Market Integration**: Live price data and historical analysis
+- **User Interface**: Unified strategy configuration and execution
 
-## Health Checks
+### **📋 Example Workflow**
+1. **Select Strategy**: Choose momentum, all-weather, or custom allocation
+2. **Configure Parameters**: Set strategy-specific parameters (topN, SMA periods, etc.)
+3. **Select ETFs**: Choose from available ETF universe
+4. **Set Capital**: Add additional capital for investment
+5. **Analyze**: Get portfolio analysis and target allocations
+6. **Optimize**: Generate optimal trade recommendations
+7. **Execute**: Review and execute trade plan
 
-The application includes health checks:
+## 🚀 **Development**
 
+### **Prerequisites**
+- Node.js 18+
+- npm or yarn
+- Redis (optional, uses in-memory fallback)
+
+### **Local Development**
 ```bash
-# Check application health
-curl http://localhost:3000/health
+# Install all dependencies
+npm run install:all
 
-# Check API health
-curl http://localhost:3000/api/health
+# Start development servers
+npm run dev  # Runs both frontend and backend
+
+# Or run separately
+cd server && npm run dev     # Backend: :3001
+cd frontend && npm run dev    # Frontend: :5173
 ```
 
-## Cross-Platform Support
-
-The Docker configuration supports both architectures:
-
-- **x86_64**: Linux, Windows, macOS
-- **ARM64**: Raspberry Pi 4, Apple Silicon
-
-## Building for Specific Platforms
-
+### **Testing**
 ```bash
-# Build for ARM64 (Raspberry Pi)
-docker buildx build --platform linux/arm64 -t momentum-rider:arm64 .
+# Backend tests
+cd server && npm test
 
-# Build for x86_64
-docker buildx build --platform linux/amd64 -t momentum-rider:amd64 .
+# Frontend tests
+cd frontend && npm test
+
+# Integration tests
+npm run test
 ```
 
-## Troubleshooting
-
-### Common Issues
-
-1. **Port 3000 already in use**
-   ```bash
-   # Change port mapping
-   docker run -p 3001:3000 momentum-rider
-   ```
-
-2. **Redis connection issues**
-   - Application works without Redis using in-memory cache
-   - Check Redis container is running: `docker ps`
-
-3. **Static files not serving**
-   - Verify frontend build completed successfully
-   - Check Express static middleware configuration
-
-### Logs and Debugging
-
+### **Building for Production**
 ```bash
-# View application logs
-docker logs momentum-rider
+# Frontend build
+cd frontend && npm run build
 
-# View Redis logs
-docker logs momentum-rider-redis
-
-# Check container health
-docker ps --filter "name=momentum-rider"
+# Production server
+cd server && npm start
 ```
 
-## File Structure
+## 📝 **Documentation**
 
-```
-momentum_rider/
-├── Dockerfile                    # Multi-stage build
-├── docker-compose.dev.yml        # Development with live reload
-├── docker-compose.pi.yml         # Production Pi deployment
-├── .env.example                  # Environment configuration
-├── frontend/                     # Frontend source
-├── server/                       # Backend source
-└── README.md                     # This file
-```
+- **[PROJECT_STATUS.md](./PROJECT_STATUS.md)** - Detailed current status and architecture
+- **[API Documentation](./server/docs/)** - API endpoint documentation
+- **[Frontend README](./frontend/README.md)** - Frontend development guide
 
-## Development Workflow
+## 🔮 **Future Enhancements**
 
-The development workflow is preserved exactly as before:
+### **Planned Features**
+- [ ] **Mixed Strategies**: Combine multiple strategies (30% momentum + 70% all-weather)
+- [ ] **Backtesting**: Historical performance analysis
+- [ ] **Risk Analytics**: VaR, drawdown, Sharpe ratio calculations
+- [ ] **Database Storage**: PostgreSQL for persistent portfolio data
+- [ ] **User Authentication**: Multi-user support with portfolios
+- [ ] **Brokerage Integration**: Real trade execution APIs
+- [ ] **Mobile Application**: React Native implementation
+- [ ] **WebSocket Updates**: Real-time price updates
 
-```bash
-# Start development
-docker-compose -f docker-compose.dev.yml up -d
+### **Technical Improvements**
+- [ ] **Comprehensive Testing**: Unit, integration, E2E tests
+- [ ] **CI/CD Pipeline**: Automated testing and deployment
+- [ ] **Performance Monitoring**: Metrics and error tracking
+- [ ] **Security Hardening**: Authentication, authorization, audit logging
+- [ ] **Scalability**: Load balancing, database optimization
 
-# Make code changes
-# Changes are automatically reloaded
+## 🤝 **Contributing**
 
-# Stop development
-docker-compose -f docker-compose.dev.yml down
-```
+1. Fork the repository
+2. Create feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing-feature`)
+5. Open Pull Request
 
-## Performance
+## 📄 **License**
 
-- **Memory**: ~200MB RAM usage
-- **Startup**: < 30 seconds
-- **API Response**: < 100ms average
-- **Static File Serving**: Optimized caching
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Security
+## 📞 **Support**
 
-- Non-root user execution
-- Environment variable configuration
-- Optional Redis with secure defaults
-- Rate limiting enabled
-- CORS properly configured
+For support and questions:
+- Check the [PROJECT_STATUS.md](./PROJECT_STATUS.md) for current capabilities
+- Review the [API Documentation](./server/docs/) for integration details
+- Open an issue for bug reports or feature requests
 
-## Contributing
+---
 
-1. Use development mode for active development
-2. Test production builds before deployment
-3. Update environment variables as needed
-4. Verify cross-platform compatibility
-
-## Support
-
-For issues with Docker deployment:
-1. Check container logs
-2. Verify environment variables
-3. Test health endpoints
-4. Review troubleshooting section
+**🎉 Momentum Rider v1.0 - Complete Portfolio Strategy Management System**
+**📅 Last Updated: 2025-11-18**
