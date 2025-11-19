@@ -346,7 +346,9 @@ const removeETF = async (ticker: string) => {
     console.error('Failed to remove custom ETF:', error)
 
     // Rollback: restore the ETF if API call failed
-    customETFs.value.splice(etfIndex, 0, etfToRemove)
+    if (etfToRemove) {
+      customETFs.value.splice(etfIndex, 0, etfToRemove)
+    }
 
     // Show error to user
     loadingState.value.error = error instanceof Error ? error.message : 'Failed to remove ETF'

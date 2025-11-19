@@ -350,7 +350,7 @@ const loadETFUniverse = async () => {
     console.log('Fetching ETF names for', allTickers.length, 'tickers...')
 
     try {
-      const quotePromises = allTickers.map(ticker => etfService.getQuote(ticker))
+      const quotePromises = allTickers.map(ticker => etfService.getQuote(ticker as string))
       const quotes = await Promise.all(quotePromises)
 
       // Cache the names and prices
@@ -368,7 +368,7 @@ const loadETFUniverse = async () => {
     await loadCustomETFs()
   } catch (error) {
     console.error('Error loading ETF universe:', error)
-    etfLoadError.value = error.message || 'Failed to load ETF universe'
+    etfLoadError.value = error instanceof Error ? error.message : 'Failed to load ETF universe'
   } finally {
     isLoadingETFs.value = false
   }
@@ -441,7 +441,7 @@ const addCustomETF = async () => {
     await loadCustomETFs()
     await loadETFUniverse() // Refresh universe
   } catch (error) {
-    alert(`Error adding ETF: ${error.message}`)
+    alert(`Error adding ETF: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 
@@ -466,7 +466,7 @@ const removeCustomETF = async (ticker: string) => {
     await loadCustomETFs()
     await loadETFUniverse() // Refresh universe
   } catch (error) {
-    alert(`Error removing ETF: ${error.message}`)
+    alert(`Error removing ETF: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 

@@ -403,8 +403,8 @@ class PortfolioService {
       custom: 0.12
     }
 
-    const expectedReturn = (baseReturns[analysis.strategy] || 0.10) * 100
-    const expectedVolatility = (baseVolatilities[analysis.strategy] || 0.12) * 100
+    const expectedReturn = (baseReturns[analysis.strategy as keyof typeof baseReturns] || 0.10) * 100
+    const expectedVolatility = (baseVolatilities[analysis.strategy as keyof typeof baseVolatilities] || 0.12) * 100
     const sharpeRatio = expectedReturn / expectedVolatility
 
     // Diversification score based on number of ETFs and allocation distribution

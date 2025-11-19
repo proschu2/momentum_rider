@@ -210,14 +210,14 @@
               :class="['etf-card', {
                 selected: selectedETFs.includes(etf.ticker),
                 custom: etf.isCustom,
-                positive: etf.momentumScore > 0
+                positive: (etf.momentumScore ?? 0) > 0
               }]"
               @click="toggleETF(etf.ticker)"
             >
               <div class="etf-header">
                 <span class="etf-ticker">{{ etf.ticker }}</span>
                 <span v-if="etf.isCustom" class="custom-badge">Custom</span>
-                <span v-if="etf.momentumScore > 0" class="positive-badge">+{{ etf.momentumScore.toFixed(1) }}%</span>
+                <span v-if="(etf.momentumScore ?? 0) > 0" class="positive-badge">+{{ (etf.momentumScore ?? 0).toFixed(1) }}%</span>
               </div>
               <div class="etf-details">
                 <div class="etf-name">{{ etf.name }}</div>
@@ -582,7 +582,7 @@ const analyzeStrategy = async () => {
 
     const analysisRequest = {
       strategy: {
-        type: selectedStrategy.value!.id,
+        type: selectedStrategy.value!.id as 'momentum' | 'allweather' | 'custom',
         parameters: parameters
       },
       selectedETFs: selectedETFs.value,
@@ -672,7 +672,7 @@ const analyzeStrategy = async () => {
           console.log('Valid allocations after filtering:', validAllocations)
 
           executionPlan.value = validAllocations
-            .filter((allocation: any) => {
+            .filter((allocation: any): allocation is NonNullable<typeof allocation> => {
               try {
                 return allocation && (
                   (Number(allocation.sharesToBuy) > 0) ||
@@ -701,7 +701,7 @@ const analyzeStrategy = async () => {
 
                 return {
                   etf: allocation.etf || allocation.etfName || 'UNKNOWN',
-                  action: isBuy ? 'buy' : 'sell',
+                  action: isBuy ? ('buy' as const) : ('sell' as const),
                   shares: sharesToTrade,
                   value: Number(allocation.targetValue || allocation.finalValue || 0),
                   price: price,
@@ -712,7 +712,7 @@ const analyzeStrategy = async () => {
                 return null
               }
             })
-            .filter((trade: any) => trade && trade !== null && Number(trade.shares) > 0) // Only include valid trades
+            .filter((trade): trade is NonNullable<typeof trade> => trade !== null && Number(trade.shares) > 0) // Only include valid trades
 
           console.log('Generated execution plan with', executionPlan.value.length, 'trades')
           console.log('Execution plan trades:', executionPlan.value)
@@ -749,11 +749,11 @@ const analyzeStrategy = async () => {
           .filter(comp => comp.action !== 'hold')
           .map(comp => {
             // Get real ETF price from analysis momentum scores
-            const etfPrice = analysis.momentumScores?.[comp.etf]?.price || 100
+            const etfPrice = (analysis as any).momentumScores?.[comp.etf]?.price || 100
             const shares = Math.abs(comp.targetValue - comp.currentValue) / etfPrice
             return {
               etf: comp.etf,
-              action: comp.action,
+              action: comp.action as 'buy' | 'sell',
               shares,
               value: comp.targetValue - comp.currentValue,
               price: etfPrice,
@@ -764,7 +764,7 @@ const analyzeStrategy = async () => {
 
   } catch (error) {
     console.error('Strategy analysis failed:', error)
-    alert(`Analysis failed: ${error.message}`)
+    alert(`Analysis failed: ${error instanceof Error ? error.message : String(error)}`)
   } finally {
     isAnalyzing.value = false
   }
@@ -792,9 +792,11 @@ const refreshMomentumScores = async () => {
       strategy: {
         type: 'momentum',
         parameters: {
-          topN: 10,
-          includeIBIT: false,
-          fallbackETF: 'SGOV'
+          momentum: {
+            topN: 10,
+            includeIBIT: false,
+            fallbackETF: 'SGOV'
+          }
         }
       },
       selectedETFs: allTickers,
@@ -805,12 +807,12 @@ const refreshMomentumScores = async () => {
     // Debug: Log the full response structure
     console.log('Full momentum response:', momentumResponse)
     console.log('Momentum response structure:', {
-      hasMomentumScores: !!momentumResponse.momentumScores,
-      momentumKeys: momentumResponse.momentumScores ? Object.keys(momentumResponse.momentumScores) : []
+      hasMomentumScores: !!(momentumResponse as any).momentumScores,
+      momentumKeys: (momentumResponse as any).momentumScores ? Object.keys((momentumResponse as any).momentumScores) : []
     })
 
     // Extract and update momentum scores with proper error handling
-    const momentumScores = Object.entries(momentumResponse.momentumScores || {}).reduce((acc, [ticker, data]: [string, any]) => {
+    const momentumScores = Object.entries((momentumResponse as any).momentumScores || {}).reduce((acc, [ticker, data]: [string, any]) => {
       const score = typeof data === 'object' && data.score ? data.score : (typeof data === 'number' ? data : 0)
       acc[ticker] = score
       return acc
@@ -953,9 +955,11 @@ onMounted(async () => {
         strategy: {
           type: 'momentum',
           parameters: {
-            topN: 10, // Get scores for all ETFs
-            includeIBIT: false,
-            fallbackETF: 'SGOV'
+            momentum: {
+              topN: 10, // Get scores for all ETFs
+              includeIBIT: false,
+              fallbackETF: 'SGOV'
+            }
           }
         },
         selectedETFs: allTickers,
@@ -964,7 +968,7 @@ onMounted(async () => {
       })
 
       // Extract momentum scores from the analysis
-      momentumScores = Object.entries(momentumResponse.analysis?.momentumScores || {}).reduce((acc, [ticker, data]: [string, any]) => {
+      momentumScores = Object.entries((momentumResponse as any).analysis?.momentumScores || {}).reduce((acc, [ticker, data]: [string, any]) => {
         const score = typeof data === 'object' && data.score ? data.score : (typeof data === 'number' ? data : 0)
         acc[ticker] = score
         return acc
