@@ -23,19 +23,37 @@ async function calculateMomentum(ticker, includeName = false) {
 
     logger.logInfo('Calculating momentum for ticker', { ticker, includeName });
 
-    // Get 2 years of weekly data
+    // Get 2 years of weekly data for historical prices
     const weeklyQuotes = await financeService.getHistoricalWeeklyData(ticker, 2);
 
     if (weeklyQuotes.length === 0) {
       throw new Error('No historical data available');
     }
 
-    // Use the latest weekly quote as the current price
-    const latestQuote = weeklyQuotes[weeklyQuotes.length - 1];
-    const currentPrice = latestQuote.close;
+    // Get REAL current price from finance service (not from weekly data)
+    let currentPrice;
+    try {
+      currentPrice = await financeService.getCurrentPrice(ticker);
+      logger.logInfo('Real current price fetched for momentum calculation', {
+        ticker,
+        price: currentPrice,
+        source: 'financeService.getCurrentPrice'
+      });
+    } catch (priceError) {
+      logger.logWarn('Failed to get current price, falling back to latest weekly quote', {
+        ticker,
+        error: priceError.message
+      });
+      // Fallback to latest weekly quote
+      const latestQuote = weeklyQuotes[weeklyQuotes.length - 1];
+      currentPrice = latestQuote.close;
+    }
 
-    if (!currentPrice || currentPrice === 0) {
-      throw new Error(`Invalid current price for ${ticker}`);
+    // Handle both object and number return types from getCurrentPrice
+    const priceValue = typeof currentPrice === 'object' ? currentPrice.price || currentPrice : currentPrice;
+
+    if (!priceValue || priceValue === 0) {
+      throw new Error(`Invalid current price for ${ticker}: ${priceValue}`);
     }
 
     // Get name information (optional)
@@ -64,11 +82,11 @@ async function calculateMomentum(ticker, includeName = false) {
     const price9moAgo = findClosestWeeklyPrice(weeklyQuotes, nineMonthsAgo);
     const price12moAgo = findClosestWeeklyPrice(weeklyQuotes, twelveMonthsAgo);
 
-    // Calculate returns for each period
-    const return3mo = calculateReturnFromPrice(price3moAgo, currentPrice);
-    const return6mo = calculateReturnFromPrice(price6moAgo, currentPrice);
-    const return9mo = calculateReturnFromPrice(price9moAgo, currentPrice);
-    const return12mo = calculateReturnFromPrice(price12moAgo, currentPrice);
+    // Calculate returns for each period using the REAL current price
+    const return3mo = calculateReturnFromPrice(price3moAgo, priceValue);
+    const return6mo = calculateReturnFromPrice(price6moAgo, priceValue);
+    const return9mo = calculateReturnFromPrice(price9moAgo, priceValue);
+    const return12mo = calculateReturnFromPrice(price12moAgo, priceValue);
 
     const periods = {
       '3month': return3mo,
@@ -96,6 +114,7 @@ async function calculateMomentum(ticker, includeName = false) {
       periods,
       average,
       absoluteMomentum,
+      price: priceValue, // Include the real current price in the result
     };
 
     await cacheService.setCachedData(cacheKey, result);
@@ -103,6 +122,7 @@ async function calculateMomentum(ticker, includeName = false) {
       ticker,
       absoluteMomentum,
       average,
+      price: priceValue,
       dataPoints: weeklyQuotes.length
     });
 
@@ -125,19 +145,37 @@ async function getDetailedPrices(ticker, includeName = false) {
     return cached;
   }
 
-  // Get 2 years of weekly data
+  // Get 2 years of weekly data for historical prices
   const weeklyQuotes = await financeService.getHistoricalWeeklyData(ticker, 2);
 
   if (weeklyQuotes.length === 0) {
     throw new Error('No historical data available');
   }
 
-  // Use the latest weekly quote as the current price
-  const latestQuote = weeklyQuotes[weeklyQuotes.length - 1];
-  const currentPrice = latestQuote.close;
+  // Get REAL current price from finance service (not from weekly data)
+  let currentPrice;
+  try {
+    currentPrice = await financeService.getCurrentPrice(ticker);
+    logger.logInfo('Real current price fetched for momentum calculation', {
+      ticker,
+      price: currentPrice,
+      source: 'financeService.getCurrentPrice'
+    });
+  } catch (priceError) {
+    logger.logWarn('Failed to get current price, falling back to latest weekly quote', {
+      ticker,
+      error: priceError.message
+    });
+    // Fallback to latest weekly quote
+    const latestQuote = weeklyQuotes[weeklyQuotes.length - 1];
+    currentPrice = latestQuote.close;
+  }
 
-  if (!currentPrice || currentPrice === 0) {
-    throw new Error(`Invalid current price for ${ticker}`);
+  // Handle both object and number return types from getCurrentPrice
+  const priceValue = typeof currentPrice === 'object' ? currentPrice.price || currentPrice : currentPrice;
+
+  if (!priceValue || priceValue === 0) {
+    throw new Error(`Invalid current price for ${ticker}: ${priceValue}`);
   }
 
   // Get name information (optional)
@@ -169,7 +207,7 @@ async function getDetailedPrices(ticker, includeName = false) {
   const result = {
     ticker,
     name,
-    currentPrice,
+    currentPrice: priceValue,
     historicalPrices: {
       '3month': price3moAgo,
       '6month': price6moAgo,
@@ -177,11 +215,11 @@ async function getDetailedPrices(ticker, includeName = false) {
       '12month': price12moAgo,
     },
     quote: {
-      price: currentPrice,
+      price: priceValue,
       change: 0, // We don't have daily change data from weekly quotes
       changePercent: 0,
       marketState: 'CLOSED', // Assume closed since we're using weekly data
-      timestamp: latestQuote.date.toISOString(),
+      timestamp: new Date().toISOString(),
     },
   };
 

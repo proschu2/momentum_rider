@@ -1,0 +1,915 @@
+/**
+ * Portfolio analysis and optimization service
+ */
+
+const financeService = require('./financeService');
+const customETFService = require('./customETFService');
+const portfolioOptimizationService = require('./portfolioOptimizationService');
+const logger = require('../config/logger');
+
+class PortfolioService {
+  constructor() {
+    this.cache = new Map();
+    this.cacheTimeout = 5 * 60 * 1000; // 5 minutes
+  }
+
+  /**
+   * Analyze strategy and generate target allocation
+   */
+  async analyzeStrategy({ strategy, selectedETFs, additionalCapital, currentHoldings }) {
+    try {
+      // Get current portfolio value
+      const currentPortfolioValue = await this.calculatePortfolioValue(currentHoldings);
+      const totalInvestment = currentPortfolioValue + additionalCapital;
+
+      let targetAllocations = {};
+      let momentumScores = {};
+
+      switch (strategy.type) {
+        case 'momentum':
+          console.log('Debug: About to call analyzeMomentumStrategy...');
+          const momentumResult = await this.analyzeMomentumStrategy(selectedETFs, strategy.parameters);
+          console.log('Debug: analyzeMomentumStrategy returned. GLDM has price:', 'GLDM' in momentumResult.momentumScores ? 'price' in momentumResult.momentumScores['GLDM'] : 'GLDM not found');
+          targetAllocations = momentumResult.allocations;
+          momentumScores = momentumResult.momentumScores;
+          console.log('Debug: After assignment. GLDM has price:', 'GLDM' in momentumScores ? 'price' in momentumScores['GLDM'] : 'GLDM not found');
+          break;
+        case 'allweather':
+          targetAllocations = await this.analyzeAllWeatherStrategy(selectedETFs, strategy.parameters);
+          break;
+        case 'custom':
+          targetAllocations = strategy.parameters.allocations || {};
+          break;
+        default:
+          throw new Error(`Unknown strategy type: ${strategy.type}`);
+      }
+
+      // Normalize allocations to 100%
+      const totalAllocation = Object.values(targetAllocations).reduce((sum, val) => sum + val, 0);
+      if (totalAllocation > 0) {
+        Object.keys(targetAllocations).forEach(etf => {
+          targetAllocations[etf] = (targetAllocations[etf] / totalAllocation) * 100;
+        });
+      }
+
+      // Calculate target values
+      const targetValues = {};
+      Object.entries(targetAllocations).forEach(([etf, percentage]) => {
+        targetValues[etf] = (totalInvestment * percentage) / 100;
+      });
+
+      // Get current values
+      const currentValues = {};
+      for (const holding of currentHoldings) {
+        const priceData = await financeService.getCurrentPrice(holding.etf);
+        currentValues[holding.etf] = holding.shares * priceData.price;
+      }
+
+      // Debug: Check momentumScores before final return
+      console.log('Debug: momentumScores in analyzeStrategy return:', JSON.stringify(momentumScores, null, 2));
+
+      const result = {
+        totalInvestment,
+        currentPortfolioValue,
+        targetAllocations,
+        targetValues,
+        currentValues,
+        strategy: strategy.type,
+        selectedETFs,
+        momentumScores,
+        analysisTimestamp: new Date().toISOString()
+      };
+
+      console.log('Debug: Final result momentumScores GLDM has price:', 'GLDM' in result.momentumScores ? 'price' in result.momentumScores['GLDM'] : 'GLDM not found');
+
+      return result;
+
+    } catch (error) {
+      logger.logError(error, 'Strategy analysis failed');
+      throw error;
+    }
+  }
+
+  /**
+   * Analyze momentum strategy
+   */
+  async analyzeMomentumStrategy(selectedETFs, parameters) {
+    const { topN = 3, includeIBIT = true, fallbackETF = 'SGOV' } = parameters;
+
+    try {
+      // Calculate momentum scores for all selected ETFs
+      const momentumScores = await this.calculateMomentumScores(selectedETFs);
+
+      // Filter positive momentum ETFs first
+      const allPositiveETFs = momentumScores
+        .filter(etf => etf.score > 0)
+        .sort((a, b) => b.score - a.score);
+
+      // Select top N regular ETFs (IBIT is additional)
+      const regularTopN = topN;
+      const positiveETFs = allPositiveETFs.slice(0, regularTopN);
+
+      // Enhanced debugging for momentum analysis
+      const debugInfo = {
+        totalETFs: momentumScores.length,
+        positiveETFsFound: allPositiveETFs.length,
+        regularTopN,
+        includeIBIT,
+        selectedRegularETFs: positiveETFs.map(e => e.ticker),
+        scores: momentumScores.map(s => ({
+          ticker: s.ticker,
+          score: s.score,
+          momentum3m: s.momentum3m,
+          momentum6m: s.momentum6m,
+          momentum9m: s.momentum9m,
+          momentum12m: s.momentum12m,
+          price: s.price
+        })),
+        parameters: { topN, includeIBIT, fallbackETF }
+      };
+
+      console.log('Momentum analysis results:', debugInfo);
+
+      // Write debug info to file for complete analysis
+      const fs = require('fs').promises;
+      try {
+        await fs.writeFile('/tmp/momentum-debug.json', JSON.stringify(debugInfo, null, 2));
+        console.log('Debug info written to /tmp/momentum-debug.json');
+      } catch (err) {
+        console.error('Failed to write debug file:', err);
+      }
+
+      // Add IBIT if specified and not already in top performers
+      if (includeIBIT && !positiveETFs.find(etf => etf.ticker === 'IBIT')) {
+        let ibitPrice = 52.0; // Reasonable fallback price for IBIT
+        try {
+          const priceResult = await financeService.getCurrentPrice('IBIT');
+          ibitPrice = priceResult.price || ibitPrice;
+        } catch (priceError) {
+          console.warn(`Failed to get current price for IBIT:`, priceError.message);
+        }
+
+        positiveETFs.push({
+          ticker: 'IBIT',
+          score: 0, // Fixed allocation
+          price: ibitPrice
+        });
+      }
+
+      // If no positive ETFs, use fallback
+      if (positiveETFs.length === 0) {
+        let fallbackPrice = 100.0; // Reasonable fallback price
+        try {
+          const priceResult = await financeService.getCurrentPrice(fallbackETF);
+          fallbackPrice = priceResult.price || fallbackPrice;
+        } catch (priceError) {
+          console.warn(`Failed to get current price for fallback ETF ${fallbackETF}:`, priceError.message);
+        }
+
+        positiveETFs.push({
+          ticker: fallbackETF,
+          score: 0,
+          price: fallbackPrice
+        });
+      }
+
+      // Calculate equal allocations (except IBIT which gets fixed 4%)
+      const allocations = {};
+      const activeETFs = positiveETFs.filter(etf => etf.ticker !== 'IBIT');
+      const remainingAllocation = includeIBIT ? 96 : 100;
+
+      if (activeETFs.length > 0) {
+        const equalAllocation = remainingAllocation / activeETFs.length;
+        activeETFs.forEach(etf => {
+          allocations[etf.ticker] = equalAllocation;
+        });
+      }
+
+      if (includeIBIT) {
+        allocations.IBIT = 4;
+      }
+
+      // Debug: Check what's in momentumScores before returning
+      console.log('Debug: momentumScores before return:', JSON.stringify(momentumScores[0], null, 2));
+
+      const momentumScoresObj = momentumScores.reduce((acc, score) => {
+        acc[score.ticker] = score;
+        return acc;
+      }, {});
+
+      // Debug: Check what's in the reduced object
+      console.log('Debug: momentumScores object has price for GLDM:', 'GLDM' in momentumScoresObj ? 'price' in momentumScoresObj['GLDM'] : 'GLDM not found');
+
+      return {
+        allocations,
+        momentumScores: momentumScoresObj
+      };
+
+    } catch (error) {
+      logger.logError(error, 'Momentum strategy analysis failed');
+      throw error;
+    }
+  }
+
+  /**
+   * Analyze all-weather strategy
+   */
+  async analyzeAllWeatherStrategy(selectedETFs, parameters) {
+    const { smaPeriod = 200, bondFallbackPercent = 80 } = parameters;
+
+    try {
+      // Default all-weather allocations (Dalio-inspired)
+      const defaultAllocations = {
+        'VTI': 30,   // US Stocks
+        'VEA': 15,   // Developed International
+        'VWO': 5,    // Emerging Markets
+        'TLT': 40,   // Long-term Treasury
+        'BND': 7.5,  // Total Bond Market
+        'PDBC': 2.5, // Commodities
+        'GLDM': 2.5, // Gold
+        'IBIT': 4    // Bitcoin (if included)
+      };
+
+      // Filter to only include selected ETFs
+      const filteredAllocations = {};
+      let totalFiltered = 0;
+
+      selectedETFs.forEach(etf => {
+        if (defaultAllocations[etf]) {
+          filteredAllocations[etf] = defaultAllocations[etf];
+          totalFiltered += defaultAllocations[etf];
+        }
+      });
+
+      // Check ETFs against SMA
+      const smaResults = await this.checkSMATrend(selectedETFs, smaPeriod);
+
+      // Adjust allocations based on SMA signals
+      const adjustedAllocations = {};
+      let stockAllocation = 0;
+      let bondAllocation = 0;
+
+      Object.entries(filteredAllocations).forEach(([etf, allocation]) => {
+        const smaResult = smaResults[etf];
+
+        if (this.isStockETF(etf)) {
+          if (smaResult && smaResult.aboveSMA) {
+            adjustedAllocations[etf] = allocation;
+            stockAllocation += allocation;
+          } else {
+            // Move stock allocation to bonds
+            bondAllocation += allocation;
+          }
+        } else if (this.isBondETF(etf)) {
+          adjustedAllocations[etf] = allocation;
+          bondAllocation += allocation;
+        } else {
+          // Keep other allocations as is (commodities, gold, etc.)
+          adjustedAllocations[etf] = allocation;
+        }
+      });
+
+      // If stocks need fallback to bonds, redistribute
+      if (stockAllocation < bondFallbackPercent) {
+        // Find the largest bond allocation and add the stock allocation
+        const bondETFs = Object.keys(adjustedAllocations).filter(etf => this.isBondETF(etf));
+        if (bondETFs.length > 0) {
+          const largestBondETF = bondETFs.reduce((max, etf) =>
+            adjustedAllocations[etf] > adjustedAllocations[max] ? etf : max
+          );
+          adjustedAllocations[largestBondETF] += stockAllocation;
+        }
+      }
+
+      // Normalize to 100%
+      const total = Object.values(adjustedAllocations).reduce((sum, val) => sum + val, 0);
+      if (total > 0) {
+        Object.keys(adjustedAllocations).forEach(etf => {
+          adjustedAllocations[etf] = (adjustedAllocations[etf] / total) * 100;
+        });
+      }
+
+      return adjustedAllocations;
+
+    } catch (error) {
+      logger.logError(error, 'All-weather strategy analysis failed');
+      throw error;
+    }
+  }
+
+  /**
+   * Optimize portfolio using existing linear programming service
+   */
+  async optimizePortfolio({ strategy, selectedETFs, additionalCapital, currentHoldings, constraints }) {
+    try {
+      // Get analysis first to determine target allocations
+      const analysis = await this.analyzeStrategy({ strategy, selectedETFs, additionalCapital, currentHoldings });
+
+      // Extract prices from momentum analysis (already fetched during analysis)
+      const prices = {};
+      console.log('=== ENHANCED PRICE EXTRACTION DEBUG ===');
+      for (const etf of selectedETFs) {
+        const momentumData = analysis.momentumScores?.[etf];
+
+        // Extract price from momentum data - handle different data structures
+        let momentumPrice = null;
+        if (momentumData) {
+          momentumPrice = momentumData.price || momentumData.currentPrice || momentumData.quote?.price;
+        }
+
+        if (momentumPrice && momentumPrice > 0 && momentumPrice < 100000) {
+          // Use price from momentum analysis (should be successful now)
+          prices[etf] = momentumPrice;
+          console.log(`Price extracted for ${etf}:`, {
+            price: momentumPrice,
+            source: 'momentum analysis',
+            absoluteMomentum: momentumData.absoluteMomentum,
+            score: momentumData.score,
+            dataKeys: Object.keys(momentumData)
+          });
+        } else {
+          console.warn(`Invalid or missing momentum price for ${etf}:`, {
+            momentumPrice: momentumPrice,
+            momentumData: momentumData,
+            hasMomentumData: !!momentumData,
+            dataKeys: momentumData ? Object.keys(momentumData) : []
+          });
+
+          // Fallback to API call with better error handling
+          try {
+            const priceData = await financeService.getCurrentPrice(etf);
+            if (priceData && priceData.price && priceData.price > 0 && priceData.price < 100000) {
+              prices[etf] = priceData.price;
+              console.log(`Price fetched for ${etf} (API fallback):`, {
+                price: priceData.price,
+                source: 'direct API call',
+                timestamp: priceData.timestamp
+              });
+            } else {
+              throw new Error(`Invalid price data received: ${JSON.stringify(priceData)}`);
+            }
+          } catch (error) {
+            console.error(`Failed to fetch price for ${etf}, using fallback:`, {
+              error: error.message,
+              isRateLimit: error.message.includes('rate limit') || error.message.includes('429')
+            });
+
+            // Use a more reasonable fallback based on ETF type
+            prices[etf] = this.getFallbackPriceForETF(etf);
+            console.log(`Using intelligent fallback price for ${etf}:`, {
+              price: prices[etf],
+              source: 'intelligent fallback based on ETF type'
+            });
+          }
+        }
+      }
+
+      // Debug analysis results including momentum scores
+      console.log('=== ANALYSIS DEBUG ===');
+      console.log('Strategy analysis result:', {
+        strategy: strategy.type,
+        momentumScores: analysis.momentumScores,
+        targetAllocations: analysis.targetAllocations,
+        selectedETFs: selectedETFs
+      });
+
+      // Prepare target ETFs in the format expected by the optimization service
+      const targetETFs = selectedETFs.map(etf => {
+        const targetETF = {
+          name: etf,
+          targetPercentage: analysis.targetAllocations[etf] || 0,
+          pricePerShare: prices[etf],
+          allowedDeviation: 5 // Default 5% deviation
+        };
+
+        console.log(`Target ETF ${etf}:`, {
+          name: targetETF.name,
+          targetPercentage: targetETF.targetPercentage,
+          pricePerShare: targetETF.pricePerShare,
+          momentumScore: analysis.momentumScores?.[etf],
+          hasValidPrice: targetETF.pricePerShare && targetETF.pricePerShare > 0
+        });
+
+        return targetETF;
+      });
+
+      
+      // Prepare current holdings with current prices
+      const holdingsWithPrices = await Promise.all(currentHoldings.map(async holding => ({
+        name: holding.etf,
+        shares: holding.shares,
+        price: (await financeService.getCurrentPrice(holding.etf)).price
+      })));
+
+      // Use existing portfolio optimization service
+      const optimizationResult = await portfolioOptimizationService.optimizePortfolio({
+        currentHoldings: holdingsWithPrices,
+        targetETFs,
+        extraCash: additionalCapital,
+        optimizationStrategy: constraints?.optimizationStrategy || 'minimize-leftover'
+      });
+
+      // Convert the result to match our expected format
+      const optimizedAllocations = {};
+      const targetValues = {};
+
+      // Check if allocations array exists before forEach
+      if (optimizationResult.allocations && Array.isArray(optimizationResult.allocations)) {
+        optimizationResult.allocations.forEach(allocation => {
+          optimizedAllocations[allocation.etfName] = allocation.finalShares;
+          targetValues[allocation.etfName] = allocation.finalValue;
+        });
+      } else {
+        // Fallback: create allocations from optimizationResult.optimizedAllocations if available
+        if (optimizationResult.optimizedAllocations) {
+          Object.entries(optimizationResult.optimizedAllocations).forEach(([etf, shares]) => {
+            optimizedAllocations[etf] = shares;
+            targetValues[etf] = shares * (prices[etf] || 100); // Use price or fallback
+          });
+        }
+      }
+
+      // Safely extract optimization metrics with fallbacks
+      const optimizationMetrics = optimizationResult.optimizationMetrics || {};
+      const totalBudgetUsed = optimizationMetrics.totalBudgetUsed || 0;
+      const unusedBudget = optimizationMetrics.unusedBudget || additionalCapital;
+      const unusedPercentage = optimizationMetrics.unusedPercentage || 0;
+
+      return {
+        optimizedAllocations,
+        targetValues,
+        utilizedCapital: totalBudgetUsed,
+        uninvestedCash: unusedBudget,
+        utilizationRate: 100 - unusedPercentage,
+        objectiveValue: totalBudgetUsed,
+        isOptimal: optimizationResult.solverStatus === 'optimal',
+        solverStatus: optimizationResult.solverStatus || 'unknown',
+        fallbackUsed: optimizationResult.fallbackUsed || false,
+        allocations: optimizationResult.allocations || [],
+        holdingsToSell: optimizationResult.holdingsToSell || []
+      };
+
+    } catch (error) {
+      logger.logError(error, 'Portfolio optimization failed');
+      throw error;
+    }
+  }
+
+  
+  /**
+   * Generate execution plan with specific trades
+   */
+  async generateExecutionPlan({ strategy, selectedETFs, additionalCapital, currentHoldings, constraints }) {
+    try {
+      // Get optimized allocation using existing service
+      const optimization = await this.optimizePortfolio({
+        strategy,
+        selectedETFs,
+        additionalCapital,
+        currentHoldings,
+        constraints
+      });
+
+      // Generate trade list from optimization result
+      const trades = [];
+      let totalTradeValue = 0;
+
+      // Process buy trades from optimization
+      if (optimization.allocations) {
+        optimization.allocations.forEach(allocation => {
+          if (allocation.sharesToBuy > 0) {
+            trades.push({
+              etf: allocation.etfName,
+              action: 'buy',
+              shares: allocation.sharesToBuy,
+              value: allocation.costOfPurchase,
+              price: allocation.costOfPurchase / allocation.sharesToBuy,
+              reason: 'Portfolio Rebalance - Underweight'
+            });
+            totalTradeValue += allocation.costOfPurchase;
+          }
+        });
+      }
+
+      // Process sell trades for holdings not in target
+      if (optimization.holdingsToSell) {
+        optimization.holdingsToSell.forEach(holding => {
+          trades.push({
+            etf: holding.name,
+            action: 'sell',
+            shares: holding.shares,
+            value: holding.totalValue,
+            price: holding.pricePerShare,
+            reason: 'Portfolio Rebalance - Not in Target Allocation'
+          });
+          totalTradeValue += holding.totalValue;
+        });
+      }
+
+      // Sort trades by action (sells first, then buys)
+      trades.sort((a, b) => {
+        if (a.action !== b.action) {
+          return a.action === 'sell' ? -1 : 1;
+        }
+        return b.value - a.value; // Larger trades first
+      });
+
+      return {
+        trades,
+        totalTradeValue,
+        tradeCount: trades.length,
+        utilizationRate: optimization.utilizationRate,
+        expectedReturn: this.calculateExpectedReturn(trades, strategy.type),
+        estimatedTime: this.estimateExecutionTime(trades),
+        optimization,
+        solverStatus: optimization.solverStatus,
+        fallbackUsed: optimization.fallbackUsed || false
+      };
+
+    } catch (error) {
+      logger.logError(error, 'Execution plan generation failed');
+      throw error;
+    }
+  }
+
+  /**
+   * Calculate momentum scores for ETFs using momentumService for consistency
+   */
+  async calculateMomentumScores(etfs) {
+    const momentumService = require('./momentumService');
+    const scores = [];
+
+    for (const etf of etfs) {
+      try {
+        console.log(`Calculating momentum for ${etf} using momentumService...`);
+
+        // Use momentumService.calculateMomentum for consistent price extraction
+        const momentumResult = await momentumService.calculateMomentum(etf, false);
+
+        // Use getDetailedPrices to get current price with better fallback logic
+        let currentPrice = 100; // Ultimate fallback
+        try {
+          const priceDetails = await momentumService.getDetailedPrices(etf, false);
+          // Extract the real price from the detailed prices response
+          currentPrice = priceDetails.currentPrice || priceDetails.quote?.price;
+          console.log(`Price extracted for ${etf}:`, {
+            price: currentPrice,
+            source: 'momentum service detailed prices',
+            hasCurrentPrice: !!priceDetails.currentPrice,
+            quotePrice: priceDetails.quote?.price
+          });
+        } catch (priceError) {
+          console.warn(`Failed to get detailed prices for ${etf}, trying direct quote:`, priceError.message);
+          try {
+            // Additional fallback to financeService if momentumService fails
+            const priceResult = await financeService.getCurrentPrice(etf);
+            // Handle both object and number return types
+            currentPrice = typeof priceResult === 'object' ? priceResult.price : priceResult;
+            console.log(`Price extracted for ${etf} (fallback):`, {
+              price: currentPrice,
+              source: 'direct finance service call',
+              originalResult: priceResult
+            });
+          } catch (fallbackError) {
+            console.warn(`All price extraction methods failed for ${etf}, using fallback:`, fallbackError.message);
+            currentPrice = 100;
+          }
+        }
+
+        // Validate price but be less aggressive about fallbacks
+        if (!currentPrice || currentPrice <= 0 || currentPrice > 100000) {
+          console.warn(`Price validation failed for ${etf} (${currentPrice}), using fallback price of 100`);
+          currentPrice = 100;
+        }
+
+        // Calculate period returns if we have momentum data
+        let momentum3m = 0, momentum6m = 0, momentum9m = 0, momentum12m = 0, weightedScore = 0;
+
+        if (momentumResult && momentumResult.periods) {
+          momentum3m = momentumResult.periods['3month'] || 0;
+          momentum6m = momentumResult.periods['6month'] || 0;
+          momentum9m = momentumResult.periods['9month'] || 0;
+          momentum12m = momentumResult.periods['12month'] || 0;
+
+          // Use same weighted calculation as momentumService
+          weightedScore = (momentum3m * 0.3 + momentum6m * 0.3 + momentum9m * 0.2 + momentum12m * 0.2);
+        }
+
+        console.log(`Momentum calculated for ${etf}:`, {
+          momentum3m,
+          momentum6m,
+          momentum9m,
+          momentum12m,
+          weightedScore,
+          price: currentPrice,
+          absoluteMomentum: momentumResult?.absoluteMomentum
+        });
+
+        scores.push({
+          ticker: etf,
+          score: weightedScore,
+          momentum3m,
+          momentum6m,
+          momentum9m,
+          momentum12m,
+          price: currentPrice,
+          absoluteMomentum: momentumResult?.absoluteMomentum || false
+        });
+
+      } catch (error) {
+        console.error(`Error calculating momentum for ${etf}:`, error);
+        logger.logError(error, `Failed to calculate momentum for ${etf}`);
+
+        // Enhanced fallback price extraction with better error handling
+        let currentPrice = 100; // Default fallback
+        try {
+          // Try direct finance service call as fallback
+          const priceResult = await financeService.getCurrentPrice(etf);
+          if (priceResult && priceResult.price && priceResult.price > 0 && priceResult.price < 100000) {
+            currentPrice = priceResult.price;
+            console.log(`Price extracted for ${etf} (error fallback):`, {
+              price: currentPrice,
+              source: 'error fallback to finance service'
+            });
+          } else {
+            console.warn(`Invalid fallback price for ${etf}: ${priceResult?.price}, using 100`);
+          }
+        } catch (priceError) {
+          console.warn(`Failed to get current price for ${etf} in error case:`, priceError.message);
+          // Check if this is a rate limiting error
+          if (priceError.message && (
+            priceError.message.includes('rate limit') ||
+            priceError.message.includes('429') ||
+            priceError.message.includes('too many requests')
+          )) {
+            console.warn(`Rate limit detected for ${etf}, using fallback price and skipping additional API calls`);
+          }
+        }
+
+        scores.push({
+          ticker: etf,
+          score: 0,
+          momentum3m: 0,
+          momentum6m: 0,
+          momentum9m: 0,
+          momentum12m: 0,
+          price: currentPrice,
+          absoluteMomentum: false
+        });
+      }
+    }
+
+    return scores;
+  }
+
+  /**
+   * Calculate period return from historical data
+   */
+  calculatePeriodReturn(data, periodDays) {
+    if (data.length < periodDays + 1) return 0;
+
+    const currentPrice = data[data.length - 1].close;
+    const pastPrice = data[data.length - 1 - periodDays].close;
+
+    return ((currentPrice - pastPrice) / pastPrice) * 100;
+  }
+
+  /**
+   * Check if ETFs are above SMA
+   */
+  async checkSMATrend(etfs, period) {
+    const results = {};
+
+    for (const etf of etfs) {
+      try {
+        const historicalData = await financeService.getHistoricalDailyData(etf, period + 30);
+
+        if (historicalData && historicalData.length >= period) {
+          const currentPrice = historicalData[historicalData.length - 1].close;
+          const sma = this.calculateSMA(historicalData, period);
+
+          results[etf] = {
+            aboveSMA: currentPrice > sma,
+            currentPrice,
+            sma,
+            distance: ((currentPrice - sma) / sma) * 100
+          };
+        } else {
+          results[etf] = { aboveSMA: true, currentPrice: 0, sma: 0, distance: 0 };
+        }
+      } catch (error) {
+        logger.logError(error, `Failed to check SMA for ${etf}`);
+        results[etf] = { aboveSMA: true, currentPrice: 0, sma: 0, distance: 0 };
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Calculate Simple Moving Average
+   */
+  calculateSMA(data, period) {
+    if (data.length < period) return 0;
+
+    const recentData = data.slice(-period);
+    const sum = recentData.reduce((acc, candle) => acc + candle.close, 0);
+    return sum / period;
+  }
+
+  /**
+   * Check if ETF is a stock ETF
+   */
+  isStockETF(etf) {
+    const stockETFs = ['VTI', 'VEA', 'VWO', 'SPY', 'QQQ', 'IWM', 'IWV'];
+    return stockETFs.includes(etf);
+  }
+
+  /**
+   * Check if ETF is a bond ETF
+   */
+  isBondETF(etf) {
+    const bondETFs = ['TLT', 'BWX', 'BND', 'AGG', 'SGOV', 'VUBS', 'BIL', 'SHY'];
+    return bondETFs.includes(etf);
+  }
+
+  /**
+   * Calculate portfolio value
+   */
+  async calculatePortfolioValue(holdings) {
+    let totalValue = 0;
+
+    for (const holding of holdings) {
+      try {
+        const priceData = await financeService.getCurrentPrice(holding.etf);
+        totalValue += holding.shares * priceData.price;
+      } catch (error) {
+        logger.logError(error, `Failed to get price for ${holding.etf}`);
+      }
+    }
+
+    return totalValue;
+  }
+
+  /**
+   * Get current holdings (mock implementation)
+   */
+  async getCurrentHoldings() {
+    // This would typically come from a database or brokerage API
+    return [
+      { etf: 'VTI', shares: 10 },
+      { etf: 'VEA', shares: 15 },
+      { etf: 'BND', shares: 25 }
+    ];
+  }
+
+  /**
+   * Execute trades (simulation)
+   */
+  async executeTrades(trades, dryRun = true) {
+    logger.logInfo('Executing trades', { tradeCount: trades.length, dryRun });
+
+    const executedTrades = [];
+    let totalValue = 0;
+
+    for (const trade of trades) {
+      try {
+        if (!dryRun) {
+          // Execute actual trade (placeholder for real brokerage integration)
+          logger.logInfo(`Executing ${trade.action} ${trade.shares} shares of ${trade.etf}`);
+        }
+
+        executedTrades.push({
+          ...trade,
+          executedPrice: trade.price || (await financeService.getCurrentPrice(trade.etf)).price,
+          executedValue: trade.shares * (trade.price || (await financeService.getCurrentPrice(trade.etf)).price),
+          status: 'executed',
+          timestamp: new Date().toISOString()
+        });
+
+        totalValue += executedTrades[executedTrades.length - 1].executedValue;
+
+      } catch (error) {
+        logger.logError(error, `Failed to execute trade for ${trade.etf}`);
+        executedTrades.push({
+          ...trade,
+          status: 'failed',
+          error: error.message,
+          timestamp: new Date().toISOString()
+        });
+      }
+    }
+
+    return {
+      trades: executedTrades,
+      totalValue,
+      successCount: executedTrades.filter(t => t.status === 'executed').length,
+      failureCount: executedTrades.filter(t => t.status === 'failed').length,
+      dryRun
+    };
+  }
+
+  /**
+   * Get strategy performance history
+   */
+  async getStrategyPerformance(strategyType, period = '1M') {
+    // Mock implementation - would typically come from performance database
+    return {
+      strategyType,
+      period,
+      totalReturn: 12.5,
+      annualizedReturn: 15.2,
+      volatility: 8.7,
+      sharpeRatio: 1.75,
+      maxDrawdown: -5.3,
+      winRate: 0.68,
+      dataPoints: 30
+    };
+  }
+
+  /**
+   * Get trade reason
+   */
+  getTradeReason(difference, targetValue, currentValue) {
+    const percentDiff = Math.abs(difference / targetValue) * 100;
+
+    if (difference > 0) {
+      return percentDiff > 20 ? 'Significant Underweight' : 'Underweight';
+    } else {
+      return percentDiff > 20 ? 'Significant Overweight' : 'Overweight';
+    }
+  }
+
+  /**
+   * Calculate expected return
+   */
+  calculateExpectedReturn(trades, strategyType) {
+    // Mock calculation based on strategy type and trades
+    const baseReturn = strategyType === 'momentum' ? 0.12 : 0.08;
+    const adjustment = trades.length * 0.005; // Small adjustment for trade count
+    return (baseReturn + adjustment) * 100;
+  }
+
+  /**
+   * Estimate execution time
+   */
+  estimateExecutionTime(trades) {
+    // Mock estimation: 30 seconds per trade
+    const baseTime = 60; // 1 minute setup
+    const perTradeTime = 30; // 30 seconds per trade
+    return baseTime + (trades.length * perTradeTime);
+  }
+
+  /**
+   * Get intelligent fallback price for an ETF based on its type
+   */
+  getFallbackPriceForETF(etf) {
+    // Intelligent fallback prices based on ETF categories
+    const fallbackPrices = {
+      // Stock ETFs - generally higher prices
+      'VTI': 320, 'SPY': 450, 'QQQ': 350, 'IWM': 200, 'IWV': 300,
+      'VEA': 60, 'VWO': 55, 'VXUS': 65, 'VT': 110, 'EWU': 35,
+
+      // Bond ETFs - generally moderate prices
+      'BND': 75, 'AGG': 100, 'TLT': 95, 'BWX': 50, 'SHY': 85,
+      'IEF': 90, 'GOVT': 70, 'SPLB': 55, 'VUBS': 50, 'BIL': 92,
+      'SGOV': 100,
+
+      // Commodity and alternative ETFs
+      'GLDM': 85, 'GLD': 180, 'IAU': 40, 'SLV': 20, 'PDBC': 20,
+
+      // Crypto ETFs
+      'IBIT': 50, 'FBTC': 65, 'BITO': 35,
+
+      // Sector ETFs
+      'VGT': 450, 'VHT': 250, 'VFH': 85, 'VDC': 180, 'VDE': 160,
+      'VPU': 150, 'VCR': 210, 'VIS': 120, 'VOX': 95, 'VNQ': 100,
+
+      // International
+      'EWJ': 65, 'EWG': 35, 'EWQ': 30, 'EWC': 28, 'EWA': 25,
+      'EWH': 28, 'EWS': 32, 'EWY': 70, 'EWT': 35, 'EWZ': 25,
+
+      // Default fallback for unknown ETFs
+      'default': 100
+    };
+
+    const upperETF = etf.toUpperCase();
+
+    // Look for exact match first
+    if (fallbackPrices[upperETF]) {
+      return fallbackPrices[upperETF];
+    }
+
+    // Try to match by pattern (starts with)
+    for (const [key, price] of Object.entries(fallbackPrices)) {
+      if (key !== 'default' && upperETF.startsWith(key.substring(0, 3))) {
+        return price;
+      }
+    }
+
+    // Use default fallback
+    return fallbackPrices.default;
+  }
+}
+
+module.exports = new PortfolioService();

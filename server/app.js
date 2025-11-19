@@ -37,6 +37,7 @@ const authRoutes = require('./routes/auth');
 const customETFRoutes = require('./routes/customETFs');
 const strategyRoutes = require('./routes/strategies');
 const smaRoutes = require('./routes/sma');
+const portfolioRoutes = require('./routes/portfolio');
 
 // Import error handlers
 const { globalErrorHandler, notFoundHandler } = require('./middleware/errorHandler');
@@ -147,6 +148,7 @@ app.use('/api/optimization', optimizationRoutes);
 app.use('/api/etfs', customETFRoutes);
 app.use('/api/strategies', strategyRoutes);
 app.use('/api/strategies/sma', smaRoutes);
+app.use('/api/portfolio', portfolioRoutes);
 app.use('/health', healthRoutes);
 
 // Serve static files from frontend build directory in production mode

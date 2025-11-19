@@ -46,8 +46,13 @@ async function getCachedData(key) {
         if (parsed.timestamp && Date.now() - parsed.timestamp < CACHE_DURATION) {
           return parsed.data;
         } else if (!parsed.timestamp) {
-          // Backward compatibility: if no timestamp, data is still valid
-          return parsed.data || parsed;
+          // Backward compatibility: if no timestamp, this might be old format
+          // Check if it has the 'data' property or if it's the raw data
+          if (parsed.data !== undefined) {
+            return parsed.data;
+          } else {
+            return parsed; // Raw data from old format
+          }
         } else {
           // Data expired, remove it
           await client.del(key);
@@ -93,18 +98,15 @@ async function setCachedData(key, data, ttlSeconds = null) {
       await client.setex(key, ttl, JSON.stringify(dataToStore));
       return true;
     } else {
-      // Fallback to memory cache
-      memoryCache.set(key, {
-        data: dataToStore,
-        timestamp: Date.now(),
-      });
+      // Fallback to memory cache - store same format as Redis
+      memoryCache.set(key, dataToStore);
       return true;
     }
   } catch (error) {
     logger.logError(error, null);
-    // Fallback to memory cache
+    // Fallback to memory cache - store same format as Redis
     memoryCache.set(key, {
-      data: { data, timestamp: Date.now() },
+      data,
       timestamp: Date.now(),
     });
     return false;

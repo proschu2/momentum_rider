@@ -1,15 +1,24 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { ETFUniverse, EnabledCategories } from './types'
+import { etfService } from '@/services/etf-service'
 
 export const useETFConfigStore = defineStore('etfConfig', () => {
-    // ETF Universe Configuration
-    const etfUniverse = ref<ETFUniverse>({
+    // State
+    const isLoading = ref<boolean>(false)
+    const loadError = ref<string | null>(null)
+    const lastLoadTime = ref<Date | null>(null)
+
+    // Default ETF Universe Configuration (fallback)
+    const defaultETFUniverse: ETFUniverse = {
         STOCKS: ['VTI', 'VEA', 'VWO'],
         BONDS: ['TLT', 'BWX', 'BND'],
         COMMODITIES: ['PDBC', 'GLDM'],
         ALTERNATIVES: ['IBIT']
-    })
+    }
+
+    // ETF Universe Configuration
+    const etfUniverse = ref<ETFUniverse>({...defaultETFUniverse})
 
     // Category Toggles
     const enabledCategories = ref<EnabledCategories>({
@@ -97,17 +106,86 @@ export const useETFConfigStore = defineStore('etfConfig', () => {
         return Object.entries(etfUniverse.value).find(([cat, etfs]) => etfs.includes(etf))?.[0]
     }
 
+    // API Integration Actions
+    async function loadETFUniverse(): Promise<boolean> {
+        isLoading.value = true
+        loadError.value = null
+
+        try {
+            console.log('Loading ETF universe from backend...')
+            const universe = await etfService.loadETFUniverse()
+
+            // Update the universe
+            etfUniverse.value = universe
+
+            // Initialize selected ETFs based on new universe if they're empty
+            if (selectedETFs.value.length === 0) {
+                selectedETFs.value = [...Object.values(universe).flat()]
+            } else {
+                // Filter out any selected ETFs that are no longer in the universe
+                const availableTickers = Object.values(universe).flat()
+                selectedETFs.value = selectedETFs.value.filter(ticker => availableTickers.includes(ticker))
+            }
+
+            lastLoadTime.value = new Date()
+            console.log('ETF universe loaded successfully:', universe)
+            return true
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Failed to load ETF universe'
+            loadError.value = errorMessage
+            console.error('Failed to load ETF universe:', error)
+            return false
+        } finally {
+            isLoading.value = false
+        }
+    }
+
+    async function refreshETFUniverse(): Promise<boolean> {
+        return loadETFUniverse()
+    }
+
+    function resetToDefaults(): void {
+        console.log('Resetting ETF universe to defaults')
+        etfUniverse.value = {...defaultETFUniverse}
+        loadError.value = null
+
+        // Reset selected ETFs based on default universe
+        selectedETFs.value = [...Object.values(defaultETFUniverse).flat()]
+        lastLoadTime.value = null
+    }
+
+    function clearError(): void {
+        loadError.value = null
+    }
+
+    // Computed properties for API integration
+    const hasLoadError = computed(() => loadError.value !== null)
+    const isLoadedFromBackend = computed(() => lastLoadTime.value !== null)
+    const loadStatus = computed(() => {
+        if (isLoading.value) return 'loading'
+        if (hasLoadError.value) return 'error'
+        if (isLoadedFromBackend.value) return 'loaded'
+        return 'default'
+    })
+
     return {
         // State
         etfUniverse,
         enabledCategories,
         selectedETFs,
+        isLoading,
+        loadError,
+        lastLoadTime,
+        defaultETFUniverse,
 
         // Computed
         availableETFs,
         selectableETFs,
         isSelectableETF,
         selectedETFsWithCategories,
+        hasLoadError,
+        isLoadedFromBackend,
+        loadStatus,
 
         // Actions
         toggleCategory,
@@ -115,6 +193,12 @@ export const useETFConfigStore = defineStore('etfConfig', () => {
         toggleETF,
         selectAllETFs,
         clearAllETFs,
-        getCategoryForETF
+        getCategoryForETF,
+
+        // API Integration Actions
+        loadETFUniverse,
+        refreshETFUniverse,
+        resetToDefaults,
+        clearError
     }
 })

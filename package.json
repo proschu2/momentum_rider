@@ -1,0 +1,30 @@
+{
+  "name": "momentum-rider-fullstack",
+  "version": "1.0.0",
+  "description": "Full-stack development setup for Momentum Rider",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:frontend\"",
+    "dev:server": "cd server && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build": "cd frontend && npm run build",
+    "start": "cd server && npm start",
+    "install:all": "npm install && cd server && npm install && cd ../frontend && npm install",
+    "test": "cd server && npm test && cd ../frontend && npm test",
+    "lint": "cd server && npm run lint && cd ../frontend && npm run lint",
+    "format": "cd server && npm run format && cd ../frontend && npm run format"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "keywords": [
+    "etf",
+    "portfolio",
+    "momentum",
+    "investment",
+    "vue",
+    "nodejs"
+  ],
+  "author": "Momentum Rider Team",
+  "license": "MIT"
+}

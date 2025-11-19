@@ -70,7 +70,10 @@ class PortfolioOptimizationService {
    */
   async attemptLinearProgramming(input) {
     // Add timeout for LP solver
-    const timeoutMs = 5000; // 5 second timeout
+    const timeoutMs = 30000; // Increased to 30 seconds for debugging
+
+    console.log('Starting LP optimization with timeout:', timeoutMs, 'ms');
+    console.log('LP Input:', JSON.stringify(input, null, 2));
 
     const timeoutPromise = new Promise((_, reject) => {
       setTimeout(() => reject(new Error('Linear programming timeout')), timeoutMs);
@@ -79,8 +82,10 @@ class PortfolioOptimizationService {
     const lpPromise = new Promise((resolve, reject) => {
       try {
         const result = linearProgrammingService.solve(input);
+        console.log('LP Result:', JSON.stringify(result, null, 2));
         resolve(result);
       } catch (error) {
+        console.error('LP Error:', error);
         reject(error);
       }
     });

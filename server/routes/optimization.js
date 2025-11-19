@@ -162,13 +162,18 @@ router.get('/health',  async (req, res) => {
 
     const result = await portfolioOptimizationService.optimizePortfolio(testInput);
 
+    // Safely extract optimization metrics with fallbacks
+    const optimizationMetrics = result.optimizationMetrics || {};
+    const unusedPercentage = optimizationMetrics.unusedPercentage || 0;
+    const optimizationTime = optimizationMetrics.optimizationTime || 0;
+
     res.json({
       status: 'healthy',
       service: 'portfolio-optimization',
       testResult: {
         solverStatus: result.solverStatus,
-        budgetUtilization: 100 - result.optimizationMetrics.unusedPercentage,
-        optimizationTime: result.optimizationMetrics.optimizationTime,
+        budgetUtilization: 100 - unusedPercentage,
+        optimizationTime: optimizationTime,
       },
       timestamp: new Date().toISOString(),
     });

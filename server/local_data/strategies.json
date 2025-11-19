@@ -34,5 +34,19 @@
     "created": "2025-11-16T22:28:07.118Z",
     "updated": "2025-11-16T22:28:07.118Z",
     "description": "Allocate to ETFs above their 200-day SMA with positive trend"
+  },
+  {
+    "id": "strategy_1763415816301",
+    "name": "Test Strategy",
+    "type": "percentage",
+    "parameters": {
+      "allocations": {
+        "VTI": 60,
+        "VEA": 20,
+        "BND": 20
+      }
+    },
+    "created": "2025-11-17T21:43:36.301Z",
+    "updated": "2025-11-17T21:43:36.301Z"
   }
 ]
