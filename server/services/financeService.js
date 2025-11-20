@@ -208,7 +208,13 @@ async function getCurrentPrice(ticker) {
     const memoryCachedPrice = getCachedPrice(ticker);
     if (memoryCachedPrice) {
       logger.logDebug('Price retrieved from memory cache', { ticker, price: memoryCachedPrice });
-      return memoryCachedPrice;
+      // Always return consistent object structure
+      return {
+        price: memoryCachedPrice,
+        currency: 'USD',
+        timestamp: new Date().toISOString(),
+        source: 'memory_cache'
+      };
     }
 
     // Check Redis cache second
@@ -218,7 +224,13 @@ async function getCurrentPrice(ticker) {
       logger.logDebug('Price retrieved from Redis cache', { ticker, price: cached.price });
       // Store in memory cache for future instant access
       setCachedPrice(ticker, cached.price);
-      return cached.price;
+      // Always return consistent object structure
+      return {
+        price: cached.price,
+        currency: cached.currency || 'USD',
+        timestamp: cached.timestamp || new Date().toISOString(),
+        source: cached.source || 'redis_cache'
+      };
     }
 
     logger.logInfo('Fetching current price from Yahoo Finance API', { ticker });
@@ -243,7 +255,7 @@ async function getCurrentPrice(ticker) {
 
     logger.logInfo('Current price fetched and cached successfully', { ticker, price });
 
-    return price;
+    return priceData;
   } catch (error) {
     logger.logError(error, { ticker });
 
@@ -266,7 +278,7 @@ async function getCurrentPrice(ticker) {
     await cacheService.setCachedData(cacheKey, fallbackData, 3600);
     setCachedPrice(ticker, fallbackPrice);
 
-    return fallbackPrice;
+    return fallbackData;
   }
 }
 

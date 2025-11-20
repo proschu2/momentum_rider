@@ -4,14 +4,30 @@
     <div class="hub-header">
       <div class="header-content">
         <div class="title-section">
-          <h1 class="text-2xl font-bold text-neutral-900">Strategy Hub</h1>
-          <p class="text-neutral-600">Configure and optimize your portfolio strategy</p>
+          <div class="title-with-back">
+            <button
+              v-if="portfolio"
+              @click="emit('backToPortfolios')"
+              class="back-btn"
+              title="Back to Portfolios"
+            >
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+              </svg>
+              Back
+            </button>
+            <div>
+              <h1 class="text-2xl font-bold text-neutral-900">Strategy Hub</h1>
+              <p class="text-neutral-600">Configure and optimize your portfolio strategy</p>
+            </div>
+          </div>
         </div>
-        <div class="current-portfolio-summary">
+        <div class="current-portfolio-summary" v-if="portfolio">
           <div class="summary-card">
-            <div class="summary-label">Current Portfolio</div>
+            <div class="summary-label">{{ portfolio?.name || 'No Portfolio' }}</div>
             <div class="summary-value">${{ totalPortfolioValue.toLocaleString() }}</div>
-            <div class="summary-details">{{ currentHoldings.length }} holdings</div>
+            <div class="summary-details">{{ Object.keys(portfolio?.holdings || {}).length }} holdings • ${{ portfolio?.additionalCash?.toLocaleString() || '0' }} cash</div>
           </div>
         </div>
       </div>
@@ -37,7 +53,7 @@
     <div v-if="selectedStrategy" class="strategy-content">
       <!-- Step 1: Strategy Configuration -->
       <div class="strategy-configuration">
-        <h2 class="section-title">Configure {{ selectedStrategy.name }}</h2>
+        <h2 class="section-title">Configure {{ selectedStrategy?.name || 'Strategy' }}</h2>
 
         <!-- Momentum Strategy Configuration -->
         <div v-if="selectedStrategy.id === 'momentum'" class="config-panel">
@@ -171,6 +187,112 @@
           </div>
         </div>
 
+        <!-- Optimization Objectives -->
+        <div class="optimization-objectives-section">
+          <h3 class="subsection-title">Optimization Objectives</h3>
+          
+          <div class="objectives-panel">
+            <div class="objective-group">
+              <label class="config-label">Optimization Mode</label>
+              <div class="objective-options">
+                <label class="radio-option">
+                  <input
+                    type="radio"
+                    v-model="optimizationMode"
+                    value="fairness"
+                    name="optimizationMode"
+                  />
+                  <span class="radio-label">
+                    <span class="option-title">Allocation Fairness</span>
+                    <span class="option-description">Minimize deviations from target allocations</span>
+                  </span>
+                </label>
+                <label class="radio-option">
+                  <input
+                    type="radio"
+                    v-model="optimizationMode"
+                    value="utilization"
+                    name="optimizationMode"
+                  />
+                  <span class="radio-label">
+                    <span class="option-title">Maximize Budget Utilization</span>
+                    <span class="option-description">Use as much available cash as possible (up to 5% deviation)</span>
+                  </span>
+                </label>
+                <label class="radio-option">
+                  <input
+                    type="radio"
+                    v-model="optimizationMode"
+                    value="balanced"
+                    name="optimizationMode"
+                  />
+                  <span class="radio-label">
+                    <span class="option-title">Balanced Approach</span>
+                    <span class="option-description">Combine both objectives with weights</span>
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Weight sliders for balanced mode -->
+            <div v-if="optimizationMode === 'balanced'" class="objective-group">
+              <label class="config-label">Objective Weights</label>
+              <div class="weight-sliders">
+                <div class="slider-group">
+                  <div class="slider-header">
+                    <span class="slider-label">Budget Utilization</span>
+                    <span class="slider-value">{{ Math.round(objectiveWeights.budget * 100) }}%</span>
+                  </div>
+                  <input
+                    v-model.number="objectiveWeights.budget"
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.1"
+                    class="weight-slider"
+                  />
+                </div>
+                <div class="slider-group">
+                  <div class="slider-header">
+                    <span class="slider-label">Allocation Fairness</span>
+                    <span class="slider-value">{{ Math.round(objectiveWeights.fairness * 100) }}%</span>
+                  </div>
+                  <input
+                    v-model.number="objectiveWeights.fairness"
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.1"
+                    class="weight-slider"
+                  />
+                </div>
+              </div>
+              <div class="weight-warning" v-if="Math.abs(objectiveWeights.budget + objectiveWeights.fairness - 1) > 0.01">
+                ⚠️ Weights should sum to 100%
+              </div>
+            </div>
+
+            <!-- Utilization deviation setting for utilization mode -->
+            <div v-if="optimizationMode === 'utilization'" class="objective-group">
+              <label class="config-label">Allowed Deviation from Target</label>
+              <div class="input-with-unit">
+                <input
+                  v-model.number="utilizationDeviation"
+                  type="number"
+                  min="1"
+                  max="20"
+                  step="1"
+                  class="config-input"
+                />
+                <span class="unit">%</span>
+              </div>
+              <div class="deviation-info">
+                <small>When maximizing budget utilization, allocations may deviate from target by up to this percentage to ensure better cash usage.</small>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- ETF Selection -->
         <div class="etf-selection-section">
           <h3 class="subsection-title">Select ETF Universe</h3>
@@ -230,23 +352,6 @@
           </div>
         </div>
 
-        <!-- Additional Capital -->
-        <div class="capital-section">
-          <h3 class="subsection-title">Additional Investment</h3>
-          <div class="input-group">
-            <label class="config-label">Extra Capital to Invest</label>
-            <div class="input-with-unit">
-              <span class="currency">$</span>
-              <input
-                v-model.number="strategyConfig.additionalCapital"
-                type="number"
-                min="0"
-                step="100"
-                class="config-input currency-input"
-              />
-            </div>
-          </div>
-        </div>
       </div>
 
       <!-- Action Buttons -->
@@ -278,13 +383,13 @@
               <span>Action</span>
             </div>
             <div
-              v-for="comparison in portfolioComparison"
+              v-for="comparison in filteredPortfolioComparison"
               :key="comparison.etf"
               class="table-row"
             >
-              <span class="etf-name">{{ comparison.etf }}</span>
-              <span class="current-value">${{ comparison.currentValue.toLocaleString() }}</span>
-              <span class="target-value">${{ comparison.targetValue.toLocaleString() }}</span>
+              <span class="etf-name">{{ comparison?.etf || 'Unknown' }}</span>
+              <span class="current-value">${{ comparison?.currentValue?.toLocaleString() || '0' }}</span>
+              <span class="target-value">${{ comparison?.targetValue?.toLocaleString() || '0' }}</span>
               <span :class="['action-badge', comparison.action]">
                 {{ comparison.action }}
               </span>
@@ -298,19 +403,19 @@
           <div class="optimization-metrics">
             <div class="metric">
               <div class="metric-label">Total Investment</div>
-              <div class="metric-value">${{ analysisResults.totalInvestment.toLocaleString() }}</div>
+              <div class="metric-value">${{ analysisResults?.totalInvestment?.toLocaleString() || '0' }}</div>
             </div>
             <div class="metric">
               <div class="metric-label">Utilized Capital</div>
-              <div class="metric-value">${{ analysisResults.utilizedCapital.toLocaleString() }}</div>
+              <div class="metric-value">${{ analysisResults?.utilizedCapital?.toLocaleString() || '0' }}</div>
             </div>
             <div class="metric">
               <div class="metric-label">Uninvested Cash</div>
-              <div class="metric-value">${{ analysisResults.uninvestedCash.toLocaleString() }}</div>
+              <div class="metric-value">${{ analysisResults?.uninvestedCash?.toLocaleString() || '0' }}</div>
             </div>
             <div class="metric">
               <div class="metric-label">Utilization Rate</div>
-              <div class="metric-value">{{ analysisResults.utilizationRate.toFixed(1) }}%</div>
+              <div class="metric-value">{{ analysisResults?.utilizationRate?.toFixed(1) || '0.0' }}%</div>
             </div>
           </div>
         </div>
@@ -319,19 +424,44 @@
       <!-- Execution Plan -->
       <div class="execution-plan">
         <h3 class="card-title">Trade Execution Plan</h3>
+        
+        <!-- Trade Summary -->
+        <div class="trade-summary" v-if="executionPlan.length > 0">
+          <div class="summary-item">
+            <span class="summary-label">Total Trades:</span>
+            <span class="summary-value">{{ executionPlan.length }}</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Buy Actions:</span>
+            <span class="summary-value buy">{{ executionPlan.filter(t => t.action === 'buy').length }}</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Sell Actions:</span>
+            <span class="summary-value sell">{{ executionPlan.filter(t => t.action === 'sell').length }}</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Total Sell Proceeds:</span>
+            <span class="summary-value">${{ totalSellProceeds.toLocaleString() }}</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Available Cash After Sales:</span>
+            <span class="summary-value">${{ availableCashAfterSales.toLocaleString() }}</span>
+          </div>
+        </div>
+
         <div class="trade-list">
           <div
             v-for="trade in executionPlan"
             :key="`${trade.etf}-${trade.action}`"
             :class="['trade-item', trade.action]"
           >
-            <div class="trade-action">{{ trade.action.toUpperCase() }}</div>
+            <div class="trade-action">{{ trade?.action?.toUpperCase() || 'UNKNOWN' }}</div>
             <div class="trade-details">
-              <span class="trade-etf">{{ trade.etf }}</span>
-              <span class="trade-shares">{{ trade.shares.toFixed(2) }} shares</span>
-              <span class="trade-value">${{ trade.value.toLocaleString() }}</span>
+              <span class="trade-etf">{{ trade?.etf || 'Unknown' }}</span>
+              <span class="trade-shares">{{ trade?.shares?.toFixed(2) || '0.00' }} shares</span>
+              <span class="trade-value">${{ trade?.value?.toLocaleString() || '0' }}</span>
             </div>
-            <div class="trade-reason">{{ trade.reason }}</div>
+            <div class="trade-reason">{{ trade?.reason || 'No reason provided' }}</div>
           </div>
         </div>
 
@@ -359,6 +489,7 @@
 <script setup lang="ts">
 import { ref, computed, reactive, onMounted, watch } from 'vue'
 import { useETFConfigStore } from '@/stores/etf-config'
+import { usePortfolioStore, type Portfolio } from '@/stores/portfolio'
 import { etfService } from '@/services/etf-service'
 import { portfolioService, type PortfolioHolding } from '@/services/portfolio-service'
 
@@ -392,7 +523,6 @@ interface StrategyConfig {
   custom: {
     allocations: Record<string, number>
   }
-  additionalCapital: number
 }
 
 interface AnalysisResults {
@@ -414,11 +544,22 @@ interface Trade {
   action: 'buy' | 'sell'
   shares: number
   value: number
+  price: number
   reason: string
 }
 
 // Store
 const etfConfigStore = useETFConfigStore()
+const portfolioStore = usePortfolioStore()
+
+// Props
+const props = defineProps<{
+  portfolio?: Portfolio
+}>()
+
+const emit = defineEmits<{
+  backToPortfolios: []
+}>()
 
 // State
 const selectedStrategy = ref<Strategy | null>(null)
@@ -431,6 +572,13 @@ const isExecuting = ref(false)
 const analysisResults = ref<AnalysisResults | null>(null)
 const portfolioComparison = ref<PortfolioComparison[]>([])
 const executionPlan = ref<Trade[]>([])
+// Optimization objectives state
+const optimizationMode = ref<'fairness' | 'utilization' | 'balanced'>('fairness')
+const objectiveWeights = reactive({
+  budget: 0.7,
+  fairness: 0.3
+})
+const utilizationDeviation = ref(5)
 
 // Available strategies
 const availableStrategies: Strategy[] = [
@@ -467,20 +615,25 @@ const strategyConfig = reactive<StrategyConfig>({
   },
   custom: {
     allocations: {}
-  },
-  additionalCapital: 0
+  }
 })
 
 // Portfolio data
-const currentHoldings = ref<PortfolioHolding[]>([])
+const currentHoldings = computed(() => {
+  if (!props.portfolio) return []
+  return Object.entries(props.portfolio.holdings).map(([ticker, holding]) => ({
+    etf: ticker,
+    shares: holding.shares
+  }))
+})
+
 const allETFs = ref<ETFInfo[]>([])
 
 // Computed properties
 const totalPortfolioValue = computed(() => {
-  return currentHoldings.value.reduce((sum, holding) => {
-    // This would be calculated with real prices
-    return sum + (holding.shares * 100) // Mock price
-  }, 0)
+  if (!props.portfolio) return 0
+  const holdingsValue = Object.values(props.portfolio.holdings).reduce((sum, holding) => sum + holding.value, 0)
+  return holdingsValue + props.portfolio.additionalCash
 })
 
 const filteredETFs = computed(() => {
@@ -520,12 +673,38 @@ const canExecute = computed(() => {
   return analysisResults.value && executionPlan.value.length > 0
 })
 
+const totalSellProceeds = computed(() => {
+  return executionPlan.value
+    .filter(trade => trade.action === 'sell')
+    .reduce((sum, trade) => sum + trade.value, 0)
+})
+
+const availableCashAfterSales = computed(() => {
+  const currentCash = props.portfolio?.additionalCash || 0
+  return currentCash + totalSellProceeds.value
+})
+
+// Filter out holdings with 0 current and target values from portfolio comparison
+const filteredPortfolioComparison = computed(() => {
+  return portfolioComparison.value.filter(comparison =>
+    comparison.currentValue > 0 || comparison.targetValue > 0
+  )
+})
+
 // Methods
 const selectStrategy = (strategy: Strategy) => {
   selectedStrategy.value = strategy
 
   // Select ALL available ETFs by default for any strategy
-  selectedETFs.value = allETFs.value.map(etf => etf.ticker)
+  // If ETFs are not loaded yet, the watcher will handle selection when data becomes available
+  if (allETFs.value.length > 0) {
+    selectedETFs.value = allETFs.value.map(etf => etf.ticker)
+    console.log(`Selected all ${selectedETFs.value.length} ETFs for ${strategy.id} strategy`)
+  } else {
+    console.log('ETF data not yet loaded, will select all when data becomes available')
+    // Clear any existing selection to ensure the watcher will select all when data loads
+    selectedETFs.value = []
+  }
 
   // Refresh momentum scores when strategy changes
   refreshMomentumScores()
@@ -562,41 +741,43 @@ const analyzeStrategy = async () => {
 
   try {
     // Debug: Log current state before building request
+    console.log('Optimization mode:', optimizationMode.value)
+    console.log('Objective weights:', objectiveWeights)
     console.log('=== Analyze Strategy Debug ===')
     console.log('Current Vue timestamp:', new Date().toISOString())
-    console.log('strategyConfig additionalCapital:', strategyConfig.additionalCapital)
-    console.log('typeof strategyConfig.additionalCapital:', typeof strategyConfig.additionalCapital)
+    console.log('Portfolio additionalCash:', props.portfolio?.additionalCash)
     console.log('selectedETFs.value length:', selectedETFs.value.length)
     console.log('canAnalyze.value:', canAnalyze.value)
 
     // Prepare analysis request with correct parameter structure
     let parameters = {};
 
-    if (selectedStrategy.value!.id === 'momentum') {
+    if (selectedStrategy.value?.id === 'momentum') {
       parameters = strategyConfig.momentum;
-    } else if (selectedStrategy.value!.id === 'allweather') {
+    } else if (selectedStrategy.value?.id === 'allweather') {
       parameters = strategyConfig.allweather;
-    } else if (selectedStrategy.value!.id === 'custom') {
+    } else if (selectedStrategy.value?.id === 'custom') {
       parameters = strategyConfig.custom;
     }
 
     const analysisRequest = {
       strategy: {
-        type: selectedStrategy.value!.id as 'momentum' | 'allweather' | 'custom',
+        type: selectedStrategy.value?.id as 'momentum' | 'allweather' | 'custom' || 'custom',
         parameters: parameters
       },
       selectedETFs: selectedETFs.value,
-      additionalCapital: strategyConfig.additionalCapital,
+      additionalCapital: props.portfolio ? props.portfolio.additionalCash : 0,
       currentHoldings: currentHoldings.value
     }
 
     // Debug: Log what we're sending
     console.log('Sending analysis request:', {
-      strategy: selectedStrategy.value!.id,
+      strategy: selectedStrategy.value?.id || 'unknown',
       selectedETFsCount: selectedETFs.value.length,
       selectedETFs: selectedETFs.value,
       momentumConfig: strategyConfig.momentum,
       additionalCapital: analysisRequest.additionalCapital,
+      portfolioCash: props.portfolio?.additionalCash,
       typeofAdditionalCapital: typeof analysisRequest.additionalCapital
     })
 
@@ -606,13 +787,43 @@ const analyzeStrategy = async () => {
     // Calculate proper optimization values using real portfolio optimization
     let optimizationResult = null
     try {
+      // Build objectives based on selected optimization mode
+      let objectives = {}
+      
+      if (optimizationMode.value === 'utilization') {
+        objectives = {
+          maximize_utilization: {
+            weight: 1.0,
+            deviation: utilizationDeviation.value / 100
+          }
+        }
+      } else if (optimizationMode.value === 'balanced') {
+        objectives = {
+          maximize_utilization: {
+            weight: objectiveWeights.budget,
+            deviation: utilizationDeviation.value / 100
+          },
+          minimize_deviation: {
+            weight: objectiveWeights.fairness
+          }
+        }
+      } else {
+        // Default fairness mode
+        objectives = {
+          minimize_deviation: {
+            weight: 1.0
+          }
+        }
+      }
+  
       // Use the portfolio optimization service to get real optimization data
-      console.log('Calling optimization service with strategy:', analysisRequest.strategy)
+      console.log('Calling optimization service with strategy:', analysisRequest.strategy, 'and objectives:', objectives)
       optimizationResult = await portfolioService.optimizePortfolio({
         strategy: analysisRequest.strategy,
         selectedETFs: selectedETFs.value,
-        additionalCapital: analysisRequest.additionalCapital,
-        currentHoldings: analysisRequest.currentHoldings
+        additionalCapital: props.portfolio ? props.portfolio.additionalCash : 0,
+        currentHoldings: analysisRequest.currentHoldings,
+        objectives: objectives
       })
       console.log('Optimization service returned:', optimizationResult)
     } catch (optimizationError) {
@@ -729,7 +940,8 @@ const analyzeStrategy = async () => {
       // Use optimization target values if available, otherwise fall back to analysis target values
       const targetValues = optimizationResult?.targetValues || analysis.targetValues || {}
 
-      portfolioComparison.value = selectedETFs.value.map(etf => {
+      // First, create comparison for ETFs that are in the target strategy
+      const targetETFComparisons = selectedETFs.value.map(etf => {
         const currentValue = analysis.currentValues[etf] || 0
         const targetValue = targetValues[etf] || 0
 
@@ -740,26 +952,73 @@ const analyzeStrategy = async () => {
         return { etf, currentValue, targetValue, action }
       })
 
-      console.log('Portfolio comparison generated using target values:', targetValues)
+      // Next, identify holdings that are NOT in the target strategy and should be sold
+      const currentHoldingETFs = Object.keys(analysis.currentValues || {})
+      const nonTargetHoldings = currentHoldingETFs.filter(etf =>
+        !selectedETFs.value.includes(etf) && (analysis.currentValues?.[etf] || 0) > 0
+      )
 
-      // Only generate fallback execution plan if the main execution plan is empty
-      if (executionPlan.value.length === 0) {
-        console.log('Using fallback execution plan from portfolio comparison')
-        executionPlan.value = portfolioComparison.value
+      const sellComparisons = nonTargetHoldings.map(etf => {
+        const currentValue = analysis.currentValues[etf] || 0
+        return {
+          etf,
+          currentValue,
+          targetValue: 0,
+          action: 'sell' as const
+        }
+      })
+
+      // Combine both comparisons
+      portfolioComparison.value = [...targetETFComparisons, ...sellComparisons]
+
+      console.log('Portfolio comparison generated using target values:', targetValues)
+      console.log('Non-target holdings to sell:', nonTargetHoldings)
+
+      // Always generate fallback execution plan to ensure we have both BUY and SELL actions
+      // This will be used if optimization service doesn't provide a complete plan
+      if (executionPlan.value.length === 0 || !executionPlan.value.some(trade => trade.action === 'sell')) {
+        console.log('Generating/enhancing execution plan from portfolio comparison')
+        
+        // Generate trades for all comparisons (both target and non-target)
+        const fallbackTrades = portfolioComparison.value
           .filter(comp => comp.action !== 'hold')
           .map(comp => {
-            // Get real ETF price from analysis momentum scores
-            const etfPrice = (analysis as any).momentumScores?.[comp.etf]?.price || 100
+            // Get real ETF price from analysis momentum scores or current values
+            let etfPrice = 100 // Default fallback
+            if (analysis.currentValues?.[comp.etf] && currentHoldings.value.find(h => h.etf === comp.etf)) {
+              // Calculate price from current holding value and shares
+              const currentHolding = currentHoldings.value.find(h => h.etf === comp.etf)
+              if (currentHolding && currentHolding.shares > 0) {
+                etfPrice = (analysis.currentValues?.[comp.etf] || 0) / currentHolding.shares
+              }
+            } else if ((analysis as any).momentumScores?.[comp.etf]?.price) {
+              etfPrice = (analysis as any).momentumScores[comp.etf].price
+            }
+            
             const shares = Math.abs(comp.targetValue - comp.currentValue) / etfPrice
+            const value = comp.targetValue - comp.currentValue
+            
             return {
               etf: comp.etf,
               action: comp.action as 'buy' | 'sell',
               shares,
-              value: comp.targetValue - comp.currentValue,
+              value: Math.abs(value),
               price: etfPrice,
-              reason: comp.action === 'buy' ? 'Underweight' : 'Overweight'
+              reason: comp.action === 'buy' ? 'Underweight' :
+                      comp.targetValue === 0 ? 'Not in target allocation' : 'Overweight'
             }
           })
+        
+        // If we have some optimization trades but no sell trades, add sell trades
+        if (executionPlan.value.length > 0 && !executionPlan.value.some(trade => trade.action === 'sell')) {
+          const sellTrades = fallbackTrades.filter(trade => trade.action === 'sell')
+          executionPlan.value = [...executionPlan.value, ...sellTrades]
+          console.log('Added SELL trades to execution plan:', sellTrades)
+        } else {
+          // Use complete fallback plan
+          executionPlan.value = fallbackTrades
+          console.log('Using complete fallback execution plan:', fallbackTrades)
+        }
       }
 
   } catch (error) {
@@ -769,6 +1028,17 @@ const analyzeStrategy = async () => {
     isAnalyzing.value = false
   }
 }
+
+// Watch for allETFs to be loaded and ensure all ETFs are selected if a strategy is active
+watch(allETFs, (newETFs) => {
+  if (newETFs.length > 0 && selectedStrategy.value) {
+    // If we have a strategy selected but no ETFs selected yet, select all of them
+    if (selectedETFs.value.length === 0) {
+      console.log('ETF data loaded, selecting all ETFs for strategy:', selectedStrategy.value.id)
+      selectedETFs.value = newETFs.map(etf => etf.ticker)
+    }
+  }
+}, { immediate: true })
 
 // Watch for strategy configuration changes and save to localStorage
 watch(strategyConfig, () => {
@@ -837,11 +1107,61 @@ const refreshMomentumScores = async () => {
 const executeTrades = async () => {
   isExecuting.value = true
   try {
-    // Simulate trade execution
-    await new Promise(resolve => setTimeout(resolve, 3000))
-    alert('Trades executed successfully!')
+    if (!props.portfolio) {
+      throw new Error('No portfolio selected for trade execution')
+    }
+
+    console.log('Executing trades:', executionPlan.value)
+    
+    // Process trades in order: SELL first to free up cash, then BUY
+    const sellTrades = executionPlan.value.filter(trade => trade.action === 'sell')
+    const buyTrades = executionPlan.value.filter(trade => trade.action === 'buy')
+    
+    // Execute SELL trades first
+    for (const trade of sellTrades) {
+      console.log(`Executing SELL: ${trade.shares.toFixed(2)} shares of ${trade.etf}`)
+      
+      // Use portfolio store to sell holdings
+      if (props.portfolio.id) {
+        portfolioStore.sellHoldingFromPortfolio(props.portfolio.id, trade.etf, trade.shares)
+      } else {
+        // Fallback for legacy portfolio format
+        portfolioStore.removeHolding(trade.etf)
+      }
+    }
+    
+    // Wait a moment for sells to process
+    await new Promise(resolve => setTimeout(resolve, 500))
+    
+    // Execute BUY trades with available cash (including sell proceeds)
+    for (const trade of buyTrades) {
+      console.log(`Executing BUY: ${trade.shares.toFixed(2)} shares of ${trade.etf}`)
+      
+      // Use portfolio store to add holdings
+      if (props.portfolio.id) {
+        await portfolioStore.addHoldingToPortfolio(props.portfolio.id, trade.etf, trade.shares, trade.price)
+      } else {
+        // Fallback for legacy portfolio format
+        await portfolioStore.addHolding(trade.etf, trade.shares, trade.price)
+      }
+    }
+    
+    // Refresh portfolio prices to reflect new holdings
+    if (props.portfolio.id) {
+      await portfolioStore.refreshPortfolioPrices(props.portfolio.id)
+    } else {
+      await portfolioStore.refreshCurrentPrices()
+    }
+    
+    console.log('All trades executed successfully!')
+    alert(`Successfully executed ${executionPlan.value.length} trades:\n${sellTrades.length} SELL actions\n${buyTrades.length} BUY actions`)
+    
+    // Clear execution plan after successful execution
+    executionPlan.value = []
+    
   } catch (error) {
     console.error('Trade execution failed:', error)
+    alert(`Trade execution failed: ${error instanceof Error ? error.message : String(error)}`)
   } finally {
     isExecuting.value = false
   }
@@ -872,9 +1192,8 @@ const loadFromLocalStorage = () => {
       if (config.custom) {
         strategyConfig.custom.allocations = config.custom.allocations || {}
       }
-      if (config.additionalCapital !== undefined) {
-        strategyConfig.additionalCapital = config.additionalCapital
-      }
+      // Note: additionalCapital removed from strategy config to prevent conflicts
+      // Portfolio cash is always used from props.portfolio.additionalCash
       console.log('Loaded strategy config from localStorage:', config)
     }
 
@@ -884,6 +1203,12 @@ const loadFromLocalStorage = () => {
       const strategy = availableStrategies.find(s => s.id === savedStrategy)
       if (strategy) {
         selectedStrategy.value = strategy
+        
+        // If ETF data is already loaded, select all ETFs for the loaded strategy
+        if (allETFs.value.length > 0) {
+          selectedETFs.value = allETFs.value.map(etf => etf.ticker)
+          console.log(`Loaded strategy ${strategy.id} and selected all ${selectedETFs.value.length} ETFs`)
+        }
       }
     }
   } catch (error) {
@@ -897,8 +1222,8 @@ const saveToLocalStorage = () => {
     const configToSave = {
       momentum: strategyConfig.momentum,
       allweather: strategyConfig.allweather,
-      custom: strategyConfig.custom,
-      additionalCapital: strategyConfig.additionalCapital
+      custom: strategyConfig.custom
+      // Note: additionalCapital removed to prevent conflicts with portfolio cash
     }
     localStorage.setItem(STRATEGY_CONFIG_KEY, JSON.stringify(configToSave))
 
@@ -911,9 +1236,9 @@ const saveToLocalStorage = () => {
   }
 }
 
-// Watch additional capital for debugging
-watch(() => strategyConfig.additionalCapital, (newValue, oldValue) => {
-  console.log('Additional Capital changed:', {
+// Watch portfolio cash for debugging
+watch(() => props.portfolio?.additionalCash, (newValue, oldValue) => {
+  console.log('Portfolio Additional Cash changed:', {
     newValue,
     oldValue,
     typeofNew: typeof newValue,
@@ -963,7 +1288,7 @@ onMounted(async () => {
           }
         },
         selectedETFs: allTickers,
-        additionalCapital: strategyConfig.additionalCapital,
+        additionalCapital: 0,
         currentHoldings: []
       })
 
@@ -1580,6 +1905,47 @@ input:checked + .toggle-slider:before {
   border-radius: 12px;
 }
 
+.trade-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+  margin-bottom: 25px;
+  padding: 20px;
+  background: white;
+  border-radius: 10px;
+  border: 1px solid #e0e0e0;
+}
+
+.summary-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.summary-item:last-child {
+  border-bottom: none;
+}
+
+.summary-label {
+  font-weight: 500;
+  color: #666;
+}
+
+.summary-value {
+  font-weight: 600;
+  color: #333;
+}
+
+.summary-value.buy {
+  color: #28a745;
+}
+
+.summary-value.sell {
+  color: #dc3545;
+}
+
 .trade-list {
   display: flex;
   flex-direction: column;
@@ -1710,10 +2076,51 @@ input:checked + .toggle-slider:before {
   100% { transform: rotate(360deg); }
 }
 
+.title-with-back {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.back-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #f3f4f6;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  color: #374151;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.back-btn:hover {
+  background: #e5e7eb;
+  color: #111827;
+}
+
+.back-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
 @media (max-width: 768px) {
   .header-content {
     flex-direction: column;
     gap: 20px;
+  }
+
+  .title-with-back {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .back-btn {
+    align-self: flex-start;
   }
 
   .strategy-tabs {
@@ -1732,6 +2139,19 @@ input:checked + .toggle-slider:before {
 
   .execution-actions {
     flex-direction: column;
+  }
+
+  .deviation-info {
+    margin-top: 8px;
+    padding: 8px;
+    background: #e7f3ff;
+    border-radius: 6px;
+    border-left: 4px solid #007bff;
+  }
+
+  .deviation-info small {
+    color: #495057;
+    line-height: 1.4;
   }
 }
 </style>

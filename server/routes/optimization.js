@@ -64,13 +64,14 @@ router.post(
   validateBody(rebalanceRequestSchema),
   async (req, res) => {
     try {
-      const { currentHoldings, targetETFs, extraCash, optimizationStrategy } = req.body;
+      const { currentHoldings, targetETFs, extraCash, optimizationStrategy, objectives } = req.body;
 
       const optimizationInput = {
         currentHoldings,
         targetETFs,
         extraCash,
         optimizationStrategy,
+        objectives,
       };
 
       logger.logInfo('Optimization request received', {

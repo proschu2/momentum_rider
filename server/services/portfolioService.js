@@ -54,15 +54,53 @@ class PortfolioService {
 
       // Calculate target values
       const targetValues = {};
+      console.log('Calculating target values:', {
+        totalInvestment,
+        targetAllocations,
+        totalInvestmentValid: totalInvestment != null && totalInvestment > 0
+      });
+      
       Object.entries(targetAllocations).forEach(([etf, percentage]) => {
-        targetValues[etf] = (totalInvestment * percentage) / 100;
+        const targetValue = (totalInvestment * percentage) / 100;
+        targetValues[etf] = targetValue;
+        console.log(`Target value for ${etf}:`, {
+          percentage,
+          totalInvestment,
+          calculatedValue: targetValue,
+          isValid: targetValue != null && targetValue >= 0
+        });
       });
 
       // Get current values
       const currentValues = {};
+      console.log('Calculating current values for holdings:', currentHoldings);
       for (const holding of currentHoldings) {
-        const priceData = await financeService.getCurrentPrice(holding.etf);
-        currentValues[holding.etf] = holding.shares * priceData.price;
+        try {
+          console.log(`Getting price for ${holding.etf}...`);
+          const priceData = await financeService.getCurrentPrice(holding.etf);
+          console.log(`Price data received for ${holding.etf}:`, {
+            priceData,
+            dataType: typeof priceData,
+            hasPriceProperty: priceData && typeof priceData === 'object' && 'price' in priceData,
+            priceValue: priceData && typeof priceData === 'object' ? priceData.price : priceData,
+            holdingShares: holding.shares
+          });
+          
+          // financeService now always returns object structure with price property
+          const price = priceData.price;
+          const currentValue = holding.shares * price;
+          currentValues[holding.etf] = currentValue;
+          
+          console.log(`Current value calculated for ${holding.etf}:`, {
+            price,
+            shares: holding.shares,
+            currentValue,
+            isValid: currentValue != null && currentValue >= 0
+          });
+        } catch (error) {
+          console.error(`Error calculating current value for ${holding.etf}:`, error);
+          currentValues[holding.etf] = 0;
+        }
       }
 
       // Debug: Check momentumScores before final return
@@ -300,10 +338,31 @@ class PortfolioService {
   /**
    * Optimize portfolio using existing linear programming service
    */
-  async optimizePortfolio({ strategy, selectedETFs, additionalCapital, currentHoldings, constraints }) {
+  async optimizePortfolio({ strategy, selectedETFs, additionalCapital, currentHoldings, constraints, objectives }) {
     try {
+      console.log('=== DEBUG OPTIMIZE PORTFOLIO START ===');
+      console.log('Optimization input:', {
+        strategyType: strategy?.type,
+        selectedETFsCount: selectedETFs?.length,
+        selectedETFs: selectedETFs,
+        additionalCapital,
+        currentHoldingsCount: currentHoldings?.length,
+        currentHoldings: currentHoldings,
+        constraints,
+        objectives
+      });
+
       // Get analysis first to determine target allocations
       const analysis = await this.analyzeStrategy({ strategy, selectedETFs, additionalCapital, currentHoldings });
+      
+      console.log('Analysis result for optimization:', {
+        totalInvestment: analysis.totalInvestment,
+        currentPortfolioValue: analysis.currentPortfolioValue,
+        targetAllocations: analysis.targetAllocations,
+        targetValues: analysis.targetValues,
+        currentValues: analysis.currentValues,
+        analysisValid: analysis.totalInvestment != null && analysis.totalInvestment > 0
+      });
 
       // Extract prices from momentum analysis (already fetched during analysis)
       const prices = {};
@@ -373,41 +432,104 @@ class PortfolioService {
         selectedETFs: selectedETFs
       });
 
-      // Prepare target ETFs in the format expected by the optimization service
-      const targetETFs = selectedETFs.map(etf => {
-        const targetETF = {
-          name: etf,
-          targetPercentage: analysis.targetAllocations[etf] || 0,
-          pricePerShare: prices[etf],
-          allowedDeviation: 5 // Default 5% deviation
-        };
+      // Enhanced debug for momentum allocation issue
+      console.log('=== MOMENTUM ALLOCATION DEBUG ===');
+      const etfsWithNonZeroAllocation = Object.entries(analysis.targetAllocations)
+        .filter(([etf, allocation]) => allocation > 0)
+        .map(([etf, allocation]) => ({ etf, allocation }));
+      
+      console.log('ETFs with non-zero allocation:', etfsWithNonZeroAllocation);
+      console.log('All selected ETFs:', selectedETFs);
+      console.log('ETFs with 0% allocation that should be excluded:',
+        selectedETFs.filter(etf => !analysis.targetAllocations[etf] || analysis.targetAllocations[etf] === 0)
+      );
 
-        console.log(`Target ETF ${etf}:`, {
-          name: targetETF.name,
-          targetPercentage: targetETF.targetPercentage,
-          pricePerShare: targetETF.pricePerShare,
-          momentumScore: analysis.momentumScores?.[etf],
-          hasValidPrice: targetETF.pricePerShare && targetETF.pricePerShare > 0
+      // Prepare target ETFs in the format expected by the optimization service
+      // BUG FIX: Only include ETFs with non-zero allocations to prevent budget splitting
+      const targetETFs = selectedETFs
+        .filter(etf => analysis.targetAllocations[etf] && analysis.targetAllocations[etf] > 0)
+        .map(etf => {
+          const targetETF = {
+            name: etf,
+            targetPercentage: analysis.targetAllocations[etf],
+            pricePerShare: prices[etf],
+            allowedDeviation: 5 // Default 5% deviation
+          };
+
+          console.log(`Target ETF ${etf}:`, {
+            name: targetETF.name,
+            targetPercentage: targetETF.targetPercentage,
+            pricePerShare: targetETF.pricePerShare,
+            momentumScore: analysis.momentumScores?.[etf],
+            hasValidPrice: targetETF.pricePerShare && targetETF.pricePerShare > 0,
+            isIncluded: targetETF.targetPercentage > 0
+          });
+
+          return targetETF;
         });
 
-        return targetETF;
-      });
+      console.log('Final targetETFs array for optimization:', targetETFs.map(t => ({ name: t.name, percentage: t.targetPercentage })));
 
       
       // Prepare current holdings with current prices
-      const holdingsWithPrices = await Promise.all(currentHoldings.map(async holding => ({
-        name: holding.etf,
-        shares: holding.shares,
-        price: (await financeService.getCurrentPrice(holding.etf)).price
-      })));
+      console.log('Preparing holdings with prices for optimization...');
+      const holdingsWithPrices = await Promise.all(currentHoldings.map(async holding => {
+        try {
+          const priceData = await financeService.getCurrentPrice(holding.etf);
+          console.log(`Price data for ${holding.etf}:`, {
+            priceData,
+            dataType: typeof priceData,
+            hasPriceProperty: priceData && typeof priceData === 'object' && 'price' in priceData,
+            priceValue: priceData && typeof priceData === 'object' ? priceData.price : priceData
+          });
+          
+          // Handle both object and number return types
+          const price = typeof priceData === 'object' ? priceData.price : priceData;
+          
+          const result = {
+            name: holding.etf,
+            shares: holding.shares,
+            price: price
+          };
+          
+          console.log(`Final holding data for ${holding.etf}:`, result);
+          return result;
+        } catch (error) {
+          console.error(`Error getting price for ${holding.etf}:`, error);
+          // Use fallback price to prevent optimization failure
+          const fallbackPrice = this.getFallbackPriceForETF(holding.etf);
+          console.log(`Using fallback price for ${holding.etf}:`, fallbackPrice);
+          return {
+            name: holding.etf,
+            shares: holding.shares,
+            price: fallbackPrice
+          };
+        }
+      }));
+      
+      console.log('Final holdings with prices:', holdingsWithPrices);
+
+      console.log('=== PORTFOLIO SERVICE OPTIMIZATION DEBUG ===');
+      console.log('Calling optimization with:', {
+        holdingsCount: holdingsWithPrices.length,
+        targetETFsCount: targetETFs.length,
+        additionalCapital,
+        optimizationStrategy: constraints?.optimizationStrategy || 'minimize-leftover'
+      });
 
       // Use existing portfolio optimization service
       const optimizationResult = await portfolioOptimizationService.optimizePortfolio({
         currentHoldings: holdingsWithPrices,
         targetETFs,
         extraCash: additionalCapital,
-        optimizationStrategy: constraints?.optimizationStrategy || 'minimize-leftover'
+        optimizationStrategy: constraints?.optimizationStrategy || 'minimize-leftover',
+        objectives: objectives || {}
       });
+
+      console.log('=== OPTIMIZATION RESULT ANALYSIS ===');
+      console.log('Solver status:', optimizationResult.solverStatus);
+      console.log('Fallback used:', optimizationResult.fallbackUsed);
+      console.log('Optimization metrics:', optimizationResult.optimizationMetrics);
 
       // Convert the result to match our expected format
       const optimizedAllocations = {};
@@ -435,6 +557,20 @@ class PortfolioService {
       const unusedBudget = optimizationMetrics.unusedBudget || additionalCapital;
       const unusedPercentage = optimizationMetrics.unusedPercentage || 0;
 
+      console.log('=== FINAL PORTFOLIO SERVICE RESULT ===');
+      console.log('Total budget used:', totalBudgetUsed);
+      console.log('Unused budget:', unusedBudget);
+      console.log('Unused percentage:', unusedPercentage.toFixed(2) + '%');
+      console.log('Utilization rate:', (100 - unusedPercentage).toFixed(2) + '%');
+      console.log('Solver status:', optimizationResult.solverStatus);
+      console.log('Fallback used:', optimizationResult.fallbackUsed);
+      
+      if (unusedPercentage > 10) {
+        console.warn('=== FINAL CASH UTILIZATION PROBLEM CONFIRMED ===');
+        console.warn('High unused cash percentage in final result:', unusedPercentage.toFixed(2) + '%');
+        console.warn('This confirms the optimization issue needs to be fixed');
+      }
+
       return {
         optimizedAllocations,
         targetValues,
@@ -461,6 +597,16 @@ class PortfolioService {
    */
   async generateExecutionPlan({ strategy, selectedETFs, additionalCapital, currentHoldings, constraints }) {
     try {
+      console.log('=== GENERATE EXECUTION PLAN DEBUG ===');
+      console.log('Inputs:', {
+        strategyType: strategy?.type,
+        selectedETFsCount: selectedETFs?.length,
+        selectedETFs: selectedETFs,
+        additionalCapital,
+        currentHoldingsCount: currentHoldings?.length,
+        currentHoldings: currentHoldings
+      });
+
       // Get optimized allocation using existing service
       const optimization = await this.optimizePortfolio({
         strategy,
@@ -468,6 +614,13 @@ class PortfolioService {
         additionalCapital,
         currentHoldings,
         constraints
+      });
+
+      console.log('Optimization result:', {
+        allocationsCount: optimization.allocations?.length || 0,
+        holdingsToSellCount: optimization.holdingsToSell?.length || 0,
+        utilizedCapital: optimization.utilizedCapital,
+        uninvestedCash: optimization.uninvestedCash
       });
 
       // Generate trade list from optimization result
@@ -506,6 +659,48 @@ class PortfolioService {
         });
       }
 
+      // Additional logic: Identify holdings that are not in selectedETFs but have current value
+      // This ensures we sell all non-target holdings
+      const selectedETFSet = new Set(selectedETFs);
+      const nonTargetHoldings = currentHoldings.filter(holding =>
+        !selectedETFSet.has(holding.etf) && holding.shares > 0
+      );
+
+      console.log('Non-target holdings identified:', nonTargetHoldings);
+
+      // Add sell trades for non-target holdings if not already included
+      for (const holding of nonTargetHoldings) {
+        const alreadyIncluded = trades.some(trade =>
+          trade.action === 'sell' && trade.etf === holding.etf
+        );
+
+        if (!alreadyIncluded) {
+          try {
+            const priceData = await financeService.getCurrentPrice(holding.etf);
+            const price = priceData.price;
+            const totalValue = holding.shares * price;
+
+            trades.push({
+              etf: holding.etf,
+              action: 'sell',
+              shares: holding.shares,
+              value: totalValue,
+              price: price,
+              reason: 'Not in target allocation'
+            });
+            totalTradeValue += totalValue;
+
+            console.log(`Added sell trade for non-target holding ${holding.etf}:`, {
+              shares: holding.shares,
+              price,
+              totalValue
+            });
+          } catch (error) {
+            console.error(`Failed to get price for non-target holding ${holding.etf}:`, error);
+          }
+        }
+      }
+
       // Sort trades by action (sells first, then buys)
       trades.sort((a, b) => {
         if (a.action !== b.action) {
@@ -513,6 +708,8 @@ class PortfolioService {
         }
         return b.value - a.value; // Larger trades first
       });
+
+      console.log('Final execution plan trades:', trades);
 
       return {
         trades,
@@ -737,17 +934,48 @@ class PortfolioService {
    * Calculate portfolio value
    */
   async calculatePortfolioValue(holdings) {
+    console.log('=== DEBUG CALCULATE PORTFOLIO VALUE START ===');
+    console.log('Holdings to value:', holdings);
+    
     let totalValue = 0;
 
     for (const holding of holdings) {
       try {
+        console.log(`Getting price for ${holding.etf}...`);
         const priceData = await financeService.getCurrentPrice(holding.etf);
-        totalValue += holding.shares * priceData.price;
+        console.log(`Price data received for ${holding.etf}:`, {
+          priceData,
+          dataType: typeof priceData,
+          hasPriceProperty: priceData && typeof priceData === 'object' && 'price' in priceData,
+          priceValue: priceData && typeof priceData === 'object' ? priceData.price : priceData,
+          holdingShares: holding.shares
+        });
+        
+        // Handle both object and number return types
+        const price = typeof priceData === 'object' ? priceData.price : priceData;
+        const holdingValue = holding.shares * price;
+        totalValue += holdingValue;
+        
+        console.log(`Holding value calculated for ${holding.etf}:`, {
+          price,
+          shares: holding.shares,
+          holdingValue,
+          runningTotal: totalValue
+        });
       } catch (error) {
+        console.error(`Error calculating value for ${holding.etf}:`, error);
         logger.logError(error, `Failed to get price for ${holding.etf}`);
+        // Continue with other holdings instead of failing completely
       }
     }
 
+    console.log('Final portfolio value calculation:', {
+      totalValue,
+      holdingsCount: holdings.length,
+      isValid: totalValue != null && totalValue >= 0
+    });
+    console.log('=== DEBUG CALCULATE PORTFOLIO VALUE END ===');
+    
     return totalValue;
   }
 

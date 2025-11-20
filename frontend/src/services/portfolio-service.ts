@@ -38,6 +38,12 @@ export interface OptimizationRequest extends AnalysisRequest {
     maximumPositions?: number
     allowPartialShares?: boolean
   }
+  objectives?: {
+    [key: string]: {
+      weight: number
+      deviation?: number
+    }
+  }
 }
 
 export interface StrategyAnalysis {
@@ -139,7 +145,7 @@ class PortfolioService {
   private baseUrl: string
 
   constructor() {
-    this.baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api'
+    this.baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002/api'
   }
 
   /**
