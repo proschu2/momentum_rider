@@ -81,49 +81,88 @@ class LinearProgrammingService {
   }
 
   /**
-   * Analyze potential constraint conflicts when LP is infeasible
+   * Analyze potential constraint conflicts when clean-slate LP is infeasible
    */
   analyzeInfeasibleConstraints(model, input) {
-    console.log('=== CONSTRAINT CONFLICT ANALYSIS ===');
+    console.log('=== CLEAN-SLATE CONSTRAINT CONFLICT ANALYSIS ===');
     const { currentHoldings = [], targetETFs, extraCash } = input;
-    
+
+    // CLEAN-SLATE: Calculate total liquidated value
     const currentHoldingsValue = currentHoldings.reduce(
       (sum, holding) => sum + holding.shares * holding.price,
       0
     );
-    const totalAvailableBudget = currentHoldingsValue + extraCash;
-    
-    console.log('Budget analysis:');
-    console.log('- Current holdings value:', currentHoldingsValue);
+    const totalLiquidatedValue = currentHoldingsValue + extraCash;
+
+    console.log('Clean-slate budget analysis:');
+    console.log('- Current holdings to liquidate:', currentHoldingsValue);
     console.log('- Extra cash:', extraCash);
-    console.log('- Total available budget:', totalAvailableBudget);
-    
-    // Check if minimum allocations exceed budget
-    let minRequiredBudget = 0;
+    console.log('- Total liquidated value:', totalLiquidatedValue);
+
+    // Check if target allocations are mathematically feasible
+    let totalTargetPercentage = 0;
     targetETFs.forEach((etf) => {
-      const targetValue = (totalAvailableBudget * etf.targetPercentage) / 100;
-      const flexibleMinValue = Math.max(0, targetValue * 0.5); // Current minimum
-      minRequiredBudget += flexibleMinValue;
-      
+      totalTargetPercentage += etf.targetPercentage;
+
+      const targetValue = (totalLiquidatedValue * etf.targetPercentage) / 100;
+      const allocationDeviation = etf.allowedDeviation || 5;
+      const minValue = Math.max(0, targetValue - (targetValue * allocationDeviation) / 100);
+      const maxValue = targetValue + (targetValue * allocationDeviation) / 100;
+
       console.log(`ETF ${etf.name}:`);
       console.log(`- Target %: ${etf.targetPercentage}%`);
       console.log(`- Target value: $${targetValue.toFixed(2)}`);
-      console.log(`- Minimum required: $${flexibleMinValue.toFixed(2)}`);
+      console.log(`- Value range (±${allocationDeviation}%): $${minValue.toFixed(2)} - $${maxValue.toFixed(2)}`);
+      console.log(`- Price per share: $${etf.pricePerShare}`);
+      console.log(`- Min shares possible: ${Math.floor(minValue / etf.pricePerShare)}`);
+      console.log(`- Max shares possible: ${Math.floor(maxValue / etf.pricePerShare)}`);
+
+      // Check if at least 1 share is possible for positive targets
+      if (etf.targetPercentage > 0 && etf.pricePerShare > maxValue) {
+        console.error(`SHARE IMPOSSIBILITY: ETF ${etf.name} minimum value $${minValue.toFixed(2)} < share price $${etf.pricePerShare}`);
+        console.error(`Even 1 share would exceed allocation tolerance!`);
+      }
     });
-    
-    console.log('Total minimum required budget:', minRequiredBudget);
-    console.log('Available budget:', totalAvailableBudget);
-    console.log('Budget surplus/deficit:', totalAvailableBudget - minRequiredBudget);
-    
-    if (minRequiredBudget > totalAvailableBudget) {
-      console.error('BUDGET CONSTRAINT VIOLATION: Minimum allocations exceed available budget!');
-      console.error('This is likely the cause of LP infeasibility.');
+
+    console.log('Total target percentage sum:', totalTargetPercentage + '%');
+
+    // Check for mathematical infeasibility conditions
+    if (Math.abs(totalTargetPercentage - 100) > 25) {
+      console.error('TARGET ALLOCATION WARNING: Target percentages sum to', totalTargetPercentage + '% (expected ~100%)');
+      console.error('Large deviations from 100% can cause infeasibility!');
     }
-    
+
+    // Check if allocation tolerances overlap excessively
+    let minPossibleAllocation = 0;
+    let maxPossibleAllocation = 0;
+    targetETFs.forEach((etf) => {
+      if (etf.targetPercentage > 0) {
+        const allocationDeviation = etf.allowedDeviation || 5;
+        minPossibleAllocation += Math.max(0, etf.targetPercentage - allocationDeviation);
+        maxPossibleAllocation += etf.targetPercentage + allocationDeviation;
+      }
+    });
+
+    console.log('Possible allocation range:', minPossibleAllocation + '% -', maxPossibleAllocation + '%');
+
+    if (minPossibleAllocation > 105) {
+      console.error('ALLOCATION CONFLICT: Minimum possible allocations exceed 100%!');
+      console.error('This makes the problem mathematically infeasible.');
+    }
+
+    if (maxPossibleAllocation < 95) {
+      console.warn('ALLOCATION GAP: Maximum possible allocations < 100%!');
+      console.warn('This will leave significant unused cash.');
+    }
+
     // Check for other potential issues
     targetETFs.forEach((etf) => {
-      if (etf.targetPercentage === 0 && etf.pricePerShare <= 0) {
-        console.error(`INVALID PRICE: ETF ${etf.name} has 0% target but invalid price: ${etf.pricePerShare}`);
+      if (etf.targetPercentage > 0 && etf.pricePerShare <= 0) {
+        console.error(`INVALID PRICE: ETF ${etf.name} has ${etf.targetPercentage}% target but invalid price: ${etf.pricePerShare}`);
+      }
+
+      if (etf.pricePerShare > totalLiquidatedValue) {
+        console.warn(`EXPENSIVE ETF: ${etf.name} share price $${etf.pricePerShare} exceeds total liquidated value $${totalLiquidatedValue.toFixed(2)}`);
       }
     });
   }
@@ -175,182 +214,99 @@ class LinearProgrammingService {
   }
 
   /**
-   * Build LP model for budget allocation using yalps format
+   * Build LP model for clean-slate portfolio rebalancing using yalps format
    */
   buildModel(input, objectives = {}) {
     const { currentHoldings = [], targetETFs, extraCash } = input;
-    const { useAllBudget = false, budgetWeight = 0.7, fairnessWeight = 0.3 } = objectives;
+    const { useAllBudget = true, budgetWeight = 0.8, fairnessWeight = 0.2 } = objectives;
 
-    // Calculate total available budget (current holdings value + additional cash)
+    // CLEAN-SLATE APPROACH: Calculate total liquidated value (sell all + cash)
     const currentHoldingsValue = currentHoldings.reduce(
       (sum, holding) => sum + holding.shares * holding.price,
       0
     );
-    const totalAvailableBudget = currentHoldingsValue + extraCash;
+    const totalLiquidatedValue = currentHoldingsValue + extraCash;
 
-    console.log('=== LP MODEL BUDGET ANALYSIS ===');
-    console.log('Current holdings value:', currentHoldingsValue);
+    console.log('=== CLEAN-SLATE LP MODEL BUDGET ANALYSIS ===');
+    console.log('Current holdings to liquidate:', currentHoldingsValue);
     console.log('Extra cash:', extraCash);
-    console.log('Total available budget:', totalAvailableBudget);
+    console.log('Total liquidated value (clean-slate budget):', totalLiquidatedValue);
     console.log('Target ETFs count:', targetETFs.length);
-    console.log('Target ETFs:', targetETFs.map(t => ({
-      name: t.name,
-      targetPercentage: t.targetPercentage,
-      targetValue: (totalAvailableBudget * t.targetPercentage) / 100,
-      pricePerShare: t.pricePerShare
-    })));
 
-    // Determine objective function based on user preferences
-    let objectiveType, objectiveName;
-    
-    if (useAllBudget) {
-      // Multi-objective: combine budget utilization and allocation fairness
-      objectiveType = 'min'; // We want to minimize the weighted negative objective
-      objectiveName = 'combinedObjective';
-    } else {
-      // Single objective: minimize allocation deviations (current behavior)
-      objectiveType = 'min';
-      objectiveName = 'allocationFairness';
-    }
-
+    // SIMPLIFIED MODEL: Primary objective is maximize budget utilization with allocation bounds
     const model = {
-      optimize: objectiveName,
-      opType: objectiveType,
+      optimize: 'budgetUtilization', // Simple, single objective
+      opType: 'max', // Maximize portfolio value (minimize unused cash)
       constraints: {},
       variables: {},
       ints: {},
     };
 
-    // Create variables for each target ETF (shares to buy)
+    // Create final_shares variables for each target ETF with allocation tolerance bounds
     targetETFs.forEach((etf) => {
-      const varName = `buy_${etf.name.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      const varName = `final_${etf.name.replace(/[^a-zA-Z0-9]/g, '_')}`;
 
-      // Get current shares for this ETF
-      const currentHolding = currentHoldings.find((h) => h.name === etf.name);
-      const currentShares = currentHolding ? currentHolding.shares : 0;
-      const currentValue = currentShares * etf.pricePerShare;
+      // Calculate target value and allocation tolerance bounds (±5%)
+      const targetValue = (totalLiquidatedValue * etf.targetPercentage) / 100;
+      const allocationDeviation = etf.allowedDeviation || 5;
+      const minValue = (targetValue * Math.max(0, (100 - allocationDeviation))) / 100;
+      const maxValue = (targetValue * (100 + allocationDeviation)) / 100;
 
-      // Calculate target value bounds
-      const targetValue = (totalAvailableBudget * etf.targetPercentage) / 100;
-      const allowedDeviation = etf.allowedDeviation || 20; // FIX: Increase to 20% to allow better cash utilization
-      const minValue = Math.max(0, targetValue - (totalAvailableBudget * allowedDeviation) / 100);
-      const maxValue = targetValue + (totalAvailableBudget * allowedDeviation) / 100;
+      // Convert value bounds to share bounds
+      const minShares = etf.targetPercentage === 0 ? 0 : Math.floor(minValue / etf.pricePerShare);
+      const maxShares = etf.targetPercentage === 0 ? 0 : Math.floor(maxValue / etf.pricePerShare);
 
+      console.log(`=== ETF ${etf.name} ALLOCATION BOUNDS ===`);
+      console.log(`Target %: ${etf.targetPercentage}%, Target value: $${targetValue.toFixed(2)}`);
+      console.log(`Value range (±${allocationDeviation}%): $${minValue.toFixed(2)} - $${maxValue.toFixed(2)}`);
+      console.log(`Share range: ${minShares} - ${maxShares} shares`);
+      console.log(`Price per share: $${etf.pricePerShare}`);
 
-      // Create variable for shares to buy (allow negative for selling)
+      // Create variable for final shares
       model.variables[varName] = {
-        allocationFairness: 0, // Will be set in deviation variables
-        [`min_${etf.name}`]: etf.pricePerShare,
-        [`max_${etf.name}`]: etf.pricePerShare,
-        budget: etf.pricePerShare,
+        budgetUtilization: etf.pricePerShare, // Each share contributes its value to portfolio
       };
 
-      // Integer constraint for shares (can be negative for selling)
+      // Integer constraint for shares
       model.ints[varName] = 1;
 
-      console.log(`=== ETF ${etf.name} VARIABLE SETUP ===`);
-      console.log(`Current shares: ${currentShares}, Current value: $${currentValue.toFixed(2)}`);
-      console.log(`Target %: ${etf.targetPercentage}%, Target value: $${targetValue.toFixed(2)}`);
-      console.log(`Min value: $${minValue.toFixed(2)}, Max value: $${maxValue.toFixed(2)}`);
-      console.log(`Allowed deviation: ${allowedDeviation}%`);
-
-      // For ETFs with 0% target, we want to sell all current shares
+      // Allocation tolerance bounds as constraints
       if (etf.targetPercentage === 0) {
-        // Force selling all current shares (negative buy = sell)
-        model.constraints[`sell_${etf.name}`] = { equal: -currentShares };
-        
-        // Allow negative values for selling
-        delete model.constraints[varName]; // Remove non-negativity constraint
-        
-        console.log(`ETF ${etf.name}: SELL ALL ${currentShares} shares (0% target)`);
-        console.log(`Constraint: buy_${etf.name} = -${currentShares} (negative means sell)`);
+        // Zero allocation: force exactly 0 shares
+        model.constraints[`bounds_${etf.name}`] = { equal: 0 };
+        console.log(`ETF ${etf.name}: ZERO allocation forced`);
       } else {
-        // Minimum value constraint (current + new >= minValue)
-        model.constraints[`min_${etf.name}`] = { min: minValue - currentValue };
-
-        // Maximum value constraint (current + new <= maxValue)
-        model.constraints[`max_${etf.name}`] = { max: maxValue - currentValue };
-
-        // Non-negativity constraint for buying
-        model.constraints[varName] = { min: 0 };
-        
-        console.log(`ETF ${etf.name}: BUY constraint (min: ${minValue - currentValue}, max: ${maxValue - currentValue})`);
-        console.log(`Final shares range: [${Math.max(0, Math.ceil(minValue/etf.pricePerShare))}, ${Math.floor(maxValue/etf.pricePerShare)}]`);
+        // Use allocation tolerance bounds
+        model.constraints[`bounds_${etf.name}`] = {
+          min: minShares,
+          max: maxShares
+        };
+        console.log(`ETF ${etf.name}: Bounded allocation enforced`);
       }
     });
 
-    // Add deviation variables for allocation fairness
-    targetETFs.forEach((etf) => {
-      const currentHolding = currentHoldings.find((h) => h.name === etf.name);
-      const currentShares = currentHolding ? currentHolding.shares : 0;
-      const currentValue = currentShares * etf.pricePerShare;
-      const targetValue = (totalAvailableBudget * etf.targetPercentage) / 100;
-      
-      // Skip deviation constraints for zero-target ETFs (we want to sell them completely)
-      if (etf.targetPercentage === 0) {
-        return;
-      }
-      
-      // Positive deviation variable (over-allocation)
-      const posDevVar = `pos_dev_${etf.name.replace(/[^a-zA-Z0-9]/g, '_')}`;
-      model.variables[posDevVar] = {
-        allocationFairness: 1, // Minimize positive deviations
-        [`dev_${etf.name}`]: 1,
-      };
-      model.constraints[posDevVar] = { min: 0 };
-      
-      // Negative deviation variable (under-allocation)
-      const negDevVar = `neg_dev_${etf.name.replace(/[^a-zA-Z0-9]/g, '_')}`;
-      model.variables[negDevVar] = {
-        allocationFairness: 1, // Minimize negative deviations
-        [`dev_${etf.name}`]: -1,
-      };
-      model.constraints[negDevVar] = { min: 0 };
-      
-      // Deviation constraint: (current + new) - target = pos_dev - neg_dev
-      const buyVarName = `buy_${etf.name.replace(/[^a-zA-Z0-9]/g, '_')}`;
-      model.constraints[`dev_${etf.name}`] = {
-        equal: targetValue - currentValue
-      };
-      model.variables[buyVarName][`dev_${etf.name}`] = etf.pricePerShare;
-    });
-
-    // Budget constraint: total cost <= total available budget
-    // FIX: Use slightly higher budget to allow full utilization (account for rounding)
-    model.constraints.budget = { max: totalAvailableBudget * 1.01 }; // Allow 1% buffer for rounding
-    
-    // CRITICAL FIX: Remove minimum value constraints that prevent full budget utilization
-    // Instead of strict min/max, use looser constraints to allow better cash usage
-    targetETFs.forEach((etf) => {
-      const varName = `buy_${etf.name.replace(/[^a-zA-Z0-9]/g, '_')}`;
-      const currentHolding = currentHoldings.find((h) => h.name === etf.name);
-      const currentShares = currentHolding ? currentHolding.shares : 0;
-      const currentValue = currentShares * etf.pricePerShare;
-      const targetValue = (totalAvailableBudget * etf.targetPercentage) / 100;
-      
-      // Only apply minimum constraint for ETFs with 0% target (force sell)
-      if (etf.targetPercentage === 0) {
-        model.constraints[`sell_${etf.name}`] = { equal: -currentShares };
-      } else {
-        // Remove restrictive minimum value constraints to allow better cash utilization
-        // Keep maximum constraint but make minimum very flexible
-        const flexibleMinValue = Math.max(0, targetValue * 0.5); // Allow as low as 50% of target
-        model.constraints[`min_${etf.name}`] = { min: flexibleMinValue - currentValue };
-      }
-    });
-
-    // Allocation fairness variable (sum of all deviations)
-    model.variables.allocationFairness = {
-      allocationFairness: 1,
-      budget: 0, // Doesn't affect budget constraint
+    // BUDGET CONSTRAINT: Total investment cannot exceed total liquidated value
+    model.constraints.budget = {
+      max: totalLiquidatedValue
     };
-    model.constraints.allocationFairness = { min: 0 };
+
+    // Add all final_shares variables to budget constraint
+    targetETFs.forEach((etf) => {
+      const varName = `final_${etf.name.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      model.variables[varName].budget = etf.pricePerShare;
+    });
+
+    console.log('=== SIMPLIFIED LP MODEL CREATED ===');
+    console.log('Objective: Maximize budget utilization');
+    console.log('Variables:', Object.keys(model.variables).length);
+    console.log('Constraints:', Object.keys(model.constraints).length);
+    console.log('Integer variables:', Object.keys(model.ints).length);
 
     return model;
   }
 
   /**
-   * Process solver solution into structured result
+   * Process clean-slate solver solution into structured result
    */
   processSolution(solution, input, startTime) {
     const { currentHoldings = [], targetETFs, extraCash } = input;
@@ -370,100 +326,160 @@ class LinearProgrammingService {
       };
     }
 
-    // Calculate total available budget (current holdings value + additional cash)
+    // CLEAN-SLATE: Calculate total liquidated value (current holdings + cash)
     const currentHoldingsValue = currentHoldings.reduce(
       (sum, holding) => sum + holding.shares * holding.price,
       0
     );
-    const totalAvailableBudget = currentHoldingsValue + extraCash;
+    const totalLiquidatedValue = currentHoldingsValue + extraCash;
 
-    // Extract allocations from solution
+    console.log('=== CLEAN-SLATE SOLUTION PROCESSING ===');
+    console.log('Current holdings to liquidate:', currentHoldingsValue);
+    console.log('Extra cash:', extraCash);
+    console.log('Total liquidated value:', totalLiquidatedValue);
+
+    // Extract allocations from clean-slate solution - each ETF appears once
     const allocations = [];
-    let totalBudgetUsed = 0;
+    let totalFinalPortfolioValue = 0;
 
+    // Get all current holdings for processing non-target ETFs to sell
+    const currentHoldingsMap = new Map();
+    currentHoldings.forEach(holding => {
+      currentHoldingsMap.set(holding.name, holding);
+    });
+
+    // Process target ETFs first
     targetETFs.forEach((etf) => {
-      const varName = `buy_${etf.name.replace(/[^a-zA-Z0-9]/g, '_')}`;
-      let sharesChange = Math.round(solution[varName] || 0);
+      const finalVarName = `final_${etf.name.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      const finalShares = Math.round(solution[finalVarName] || 0);
 
-      const currentHolding = currentHoldings.find((h) => h.name === etf.name);
-      const currentShares = currentHolding ? currentHolding.shares : 0;
-      
-      // Handle negative sharesChange (selling)
-      const sharesToBuy = Math.max(0, sharesChange);
-      const sharesToSell = Math.max(0, -sharesChange);
-      const finalShares = currentShares + sharesChange;
-      const costOfPurchase = sharesToBuy * etf.pricePerShare;
-      const finalValue = finalShares * etf.pricePerShare;
-      const targetPercentage = etf.targetPercentage;
-      const actualPercentage = (finalValue / totalAvailableBudget) * 100;
-      const deviation = actualPercentage - targetPercentage;
-
-      console.log(`=== ETF ${etf.name} SOLUTION PROCESSING ===`);
-      console.log(`Solver variable ${varName}: ${solution[varName] || 0} (raw) -> ${sharesChange} (rounded)`);
-      console.log(`Current shares: ${currentShares}, Final shares: ${finalShares}`);
-      console.log(`Shares to buy: ${sharesToBuy}, Shares to sell: ${sharesToSell}`);
-      console.log(`Cost of purchase: $${costOfPurchase.toFixed(2)}`);
-      console.log(`Target %: ${targetPercentage}%, Actual %: ${actualPercentage.toFixed(2)}%, Deviation: ${deviation.toFixed(2)}%`);
-      
-      if (sharesChange > 0) {
-        console.log(`DECISION: BUY ${sharesChange} shares of ${etf.name} (underweight)`);
-      } else if (sharesChange < 0) {
-        console.log(`DECISION: SELL ${Math.abs(sharesChange)} shares of ${etf.name} (overweight)`);
-      } else {
-        console.log(`DECISION: NO ACTION for ${etf.name} (already at target)`);
+      // Fetch real current price for accurate calculation
+      let realPrice = etf.pricePerShare;
+      try {
+        const financeService = require('./financeService');
+        const priceResult = financeService.getCurrentPrice(etf.name);
+        realPrice = priceResult.price || realPrice;
+      } catch (priceError) {
+        console.warn(`Failed to get real price for ${etf.name}, using provided price: $${realPrice}`, priceError.message);
       }
 
-      totalBudgetUsed += costOfPurchase;
+      const currentHolding = currentHoldingsMap.get(etf.name);
+      const currentShares = currentHolding ? currentHolding.shares : 0;
 
+      // CLEAN-SLATE: Calculate buy/sell needs by comparing final vs current shares
+      const sharesToBuy = Math.max(0, finalShares - currentShares);
+      const sharesToSell = Math.max(0, currentShares - finalShares);
+      const finalValue = finalShares * realPrice;
+
+      const targetPercentage = etf.targetPercentage;
+      const actualPercentage = totalLiquidatedValue > 0 ? (finalValue / totalLiquidatedValue) * 100 : 0;
+      const deviation = actualPercentage - targetPercentage;
+
+      console.log(`=== ETF ${etf.name} CLEAN-SLATE SOLUTION ===`);
+      console.log(`Final shares variable ${finalVarName}: ${solution[finalVarName] || 0} -> ${finalShares}`);
+      console.log(`Current shares: ${currentShares}, Final shares: ${finalShares}`);
+      console.log(`Shares to buy: ${sharesToBuy}, Shares to sell: ${sharesToSell}`);
+      console.log(`Final portfolio value: $${finalValue.toFixed(2)}`);
+      console.log(`Target %: ${targetPercentage}%, Actual %: ${actualPercentage.toFixed(2)}%, Deviation: ${deviation.toFixed(2)}%`);
+
+      // Determine action type
+      let actionType = 'HOLD';
+      if (sharesToBuy > 0 && sharesToSell > 0) {
+        actionType = 'REBALANCE';
+      } else if (sharesToBuy > 0) {
+        actionType = 'BUY';
+      } else if (sharesToSell > 0) {
+        actionType = 'SELL';
+      }
+
+      console.log(`DECISION: ${actionType} ${etf.name} - Current: ${currentShares}, Final: ${finalShares}`);
+
+      totalFinalPortfolioValue += finalValue;
 
       allocations.push({
         etfName: etf.name,
+        action: actionType,
         currentShares,
+        finalShares,
         sharesToBuy,
         sharesToSell,
-        finalShares,
-        costOfPurchase,
         finalValue,
         targetPercentage,
         actualPercentage,
         deviation,
+        pricePerShare: realPrice,
       });
     });
 
-    const unusedBudget = totalAvailableBudget - totalBudgetUsed;
-    const unusedPercentage = (unusedBudget / totalAvailableBudget) * 100;
+    // Process non-target holdings (sell all)
+    const targetNames = new Set(targetETFs.map(etf => etf.name));
+    currentHoldings.forEach(holding => {
+      if (!targetNames.has(holding.name) && holding.shares > 0) {
+        const sellValue = holding.shares * holding.price;
+        console.log(`=== SELL NON-TARGET ETF ${holding.name} ===`);
+        console.log(`Sell all ${holding.shares} shares at $${holding.price} = $${sellValue.toFixed(2)}`);
 
-    console.log('=== LP SOLUTION CASH UTILIZATION ANALYSIS ===');
-    console.log('Total available budget:', totalAvailableBudget);
-    console.log('Total budget used:', totalBudgetUsed);
-    console.log('Unused budget:', unusedBudget);
+        allocations.push({
+          etfName: holding.name,
+          action: 'SELL_ALL',
+          currentShares: holding.shares,
+          finalShares: 0,
+          sharesToBuy: 0,
+          sharesToSell: holding.shares,
+          finalValue: 0,
+          targetPercentage: 0,
+          actualPercentage: 0,
+          deviation: 0,
+          pricePerShare: holding.price,
+        });
+      }
+    });
+
+    // CLEAN-SLATE: Budget utilization is final portfolio value vs total liquidated value
+    const unusedBudget = totalLiquidatedValue - totalFinalPortfolioValue;
+    const unusedPercentage = totalLiquidatedValue > 0 ? (unusedBudget / totalLiquidatedValue) * 100 : 0;
+    const budgetUtilizationRate = 100 - unusedPercentage;
+
+    console.log('=== CLEAN-SLATE PORTFOLIO ANALYSIS ===');
+    console.log('Total liquidated value:', totalLiquidatedValue);
+    console.log('Final portfolio value:', totalFinalPortfolioValue);
+    console.log('Unused budget (cash remaining):', unusedBudget.toFixed(2));
     console.log('Unused percentage:', unusedPercentage.toFixed(2) + '%');
-    console.log('Cash utilization rate:', (100 - unusedPercentage).toFixed(2) + '%');
-    console.log('Allocations processed:', allocations.length);
-    
-    if (unusedPercentage > 10) {
-      console.warn('=== LP CASH UTILIZATION PROBLEM DETECTED ===');
-      console.warn('High unused cash percentage in LP solution:', unusedPercentage.toFixed(2) + '%');
-      
-      // Analyze individual allocations for issues
-      allocations.forEach(allocation => {
-        if (allocation.finalShares === 0 && allocation.targetPercentage > 0) {
-          console.warn(`LP: ETF ${allocation.etfName} has 0 shares but ${allocation.targetPercentage}% target`);
+    console.log('Budget utilization rate:', budgetUtilizationRate.toFixed(2) + '%');
+    console.log('Total allocations (unique ETFs):', allocations.length);
+
+    // Validate allocation tolerances
+    let violations = 0;
+    allocations.forEach(allocation => {
+      if (allocation.targetPercentage > 0) {
+        const deviationMagnitude = Math.abs(allocation.deviation);
+        if (deviationMagnitude > 5) {
+          console.warn(`TOLERANCE VIOLATION: ETF ${allocation.etfName} deviation ${deviationMagnitude.toFixed(2)}% > 5%`);
+          violations++;
         }
-        if (allocation.costOfPurchase === 0 && allocation.sharesToBuy > 0) {
-          console.warn(`LP: ETF ${allocation.etfName} has sharesToBuy > 0 but costOfPurchase = 0`);
-        }
-      });
+      }
+    });
+
+    if (violations > 0) {
+      console.warn(`=== ${violations} ALLOCATION TOLERANCE VIOLATIONS DETECTED ===`);
+    }
+
+    if (unusedPercentage > 5) {
+      console.warn('=== CLEAN-SLATE CASH UTILIZATION WARNING ===');
+      console.warn('Unused cash percentage:', unusedPercentage.toFixed(2) + '%');
+      console.warn('Budget utilization below 95% threshold');
     }
 
     return {
       solverStatus: 'optimal',
-      allocations,
+      allocations, // Each ETF appears exactly once with clear action
       holdingsToSell: this.identifyHoldingsToSell(currentHoldings, targetETFs),
       optimizationMetrics: {
-        totalBudgetUsed,
+        totalBudgetUsed: totalFinalPortfolioValue,
         unusedBudget,
         unusedPercentage,
+        budgetUtilizationRate,
+        allocationViolations: violations,
         optimizationTime: Date.now() - startTime,
       },
     };

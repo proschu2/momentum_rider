@@ -1,0 +1,184 @@
+{
+  "summary": {
+    "totalTests": 9,
+    "successfulTests": 9,
+    "failedTests": 0,
+    "lowUtilizationTests": 2,
+    "avgUtilization": 92.85493202222223
+  },
+  "results": [
+    {
+      "testName": "Small Budget - Low Price ETFs",
+      "budget": 1000,
+      "etfs": [
+        "BND",
+        "SGOV",
+        "BIL"
+      ],
+      "utilizationRate": 96.61613,
+      "uninvestedCash": 33.83870000000002,
+      "solverStatus": "optimal",
+      "fallbackUsed": false,
+      "success": true,
+      "issue": null
+    },
+    {
+      "testName": "Small Budget - High Price ETFs",
+      "budget": 1000,
+      "etfs": [
+        "SPY",
+        "QQQ",
+        "VGT"
+      ],
+      "utilizationRate": 58.7432,
+      "uninvestedCash": 412.568,
+      "solverStatus": "heuristic",
+      "fallbackUsed": true,
+      "success": true,
+      "issue": "LOW_UTILIZATION"
+    },
+    {
+      "testName": "Small Budget - Mixed Prices",
+      "budget": 2500,
+      "etfs": [
+        "VTI",
+        "BND",
+        "SGOV"
+      ],
+      "utilizationRate": 98.944416,
+      "uninvestedCash": 26.389599999999973,
+      "solverStatus": "optimal",
+      "fallbackUsed": false,
+      "success": true,
+      "issue": null
+    },
+    {
+      "testName": "Medium Budget - Standard ETFs",
+      "budget": 25000,
+      "etfs": [
+        "VTI",
+        "VEA",
+        "VWO",
+        "BND",
+        "TLT"
+      ],
+      "utilizationRate": 96.21441200000001,
+      "uninvestedCash": 946.3969999999972,
+      "solverStatus": "optimal",
+      "fallbackUsed": false,
+      "success": true,
+      "issue": null
+    },
+    {
+      "testName": "Medium Budget - Many ETFs",
+      "budget": 50000,
+      "etfs": [
+        "VTI",
+        "VEA",
+        "VWO",
+        "BND",
+        "TLT",
+        "GLDM",
+        "IBIT"
+      ],
+      "utilizationRate": 99.937016,
+      "uninvestedCash": 31.49199999999837,
+      "solverStatus": "optimal",
+      "fallbackUsed": false,
+      "success": true,
+      "issue": null
+    },
+    {
+      "testName": "Large Budget",
+      "budget": 250000,
+      "etfs": [
+        "VTI",
+        "VEA",
+        "VWO",
+        "BND",
+        "TLT",
+        "GLDM",
+        "IBIT",
+        "PDBC"
+      ],
+      "utilizationRate": 100.0054912,
+      "uninvestedCash": -13.728000000002794,
+      "solverStatus": "optimal",
+      "fallbackUsed": false,
+      "success": true,
+      "issue": null
+    },
+    {
+      "testName": "Very Small Budget",
+      "budget": 500,
+      "etfs": [
+        "BND",
+        "SGOV"
+      ],
+      "utilizationRate": 89.18412,
+      "uninvestedCash": 54.07940000000002,
+      "solverStatus": "optimal",
+      "fallbackUsed": false,
+      "success": true,
+      "issue": "LOW_UTILIZATION"
+    },
+    {
+      "testName": "Single ETF",
+      "budget": 10000,
+      "etfs": [
+        "VTI"
+      ],
+      "utilizationRate": 96.33666000000001,
+      "uninvestedCash": 366.3339999999989,
+      "solverStatus": "optimal",
+      "fallbackUsed": false,
+      "success": true,
+      "issue": null
+    },
+    {
+      "testName": "Custom Strategy",
+      "budget": 50000,
+      "etfs": [
+        "VTI",
+        "BND"
+      ],
+      "utilizationRate": 99.712943,
+      "uninvestedCash": 143.52850000000035,
+      "solverStatus": "optimal",
+      "fallbackUsed": false,
+      "success": true,
+      "issue": null
+    }
+  ],
+  "lowUtilizationTests": [
+    {
+      "testName": "Small Budget - High Price ETFs",
+      "budget": 1000,
+      "etfs": [
+        "SPY",
+        "QQQ",
+        "VGT"
+      ],
+      "utilizationRate": 58.7432,
+      "uninvestedCash": 412.568,
+      "solverStatus": "heuristic",
+      "fallbackUsed": true,
+      "success": true,
+      "issue": "LOW_UTILIZATION"
+    },
+    {
+      "testName": "Very Small Budget",
+      "budget": 500,
+      "etfs": [
+        "BND",
+        "SGOV"
+      ],
+      "utilizationRate": 89.18412,
+      "uninvestedCash": 54.07940000000002,
+      "solverStatus": "optimal",
+      "fallbackUsed": false,
+      "success": true,
+      "issue": "LOW_UTILIZATION"
+    }
+  ]
+}

@@ -66,16 +66,16 @@ class PortfolioOptimizationService {
       result.fallbackUsed = true;
       result.fallbackReason = 'Linear programming optimization failed or was infeasible';
       
-      // CRITICAL FIX: If LP result has poor cash utilization, force heuristic fallback
+      // CRITICAL FIX: Force heuristic fallback if LP has poor cash utilization OR high unused budget percentage
       if (result.solverStatus === 'optimal' && result.optimizationMetrics &&
-          result.optimizationMetrics.unusedPercentage > 10) {
+          result.optimizationMetrics.unusedPercentage > 8) { // Lowered threshold from 10% to 8%
         console.log('=== FORCING HEURISTIC FALLBACK DUE TO POOR LP CASH UTILIZATION ===');
         console.log('LP unused percentage:', result.optimizationMetrics.unusedPercentage);
         console.log('Switching to heuristic for better cash utilization');
         
-        // Force heuristic fallback with objective-aware strategy
-        const heuristicStrategy = maximizeUtilization ? 'maximize-shares' :
-                               (useAllBudget ? 'maximize-shares' : 'minimize-leftover');
+        // Force heuristic fallback with enhanced budget utilization strategy
+        const heuristicStrategy = maximizeUtilization ? 'enhanced-budget' :
+                               (useAllBudget ? 'enhanced-budget' : 'minimize-leftover');
         const heuristicResult = await this.fallbackToHeuristics({
           ...input,
           optimizationStrategy: heuristicStrategy
@@ -116,10 +116,10 @@ class PortfolioOptimizationService {
     );
     const totalAvailableBudget = currentHoldingsValue + extraCash;
     
-    console.log('=== BUDGET ANALYSIS ===');
-    console.log('Current holdings value:', currentHoldingsValue);
+    console.log('=== CLEAN-SLATE BUDGET ANALYSIS ===');
+    console.log('Current holdings to liquidate:', currentHoldingsValue);
     console.log('Extra cash:', extraCash);
-    console.log('Total available budget:', totalAvailableBudget);
+    console.log('Total liquidated value:', totalAvailableBudget);
     console.log('LP Input:', JSON.stringify(input, null, 2));
 
     const timeoutPromise = new Promise((_, reject) => {
@@ -211,9 +211,12 @@ class PortfolioOptimizationService {
     // Convert to buy order format compatible with frontend logic
     const buyOrders = this.convertToBuyOrders(targetETFs, currentHoldings, totalAvailableBudget);
 
-    // Apply different heuristic strategies based on optimization strategy
+    // Apply different heuristic strategies based on optimization strategy with enhanced budget focus
     let allocations;
     switch (optimizationStrategy) {
+    case 'enhanced-budget':
+      allocations = this.enhancedBudgetStrategy(buyOrders, totalAvailableBudget, input);
+      break;
     case 'maximize-shares':
       allocations = this.maximizeSharesStrategy(buyOrders, totalAvailableBudget);
       break;
@@ -230,64 +233,143 @@ class PortfolioOptimizationService {
   }
 
   /**
-   * Convert target ETFs to buy order format
+   * Convert target ETFs to clean-slate final shares format
    */
   convertToBuyOrders(targetETFs, currentHoldings, totalAvailableBudget) {
-    console.log('=== CONVERT TO BUY ORDERS DEBUG ===');
-    const buyOrders = targetETFs.map((etf) => {
+    console.log('=== CONVERT TO CLEAN-SLATE FINAL SHARES DEBUG ===');
+    const finalSharesOrders = targetETFs.map((etf) => {
+      // CLEAN-SLATE: Calculate target final shares directly from total liquidated value
+      const targetValue = (totalAvailableBudget * etf.targetPercentage) / 100;
+      const targetFinalShares = targetValue / etf.pricePerShare;
+
+      const floorTargetShares = Math.floor(targetFinalShares);
+      const remainder = targetFinalShares - floorTargetShares;
+
+      // Get current holdings for buy/sell calculation later
       const currentHolding = currentHoldings.find((h) => h.name === etf.name);
       const currentShares = currentHolding ? currentHolding.shares : 0;
-      const currentValue = currentShares * etf.pricePerShare;
-      const targetValue = (totalAvailableBudget * etf.targetPercentage) / 100;
-      const difference = Math.max(0, targetValue - currentValue);
-
-      const exactShares = difference / etf.pricePerShare;
-      const floorShares = Math.floor(exactShares);
-      const remainder = exactShares - floorShares;
 
       const order = {
         ticker: etf.name,
-        exactShares,
-        floorShares,
+        targetFinalShares, // CLEAN-SLATE: Target final shares to hold
+        floorTargetShares,
         remainder,
         price: etf.pricePerShare,
         targetValue,
-        currentValue,
-        difference,
-        currentHolding,
+        currentShares,
+        currentValue: currentShares * etf.pricePerShare,
       };
 
-      console.log(`Buy order for ${etf.name}:`, {
+      console.log(`Clean-slate target for ${etf.name}:`, {
         targetPercentage: etf.targetPercentage,
         targetValue,
-        currentValue,
-        difference,
-        exactShares,
-        floorShares,
+        targetFinalShares,
+        floorTargetShares,
         remainder,
+        currentShares,
+        currentValue: currentShares * etf.pricePerShare,
         price: etf.pricePerShare
       });
 
       return order;
     });
 
-    const totalTargetValue = buyOrders.reduce((sum, order) => sum + order.targetValue, 0);
-    console.log('Total target value across all buy orders:', totalTargetValue);
+    const totalTargetValue = finalSharesOrders.reduce((sum, order) => sum + order.targetValue, 0);
+    console.log('Total target value across all ETFs:', totalTargetValue);
     console.log('Total available budget:', totalAvailableBudget);
     console.log('Budget utilization target:', (totalTargetValue / totalAvailableBudget) * 100, '%');
 
-    return buyOrders;
+    return finalSharesOrders;
   }
 
   /**
-   * Multi-share promotion strategy (current frontend default)
+   * Enhanced budget utilization strategy - clean-slate approach for maximum cash deployment
    */
-  maximizeSharesStrategy(buyOrders, availableBudget) {
+  enhancedBudgetStrategy(buyOrders, availableBudget, input) {
+    console.log('=== ENHANCED CLEAN-SLATE BUDGET UTILIZATION STRATEGY ===');
+    console.log('Target: >95% budget utilization');
+
     const finalShares = new Map();
-    buyOrders.forEach((order) => finalShares.set(order.ticker, order.floorShares));
+    buyOrders.forEach((order) => finalShares.set(order.ticker, order.floorTargetShares));
 
     let remainingBudget =
-      availableBudget - buyOrders.reduce((sum, order) => sum + order.floorShares * order.price, 0);
+      availableBudget - buyOrders.reduce((sum, order) => sum + order.floorTargetShares * order.price, 0);
+
+    console.log('Initial remaining budget after target floor shares:', remainingBudget);
+
+    // CLEAN-SLATE PHASE 1: Optimize for target allocation (high remainder ETFs first)
+    const sortedByRemainder = [...buyOrders].sort((a, b) => b.remainder - a.remainder);
+
+    for (const order of sortedByRemainder) {
+      if (remainingBudget >= order.price) {
+        finalShares.set(order.ticker, order.floorTargetShares + 1);
+        remainingBudget -= order.price;
+        console.log(`Phase 1: Added 1 share to ${order.ticker} (remainder: ${order.remainder.toFixed(3)}), remaining: ${remainingBudget.toFixed(2)}`);
+      }
+    }
+
+    // CLEAN-SLATE PHASE 2: Allocate remaining budget while maintaining allocation balance
+    const sortedByPrice = [...buyOrders].sort((a, b) => a.price - b.price);
+    let iterations = 0;
+    const maxIterations = 100;
+
+    while (remainingBudget > sortedByPrice[0]?.price && iterations < maxIterations) {
+      let boughtThisIteration = false;
+
+      for (const order of sortedByPrice) {
+        if (remainingBudget >= order.price) {
+          const currentFinalShares = finalShares.get(order.ticker) || order.floorTargetShares;
+          const newValue = (currentFinalShares + 1) * order.price;
+          const actualPercentage = (newValue / availableBudget) * 100;
+
+          // Check if still within reasonable allocation bounds (±10% for final optimization)
+          const minTargetPercent = Math.max(0, order.targetPercentage - 10);
+          const maxTargetPercent = order.targetPercentage + 10;
+
+          if (actualPercentage <= maxTargetPercent) {
+            finalShares.set(order.ticker, currentFinalShares + 1);
+            remainingBudget -= order.price;
+            boughtThisIteration = true;
+            console.log(`Phase 2: Allocated to ${order.ticker} (${actualPercentage.toFixed(2)}% vs target ${order.targetPercentage}%), remaining: ${remainingBudget.toFixed(2)}`);
+            break;
+          } else {
+            console.log(`Phase 2: Skipping ${order.ticker} - would exceed ${maxTargetPercent}% (${actualPercentage.toFixed(2)}%)`);
+          }
+        }
+      }
+
+      if (!boughtThisIteration) break;
+      iterations++;
+    }
+
+    // CLEAN-SLATE PHASE 3: Final cash deployment to any ETF that can afford it
+    if (remainingBudget > sortedByPrice[0]?.price * 0.5) {
+      console.log(`Phase 3: Final cash deployment with remaining ${remainingBudget.toFixed(2)}`);
+
+      for (const order of sortedByPrice) {
+        if (remainingBudget >= order.price) {
+          const currentFinalShares = finalShares.get(order.ticker) || order.floorTargetShares;
+          finalShares.set(order.ticker, currentFinalShares + 1);
+          remainingBudget -= order.price;
+          console.log(`Phase 3: Final allocation to ${order.ticker}, remaining: ${remainingBudget.toFixed(2)}`);
+        }
+      }
+    }
+
+    const utilizationRate = ((availableBudget - remainingBudget) / availableBudget) * 100;
+    console.log(`=== CLEAN-SLATE ENHANCED BUDGET STRATEGY COMPLETE ===`);
+    console.log(`Final utilization rate: ${utilizationRate.toFixed(2)}%`);
+    console.log(`Remaining unused budget: ${remainingBudget.toFixed(2)} (${((remainingBudget/availableBudget)*100).toFixed(2)}%)`);
+    console.log(`Total iterations: ${iterations}`);
+
+    return finalShares;
+  }
+  maximizeSharesStrategy(buyOrders, availableBudget) {
+    const finalShares = new Map();
+    buyOrders.forEach((order) => finalShares.set(order.ticker, order.floorTargetShares));
+
+    let remainingBudget =
+      availableBudget - buyOrders.reduce((sum, order) => sum + order.floorTargetShares * order.price, 0);
 
     const sortedByPrice = [...buyOrders].sort((a, b) => a.price - b.price);
 
@@ -296,8 +378,8 @@ class PortfolioOptimizationService {
 
       for (const order of sortedByPrice) {
         if (order.price <= remainingBudget) {
-          const currentShares = finalShares.get(order.ticker) || 0;
-          finalShares.set(order.ticker, currentShares + 1);
+          const currentFinalShares = finalShares.get(order.ticker) || order.floorTargetShares;
+          finalShares.set(order.ticker, currentFinalShares + 1);
           remainingBudget -= order.price;
           promoted = true;
           break;
@@ -315,10 +397,10 @@ class PortfolioOptimizationService {
    */
   momentumWeightedStrategy(buyOrders, availableBudget, input) {
     const finalShares = new Map();
-    buyOrders.forEach((order) => finalShares.set(order.ticker, order.floorShares));
+    buyOrders.forEach((order) => finalShares.set(order.ticker, order.floorTargetShares));
 
     let remainingBudget =
-      availableBudget - buyOrders.reduce((sum, order) => sum + order.floorShares * order.price, 0);
+      availableBudget - buyOrders.reduce((sum, order) => sum + order.floorTargetShares * order.price, 0);
 
     // Calculate momentum efficiency (momentum / price)
     const efficiencyScores = buyOrders.map((order) => {
@@ -341,8 +423,8 @@ class PortfolioOptimizationService {
 
       for (const order of sortedByEfficiency) {
         if (order.price <= remainingBudget) {
-          const currentShares = finalShares.get(order.ticker) || 0;
-          finalShares.set(order.ticker, currentShares + 1);
+          const currentFinalShares = finalShares.get(order.ticker) || order.floorTargetShares;
+          finalShares.set(order.ticker, currentFinalShares + 1);
           remainingBudget -= order.price;
           promoted = true;
           break;
@@ -356,56 +438,57 @@ class PortfolioOptimizationService {
   }
 
   /**
-   * Minimize leftover budget strategy
+   * Minimize leftover budget strategy - clean-slate approach
    */
   minimizeLeftoverStrategy(buyOrders, availableBudget) {
     const finalShares = new Map();
-    buyOrders.forEach((order) => finalShares.set(order.ticker, order.floorShares));
+    buyOrders.forEach((order) => finalShares.set(order.ticker, order.floorTargetShares));
 
     let remainingBudget =
-      availableBudget - buyOrders.reduce((sum, order) => sum + order.floorShares * order.price, 0);
+      availableBudget - buyOrders.reduce((sum, order) => sum + order.floorTargetShares * order.price, 0);
 
-    console.log('=== MINIMIZE LEFTOVER STRATEGY DEBUG ===');
+    console.log('=== CLEAN-SLATE MINIMIZE LEFTOVER STRATEGY DEBUG ===');
     console.log('Initial remaining budget:', remainingBudget);
     console.log('Buy orders:', buyOrders.map(o => ({
       ticker: o.ticker,
       price: o.price,
-      floorShares: o.floorShares,
+      floorTargetShares: o.floorTargetShares,
+      targetPercentage: o.targetPercentage,
       remainder: o.remainder
     })));
 
-    // Sort by remainder (closest to next share)
+    // Sort by remainder (closest to next share) for target allocation optimization
     const sortedByRemainder = [...buyOrders].sort((a, b) => b.remainder - a.remainder);
 
-    // First pass: Buy one additional share for highest remainder ETFs
+    // First pass: Add shares for highest remainder ETFs (closest to target)
     for (const order of sortedByRemainder) {
       if (remainingBudget >= order.price) {
-        finalShares.set(order.ticker, order.floorShares + 1);
+        finalShares.set(order.ticker, order.floorTargetShares + 1);
         remainingBudget -= order.price;
-        console.log(`Bought 1 additional share of ${order.ticker}, remaining budget: ${remainingBudget}`);
+        console.log(`Added 1 share to ${order.ticker} (remainder: ${order.remainder.toFixed(3)}), remaining: ${remainingBudget}`);
       }
     }
 
-    // Second pass: Continue buying cheapest ETFs until budget is nearly exhausted
+    // Second pass: Buy cheapest ETFs to minimize leftover budget
     const sortedByPrice = [...buyOrders].sort((a, b) => a.price - b.price);
     let iterations = 0;
-    const maxIterations = 100; // Prevent infinite loops
-    
+    const maxIterations = 100;
+
     while (remainingBudget > sortedByPrice[0]?.price && iterations < maxIterations) {
       let boughtThisIteration = false;
-      
+
       for (const order of sortedByPrice) {
         if (remainingBudget >= order.price) {
-          const currentShares = finalShares.get(order.ticker) || 0;
-          finalShares.set(order.ticker, currentShares + 1);
+          const currentFinalShares = finalShares.get(order.ticker) || order.floorTargetShares;
+          finalShares.set(order.ticker, currentFinalShares + 1);
           remainingBudget -= order.price;
           boughtThisIteration = true;
           console.log(`Bought additional share of ${order.ticker} (price: ${order.price}), remaining: ${remainingBudget}`);
-          break; // Buy one share per iteration to distribute evenly
+          break;
         }
       }
-      
-      if (!boughtThisIteration) break; // No more purchases possible
+
+      if (!boughtThisIteration) break;
       iterations++;
     }
 
@@ -422,61 +505,70 @@ class PortfolioOptimizationService {
   formatHeuristicResult(finalShares, input, totalAvailableBudget) {
     const { currentHoldings = [], targetETFs } = input;
 
-    console.log('=== FORMAT HEURISTIC RESULT DEBUG ===');
+    console.log('=== FORMAT CLEAN-SLATE HEURISTIC RESULT DEBUG ===');
     console.log('Final shares allocated:', Object.fromEntries(finalShares));
     console.log('Target ETFs for result formatting:', targetETFs.map(t => ({ name: t.name, targetPercentage: t.targetPercentage })));
 
     const allocations = [];
-    let totalBudgetUsed = 0;
+    let totalFinalPortfolioValue = 0;
 
     targetETFs.forEach((etf) => {
-      const shares = finalShares.get(etf.name) || 0;
+      const finalSharesCount = finalShares.get(etf.name) || 0;
       const currentHolding = currentHoldings.find((h) => h.name === etf.name);
       const currentShares = currentHolding ? currentHolding.shares : 0;
-      const sharesToBuy = Math.max(0, shares - currentShares);
+
+      // CLEAN-SLATE: Calculate buy/sell from final vs current comparison
+      const sharesToBuy = Math.max(0, finalSharesCount - currentShares);
+      const sharesToSell = Math.max(0, currentShares - finalSharesCount);
+
       const costOfPurchase = sharesToBuy * etf.pricePerShare;
-      const finalValue = shares * etf.pricePerShare;
+      const proceedsFromSale = sharesToSell * etf.pricePerShare;
+      const finalValue = finalSharesCount * etf.pricePerShare;
+
       const targetPercentage = etf.targetPercentage;
       const actualPercentage = (finalValue / totalAvailableBudget) * 100;
       const deviation = actualPercentage - targetPercentage;
 
-      totalBudgetUsed += costOfPurchase;
+      totalFinalPortfolioValue += finalValue;
 
       const allocation = {
         etfName: etf.name,
         currentShares,
+        finalShares: finalSharesCount, // CLEAN-SLATE: Final shares to hold
         sharesToBuy,
-        finalShares: shares,
-        costOfPurchase,
+        sharesToSell,
         finalValue,
         targetPercentage,
         actualPercentage,
         deviation,
       };
 
-      console.log(`Final allocation for ${etf.name}:`, {
+      console.log(`Clean-slate allocation for ${etf.name}:`, {
         targetPercentage,
         actualPercentage,
         deviation,
         finalValue,
-        costOfPurchase,
-        sharesToBuy
+        currentShares,
+        finalSharesCount,
+        sharesToBuy,
+        sharesToSell
       });
 
       allocations.push(allocation);
     });
 
-    const unusedBudget = totalAvailableBudget - totalBudgetUsed;
+    // CLEAN-SLATE: Budget utilization is final portfolio value vs total liquidated value
+    const unusedBudget = totalAvailableBudget - totalFinalPortfolioValue;
     const unusedPercentage = (unusedBudget / totalAvailableBudget) * 100;
 
-    console.log('=== HEURISTIC CASH UTILIZATION ANALYSIS ===');
-    console.log('Total available budget:', totalAvailableBudget);
-    console.log('Total budget used:', totalBudgetUsed);
-    console.log('Unused budget:', unusedBudget);
+    console.log('=== CLEAN-SLATE HEURISTIC CASH UTILIZATION ANALYSIS ===');
+    console.log('Total liquidated value (budget):', totalAvailableBudget);
+    console.log('Final portfolio value:', totalFinalPortfolioValue);
+    console.log('Unused budget (cash remaining):', unusedBudget);
     console.log('Unused percentage:', unusedPercentage.toFixed(2) + '%');
-    console.log('Cash utilization rate:', (100 - unusedPercentage).toFixed(2) + '%');
+    console.log('Budget utilization rate:', (100 - unusedPercentage).toFixed(2) + '%');
     console.log('Final optimization summary:', {
-      totalBudgetUsed,
+      totalFinalPortfolioValue,
       unusedBudget,
       unusedPercentage,
       totalAllocations: allocations.length,
@@ -484,17 +576,18 @@ class PortfolioOptimizationService {
     });
 
     if (unusedPercentage > 10) {
-      console.warn('=== HEURISTIC CASH UTILIZATION PROBLEM DETECTED ===');
-      console.warn('High unused cash percentage:', unusedPercentage.toFixed(2) + '%');
-      console.warn('This indicates a problem with heuristic optimization logic');
-      
+      console.warn('=== CLEAN-SLATE CASH UTILIZATION WARNING ===');
+      console.warn('Unused cash percentage:', unusedPercentage.toFixed(2) + '%');
+      console.warn('This could indicate suboptimal budget utilization');
+
       // Analyze individual allocations for issues
       allocations.forEach(allocation => {
         if (allocation.finalShares === 0 && allocation.targetPercentage > 0) {
-          console.warn(`ETF ${allocation.etfName} has 0 shares but ${allocation.targetPercentage}% target`);
+          console.warn(`ETF ${allocation.etfName} has 0 final shares but ${allocation.targetPercentage}% target`);
         }
-        if (allocation.costOfPurchase === 0 && allocation.sharesToBuy > 0) {
-          console.warn(`ETF ${allocation.etfName} has sharesToBuy > 0 but costOfPurchase = 0`);
+        const deviationMagnitude = Math.abs(allocation.deviation);
+        if (deviationMagnitude > 5) {
+          console.warn(`ETF ${allocation.etfName} has high deviation: ${deviationMagnitude.toFixed(2)}%`);
         }
       });
     }
@@ -504,7 +597,7 @@ class PortfolioOptimizationService {
       allocations,
       holdingsToSell: this.identifyHoldingsToSell(currentHoldings, targetETFs),
       optimizationMetrics: {
-        totalBudgetUsed,
+        totalBudgetUsed: totalFinalPortfolioValue, // CLEAN-SLATE: Final portfolio value
         unusedBudget,
         unusedPercentage,
         optimizationTime: 0, // Heuristics are typically very fast

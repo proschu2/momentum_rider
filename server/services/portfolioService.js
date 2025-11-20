@@ -177,21 +177,45 @@ class PortfolioService {
         console.error('Failed to write debug file:', err);
       }
 
-      // Add IBIT if specified and not already in top performers
+      // Add IBIT only if specified AND its momentum is positive
       if (includeIBIT && !positiveETFs.find(etf => etf.ticker === 'IBIT')) {
-        let ibitPrice = 52.0; // Reasonable fallback price for IBIT
+        // Check IBIT momentum first
+        const momentumService = require('./momentumService');
+        let ibitMomentum;
+
         try {
-          const priceResult = await financeService.getCurrentPrice('IBIT');
-          ibitPrice = priceResult.price || ibitPrice;
-        } catch (priceError) {
-          console.warn(`Failed to get current price for IBIT:`, priceError.message);
+          ibitMomentum = await momentumService.calculateMomentum('IBIT');
+          console.log('IBIT momentum check:', {
+            includeIBIT,
+            compositeScore: ibitMomentum.average,
+            absoluteMomentum: ibitMomentum.absoluteMomentum,
+            willInclude: ibitMomentum.absoluteMomentum
+          });
+        } catch (momentumError) {
+          console.warn(`Failed to calculate IBIT momentum:`, momentumError.message);
+          ibitMomentum = { absoluteMomentum: false, average: 0 };
         }
 
-        positiveETFs.push({
-          ticker: 'IBIT',
-          score: 0, // Fixed allocation
-          price: ibitPrice
-        });
+        // Only add IBIT if its momentum is positive
+        if (ibitMomentum.absoluteMomentum) {
+          let ibitPrice = 52.0; // Reasonable fallback price for IBIT
+          try {
+            const priceResult = await financeService.getCurrentPrice('IBIT');
+            ibitPrice = priceResult.price || ibitPrice;
+          } catch (priceError) {
+            console.warn(`Failed to get current price for IBIT:`, priceError.message);
+          }
+
+          positiveETFs.push({
+            ticker: 'IBIT',
+            score: ibitMomentum.average, // Use actual momentum score instead of 0
+            price: ibitPrice
+          });
+
+          console.log('IBIT included in momentum strategy - momentum is positive');
+        } else {
+          console.log('IBIT excluded from momentum strategy - momentum is negative');
+        }
       }
 
       // If no positive ETFs, use fallback
@@ -211,10 +235,11 @@ class PortfolioService {
         });
       }
 
-      // Calculate equal allocations (except IBIT which gets fixed 4%)
+      // Calculate equal allocations (IBIT gets fixed 4% only if included with positive momentum)
       const allocations = {};
       const activeETFs = positiveETFs.filter(etf => etf.ticker !== 'IBIT');
-      const remainingAllocation = includeIBIT ? 96 : 100;
+      const ibitIncluded = positiveETFs.find(etf => etf.ticker === 'IBIT');
+      const remainingAllocation = ibitIncluded ? 96 : 100;
 
       if (activeETFs.length > 0) {
         const equalAllocation = remainingAllocation / activeETFs.length;
@@ -223,7 +248,8 @@ class PortfolioService {
         });
       }
 
-      if (includeIBIT) {
+      // Only add IBIT allocation if it's included (has positive momentum)
+      if (ibitIncluded) {
         allocations.IBIT = 4;
       }
 

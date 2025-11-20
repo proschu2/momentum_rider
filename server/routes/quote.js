@@ -19,7 +19,7 @@ router.get(
   async (req, res) => {
     try {
       const { ticker } = req.params;
-      const quoteData = await financeService.getQuote(ticker);
+      const quoteData = await financeService.getCurrentPrice(ticker);
       res.json(quoteData);
     } catch (error) {
       logger.logError(error, req);

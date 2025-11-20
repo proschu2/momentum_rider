@@ -372,15 +372,15 @@
       <h2 class="section-title">Strategy Analysis Results</h2>
 
       <div class="results-grid">
-        <!-- Current vs Target Comparison -->
+        <!-- Current vs Target Portfolio Composition -->
         <div class="result-card">
-          <h3 class="card-title">Portfolio Comparison</h3>
-          <div class="comparison-table">
+          <h3 class="card-title">Portfolio Rebalancing Summary</h3>
+          <div class="rebalancing-table">
             <div class="table-header">
               <span>ETF</span>
-              <span>Current</span>
-              <span>Target</span>
-              <span>Action</span>
+              <span>Current Holdings</span>
+              <span>Target Allocation</span>
+              <span>Change</span>
             </div>
             <div
               v-for="comparison in filteredPortfolioComparison"
@@ -391,8 +391,11 @@
               <span class="current-value">${{ comparison?.currentValue?.toLocaleString() || '0' }}</span>
               <span class="target-value">${{ comparison?.targetValue?.toLocaleString() || '0' }}</span>
               <span :class="['action-badge', comparison.action]">
-                {{ comparison.action }}
+                {{ comparison.action.toUpperCase() }}
               </span>
+            </div>
+            <div class="rebalancing-note">
+              <small>*Target values include rebalanced portfolio composition</small>
             </div>
           </div>
         </div>
@@ -823,7 +826,8 @@ const analyzeStrategy = async () => {
         selectedETFs: selectedETFs.value,
         additionalCapital: props.portfolio ? props.portfolio.additionalCash : 0,
         currentHoldings: analysisRequest.currentHoldings,
-        objectives: objectives
+        objectives: objectives,
+        strategyAnalysis: analysis // ENHANCED: Pass strategy analysis results for proper target allocations
       })
       console.log('Optimization service returned:', optimizationResult)
     } catch (optimizationError) {
@@ -885,10 +889,10 @@ const analyzeStrategy = async () => {
           executionPlan.value = validAllocations
             .filter((allocation: any): allocation is NonNullable<typeof allocation> => {
               try {
-                return allocation && (
-                  (Number(allocation.sharesToBuy) > 0) ||
-                  (allocation.holdingsToSell && Array.isArray(allocation.holdingsToSell) && allocation.holdingsToSell.length > 0)
-                )
+                // Clean-slate: Include allocation if there's any action (buy OR sell)
+                const sharesToBuy = Number(allocation.sharesToBuy) || 0
+                const sharesToSell = Number(allocation.sharesToSell) || 0
+                return allocation && (sharesToBuy > 0 || sharesToSell > 0)
               } catch (error) {
                 console.warn('Error filtering allocation:', allocation, error)
                 return false
@@ -896,11 +900,26 @@ const analyzeStrategy = async () => {
             })
             .map((allocation: any) => {
               try {
-                // Determine if this is a buy or sell action
-                const isBuy = Number(allocation.sharesToBuy) > 0
-                const sharesToTrade = isBuy ? (Number(allocation.sharesToBuy) || 0) :
-                  (allocation.holdingsToSell && Array.isArray(allocation.holdingsToSell) ?
-                    allocation.holdingsToSell.reduce((sum: number, h: any) => sum + (Number(h.shares) || 0), 0) : 0)
+                // Clean-slate: Use the proper buy/sell logic from LP service
+                const sharesToBuy = Number(allocation.sharesToBuy) || 0
+                const sharesToSell = Number(allocation.sharesToSell) || 0
+
+                // Determine action and shares to trade
+                let action: 'buy' | 'sell' | 'hold' = 'hold'
+                let sharesToTrade = 0
+
+                if (sharesToBuy > 0 && sharesToSell === 0) {
+                  action = 'buy'
+                  sharesToTrade = sharesToBuy
+                } else if (sharesToSell > 0 && sharesToBuy === 0) {
+                  action = 'sell'
+                  sharesToTrade = sharesToSell
+                } else if (sharesToBuy > 0 && sharesToSell > 0) {
+                  // This shouldn't happen in clean-slate, but handle it
+                  console.warn(`Unexpected both buy and sell for ${allocation.etf}: buy=${sharesToBuy}, sell=${sharesToSell}`)
+                  action = sharesToBuy > sharesToSell ? 'buy' : 'sell'
+                  sharesToTrade = Math.max(sharesToBuy, sharesToSell)
+                }
 
                 // Calculate price with fallbacks
                 let price = 100 // Default fallback
@@ -910,13 +929,21 @@ const analyzeStrategy = async () => {
                   price = Number(allocation.finalValue) / Number(allocation.finalShares)
                 }
 
+                // Determine reason based on clean-slate rebalancing
+                let reason = 'On target'
+                if (action === 'buy') {
+                  reason = 'Underweight'
+                } else if (action === 'sell') {
+                  reason = allocation.targetPercentage === 0 ? 'Not in target allocation' : 'Overweight'
+                }
+
                 return {
-                  etf: allocation.etf || allocation.etfName || 'UNKNOWN',
-                  action: isBuy ? ('buy' as const) : ('sell' as const),
+                  etf: allocation.etf,
+                  action: action as 'buy' | 'sell',
                   shares: sharesToTrade,
-                  value: Number(allocation.targetValue || allocation.finalValue || 0),
+                  value: action === 'buy' ? sharesToTrade * price : Number(allocation.finalValue || 0),
                   price: price,
-                  reason: allocation.deviation > 0 ? 'Overweight' : allocation.deviation < 0 ? 'Underweight' : 'On target'
+                  reason: reason
                 }
               } catch (error) {
                 console.warn('Error mapping allocation to trade:', allocation, error)
@@ -936,48 +963,78 @@ const analyzeStrategy = async () => {
         }
       }
 
-      // ALWAYS generate portfolio comparison and fallback execution plan
-      // Use optimization target values if available, otherwise fall back to analysis target values
-      const targetValues = optimizationResult?.targetValues || analysis.targetValues || {}
+      // CLEAN-SLATE: Use optimization allocations directly for portfolio comparison
+      if (optimizationResult?.allocations && Array.isArray(optimizationResult.allocations)) {
+        console.log('Using clean-slate optimization allocations for portfolio comparison')
 
-      // First, create comparison for ETFs that are in the target strategy
-      const targetETFComparisons = selectedETFs.value.map(etf => {
-        const currentValue = analysis.currentValues[etf] || 0
-        const targetValue = targetValues[etf] || 0
+        const cleanSlateComparisons = optimizationResult.allocations.map(allocation => {
+          const etf = allocation.etf  // Portfolio service maps etfName -> etf
+          const currentValue = analysis.currentValues?.[etf] || 0
+          const targetValue = allocation.finalValue || 0
 
-        let action: 'buy' | 'sell' | 'hold' = 'hold'
-        if (targetValue > currentValue * 1.05) action = 'buy'
-        else if (targetValue < currentValue * 0.95) action = 'sell'
+          console.log('Processing allocation:', {
+            etf,
+            currentValue,
+            targetValue,
+            sharesToBuy: allocation.sharesToBuy,
+            sharesToSell: allocation.sharesToSell,
+            finalShares: allocation.finalShares
+          })
 
-        return { etf, currentValue, targetValue, action }
-      })
+          // Use the action from clean-slate optimization
+          let action: 'buy' | 'sell' | 'hold' = 'hold'
+          if (allocation.sharesToBuy > 0) {
+            action = 'buy'
+          } else if (allocation.sharesToSell > 0) {
+            action = 'sell'
+          }
 
-      // Next, identify holdings that are NOT in the target strategy and should be sold
-      const currentHoldingETFs = Object.keys(analysis.currentValues || {})
-      const nonTargetHoldings = currentHoldingETFs.filter(etf =>
-        !selectedETFs.value.includes(etf) && (analysis.currentValues?.[etf] || 0) > 0
-      )
+          return { etf, currentValue, targetValue, action }
+        })
 
-      const sellComparisons = nonTargetHoldings.map(etf => {
-        const currentValue = analysis.currentValues[etf] || 0
-        return {
-          etf,
-          currentValue,
-          targetValue: 0,
-          action: 'sell' as const
-        }
-      })
+        portfolioComparison.value = cleanSlateComparisons
+        console.log('Portfolio comparison generated from clean-slate allocations:', cleanSlateComparisons)
+      } else {
+        // Fallback to original logic if no optimization results
+        console.log('No optimization allocations available, using fallback logic')
+        const targetValues = optimizationResult?.targetValues || analysis.targetValues || {}
 
-      // Combine both comparisons
-      portfolioComparison.value = [...targetETFComparisons, ...sellComparisons]
+        // First, create comparison for ETFs that are in the target strategy
+        const targetETFComparisons = selectedETFs.value.map(etf => {
+          const currentValue = analysis.currentValues[etf] || 0
+          const targetValue = targetValues[etf] || 0
 
-      console.log('Portfolio comparison generated using target values:', targetValues)
-      console.log('Non-target holdings to sell:', nonTargetHoldings)
+          let action: 'buy' | 'sell' | 'hold' = 'hold'
+          if (targetValue > currentValue * 1.05) action = 'buy'
+          else if (targetValue < currentValue * 0.95) action = 'sell'
 
-      // Always generate fallback execution plan to ensure we have both BUY and SELL actions
-      // This will be used if optimization service doesn't provide a complete plan
-      if (executionPlan.value.length === 0 || !executionPlan.value.some(trade => trade.action === 'sell')) {
-        console.log('Generating/enhancing execution plan from portfolio comparison')
+          return { etf, currentValue, targetValue, action }
+        })
+
+        // Next, identify holdings that are NOT in the target strategy and should be sold
+        const currentHoldingETFs = Object.keys(analysis.currentValues || {})
+        const nonTargetHoldings = currentHoldingETFs.filter(etf =>
+          !selectedETFs.value.includes(etf) && (analysis.currentValues?.[etf] || 0) > 0
+        )
+
+        const sellComparisons = nonTargetHoldings.map(etf => {
+          const currentValue = analysis.currentValues[etf] || 0
+          return {
+            etf,
+            currentValue,
+            targetValue: 0,
+            action: 'sell' as const
+          }
+        })
+
+        // Combine both comparisons
+        portfolioComparison.value = [...targetETFComparisons, ...sellComparisons]
+      }
+
+      // CLEAN-SLATE: Only generate fallback execution plan if no optimization results at all
+      // The clean-slate optimization should provide complete execution plan
+      if (!optimizationResult?.allocations && (executionPlan.value.length === 0 || !executionPlan.value.some(trade => trade.action === 'sell'))) {
+        console.log('No optimization results, generating fallback execution plan from portfolio comparison')
         
         // Generate trades for all comparisons (both target and non-target)
         const fallbackTrades = portfolioComparison.value

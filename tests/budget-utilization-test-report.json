@@ -1,0 +1,1077 @@
+{
+  "summary": {
+    "totalTests": 81,
+    "successfulTests": 0,
+    "failedTests": 81,
+    "totalTestTime": 9813,
+    "avgUtilization": 0,
+    "issuesBySeverity": {
+      "high": 81,
+      "medium": 0,
+      "low": 0
+    }
+  },
+  "worstPerformers": [],
+  "allResults": [
+    {
+      "testName": "Small Portfolio - $1000",
+      "input": {
+        "budget": 1000,
+        "etfCount": 4,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Small Portfolio - $1000",
+      "input": {
+        "budget": 1000,
+        "etfCount": 4,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Small Portfolio - $1000",
+      "input": {
+        "budget": 1000,
+        "etfCount": 4,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Small Portfolio - $1000",
+      "input": {
+        "budget": 1000,
+        "etfCount": 4,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Small Portfolio - $2500",
+      "input": {
+        "budget": 2500,
+        "etfCount": 4,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Small Portfolio - $2500",
+      "input": {
+        "budget": 2500,
+        "etfCount": 4,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Small Portfolio - $2500",
+      "input": {
+        "budget": 2500,
+        "etfCount": 4,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Small Portfolio - $2500",
+      "input": {
+        "budget": 2500,
+        "etfCount": 4,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Small Portfolio - $5000",
+      "input": {
+        "budget": 5000,
+        "etfCount": 4,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Small Portfolio - $5000",
+      "input": {
+        "budget": 5000,
+        "etfCount": 4,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Small Portfolio - $5000",
+      "input": {
+        "budget": 5000,
+        "etfCount": 4,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Small Portfolio - $5000",
+      "input": {
+        "budget": 5000,
+        "etfCount": 4,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Small Portfolio - $7500",
+      "input": {
+        "budget": 7500,
+        "etfCount": 4,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Small Portfolio - $7500",
+      "input": {
+        "budget": 7500,
+        "etfCount": 4,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Small Portfolio - $7500",
+      "input": {
+        "budget": 7500,
+        "etfCount": 4,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Small Portfolio - $7500",
+      "input": {
+        "budget": 7500,
+        "etfCount": 4,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Small Portfolio - $10000",
+      "input": {
+        "budget": 10000,
+        "etfCount": 4,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Small Portfolio - $10000",
+      "input": {
+        "budget": 10000,
+        "etfCount": 4,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Small Portfolio - $10000",
+      "input": {
+        "budget": 10000,
+        "etfCount": 4,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Small Portfolio - $10000",
+      "input": {
+        "budget": 10000,
+        "etfCount": 4,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Medium Portfolio - $15000",
+      "input": {
+        "budget": 15000,
+        "etfCount": 6,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Medium Portfolio - $15000",
+      "input": {
+        "budget": 15000,
+        "etfCount": 6,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Medium Portfolio - $15000",
+      "input": {
+        "budget": 15000,
+        "etfCount": 5,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Medium Portfolio - $15000",
+      "input": {
+        "budget": 15000,
+        "etfCount": 3,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Medium Portfolio - $15000",
+      "input": {
+        "budget": 15000,
+        "etfCount": 3,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Medium Portfolio - $25000",
+      "input": {
+        "budget": 25000,
+        "etfCount": 6,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Medium Portfolio - $25000",
+      "input": {
+        "budget": 25000,
+        "etfCount": 6,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Medium Portfolio - $25000",
+      "input": {
+        "budget": 25000,
+        "etfCount": 5,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Medium Portfolio - $25000",
+      "input": {
+        "budget": 25000,
+        "etfCount": 3,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Medium Portfolio - $25000",
+      "input": {
+        "budget": 25000,
+        "etfCount": 3,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Medium Portfolio - $50000",
+      "input": {
+        "budget": 50000,
+        "etfCount": 6,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Medium Portfolio - $50000",
+      "input": {
+        "budget": 50000,
+        "etfCount": 6,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Medium Portfolio - $50000",
+      "input": {
+        "budget": 50000,
+        "etfCount": 5,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Medium Portfolio - $50000",
+      "input": {
+        "budget": 50000,
+        "etfCount": 3,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Medium Portfolio - $50000",
+      "input": {
+        "budget": 50000,
+        "etfCount": 3,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Medium Portfolio - $75000",
+      "input": {
+        "budget": 75000,
+        "etfCount": 6,
+        "holdingsCount": 2
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Medium Portfolio - $75000",
+      "input": {
+        "budget": 75000,
+        "etfCount": 6,
+        "holdingsCount": 2
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Medium Portfolio - $75000",
+      "input": {
+        "budget": 75000,
+        "etfCount": 5,
+        "holdingsCount": 2
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Medium Portfolio - $75000",
+      "input": {
+        "budget": 75000,
+        "etfCount": 3,
+        "holdingsCount": 2
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Medium Portfolio - $75000",
+      "input": {
+        "budget": 75000,
+        "etfCount": 3,
+        "holdingsCount": 2
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Medium Portfolio - $100000",
+      "input": {
+        "budget": 100000,
+        "etfCount": 6,
+        "holdingsCount": 2
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Medium Portfolio - $100000",
+      "input": {
+        "budget": 100000,
+        "etfCount": 6,
+        "holdingsCount": 2
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Medium Portfolio - $100000",
+      "input": {
+        "budget": 100000,
+        "etfCount": 5,
+        "holdingsCount": 2
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Medium Portfolio - $100000",
+      "input": {
+        "budget": 100000,
+        "etfCount": 3,
+        "holdingsCount": 2
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Medium Portfolio - $100000",
+      "input": {
+        "budget": 100000,
+        "etfCount": 3,
+        "holdingsCount": 2
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Large Portfolio - $150000",
+      "input": {
+        "budget": 150000,
+        "etfCount": 8,
+        "holdingsCount": 3
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Large Portfolio - $150000",
+      "input": {
+        "budget": 150000,
+        "etfCount": 8,
+        "holdingsCount": 3
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Large Portfolio - $150000",
+      "input": {
+        "budget": 150000,
+        "etfCount": 6,
+        "holdingsCount": 3
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Large Portfolio - $150000",
+      "input": {
+        "budget": 150000,
+        "etfCount": 6,
+        "holdingsCount": 3
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Large Portfolio - $250000",
+      "input": {
+        "budget": 250000,
+        "etfCount": 8,
+        "holdingsCount": 3
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Large Portfolio - $250000",
+      "input": {
+        "budget": 250000,
+        "etfCount": 8,
+        "holdingsCount": 3
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Large Portfolio - $250000",
+      "input": {
+        "budget": 250000,
+        "etfCount": 6,
+        "holdingsCount": 3
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Large Portfolio - $250000",
+      "input": {
+        "budget": 250000,
+        "etfCount": 6,
+        "holdingsCount": 3
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Large Portfolio - $500000",
+      "input": {
+        "budget": 500000,
+        "etfCount": 8,
+        "holdingsCount": 3
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Large Portfolio - $500000",
+      "input": {
+        "budget": 500000,
+        "etfCount": 8,
+        "holdingsCount": 3
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Large Portfolio - $500000",
+      "input": {
+        "budget": 500000,
+        "etfCount": 6,
+        "holdingsCount": 3
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Large Portfolio - $500000",
+      "input": {
+        "budget": 500000,
+        "etfCount": 6,
+        "holdingsCount": 3
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Large Portfolio - $1000000",
+      "input": {
+        "budget": 1000000,
+        "etfCount": 8,
+        "holdingsCount": 3
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Large Portfolio - $1000000",
+      "input": {
+        "budget": 1000000,
+        "etfCount": 8,
+        "holdingsCount": 3
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Large Portfolio - $1000000",
+      "input": {
+        "budget": 1000000,
+        "etfCount": 6,
+        "holdingsCount": 3
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Large Portfolio - $1000000",
+      "input": {
+        "budget": 1000000,
+        "etfCount": 6,
+        "holdingsCount": 3
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "High Price ETFs - $5000",
+      "input": {
+        "budget": 5000,
+        "etfCount": 4,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "High Price ETFs - $15000",
+      "input": {
+        "budget": 15000,
+        "etfCount": 4,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "High Price ETFs - $50000",
+      "input": {
+        "budget": 50000,
+        "etfCount": 4,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Low Price ETFs - $2500",
+      "input": {
+        "budget": 2500,
+        "etfCount": 4,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Low Price ETFs - $10000",
+      "input": {
+        "budget": 10000,
+        "etfCount": 4,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Low Price ETFs - $25000",
+      "input": {
+        "budget": 25000,
+        "etfCount": 4,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Mixed Price ETFs - $10000",
+      "input": {
+        "budget": 10000,
+        "etfCount": 6,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Mixed Price ETFs - $50000",
+      "input": {
+        "budget": 50000,
+        "etfCount": 6,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Mixed Price ETFs - $100000",
+      "input": {
+        "budget": 100000,
+        "etfCount": 6,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Strategy: minimize-leftover",
+      "input": {
+        "budget": 50000,
+        "etfCount": 5,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Strategy: maximize-shares",
+      "input": {
+        "budget": 50000,
+        "etfCount": 5,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Strategy: momentum-weighted",
+      "input": {
+        "budget": 50000,
+        "etfCount": 5,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Momentum Top-2",
+      "input": {
+        "budget": 25000,
+        "etfCount": 5,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Momentum Top-3",
+      "input": {
+        "budget": 25000,
+        "etfCount": 5,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Momentum Top-4",
+      "input": {
+        "budget": 25000,
+        "etfCount": 5,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Momentum Top-5",
+      "input": {
+        "budget": 25000,
+        "etfCount": 5,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Very Small Budget",
+      "input": {
+        "budget": 500,
+        "etfCount": 1,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "High Price + Small Budget",
+      "input": {
+        "budget": 2000,
+        "etfCount": 2,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Large Holdings + Small Cash",
+      "input": {
+        "budget": 1000,
+        "etfCount": 3,
+        "holdingsCount": 2
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    },
+    {
+      "testName": "Single ETF",
+      "input": {
+        "budget": 10000,
+        "etfCount": 1,
+        "holdingsCount": 0
+      },
+      "error": "Cannot read properties of undefined (reading 'toFixed')",
+      "issues": [
+        "Test execution failed: Cannot read properties of undefined (reading 'toFixed')"
+      ],
+      "severity": "high"
+    }
+  ],
+  "analysis": {
+    "smallBudgetIssues": [],
+    "largeBudgetIssues": [],
+    "strategyIssues": {},
+    "etfCountIssues": {},
+    "fallbackUsage": 0
+  }
+}

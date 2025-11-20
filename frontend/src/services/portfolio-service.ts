@@ -44,6 +44,7 @@ export interface OptimizationRequest extends AnalysisRequest {
       deviation?: number
     }
   }
+  strategyAnalysis?: StrategyAnalysis // Include strategy analysis results
 }
 
 export interface StrategyAnalysis {
@@ -145,7 +146,7 @@ class PortfolioService {
   private baseUrl: string
 
   constructor() {
-    this.baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002/api'
+    this.baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api'
   }
 
   /**
@@ -180,11 +181,56 @@ class PortfolioService {
   }
 
   /**
-   * Optimize portfolio allocation using existing linear programming service
+   * Optimize portfolio allocation using enhanced optimization with budget utilization focus
    */
   async optimizePortfolio(request: OptimizationRequest): Promise<PortfolioOptimization> {
-    console.log('=== Portfolio Service optimizePortfolio Debug ===')
+    console.log('=== Portfolio Service optimizePortfolio Debug (Enhanced) ===')
     console.log('Request payload:', JSON.stringify(request, null, 2))
+
+    // Transform request to use enhanced optimization endpoint with budget focus
+    const enhancedRequest = {
+      currentHoldings: await this.enrichCurrentHoldingsWithRealPrices(request.currentHoldings || []),
+      targetETFs: await this.buildTargetETFsFromStrategy(request.strategyAnalysis, request.selectedETFs),
+      extraCash: request.additionalCapital || 0,
+      // Use enhanced budget strategy by default with proper objectives
+      objectives: {
+        useAllBudget: true,
+        maximizeUtilization: true,
+        budgetWeight: 0.8,
+        fairnessWeight: 0.2,
+        utilizationDeviation: 5
+      }
+    }
+
+    console.log('Enhanced request for /optimization/rebalance:', JSON.stringify(enhancedRequest, null, 2))
+
+    const response = await fetch(`${this.baseUrl}/optimization/rebalance`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(enhancedRequest),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      console.error('Enhanced Optimization API Error Response:', error)
+      // Fallback to original endpoint if enhanced fails
+      return this.fallbackToOriginalOptimization(request)
+    }
+
+    const result = await response.json()
+    console.log('Enhanced Optimization API Success Response:', result)
+
+    // Transform enhanced response back to expected format
+    return this.transformEnhancedResponse(result, request)
+  }
+
+  /**
+   * Fallback to original optimization endpoint
+   */
+  private async fallbackToOriginalOptimization(request: OptimizationRequest): Promise<PortfolioOptimization> {
+    console.log('Falling back to original optimization endpoint')
 
     const response = await fetch(`${this.baseUrl}/portfolio/optimize`, {
       method: 'POST',
@@ -196,16 +242,240 @@ class PortfolioService {
 
     if (!response.ok) {
       const error = await response.json()
-      console.error('Optimization API Error Response:', error)
       throw new Error(error.error || 'Portfolio optimization failed')
     }
 
     const result = await response.json()
-    console.log('Optimization API Success Response - Optimization keys:', Object.keys(result.optimization || {}))
-    console.log('Optimization API Success Response - isOptimal:', result.optimization?.isOptimal)
-    console.log('Optimization API Success Response - utilizedCapital:', result.optimization?.utilizedCapital)
-
     return result.optimization
+  }
+
+  /**
+   * Build targetETFs from strategy analysis results with real prices
+   */
+  private async buildTargetETFsFromStrategy(strategyAnalysis: StrategyAnalysis | undefined, selectedETFs: string[]) {
+    console.log('=== Building Target ETFs with Real Prices ===')
+
+    if (strategyAnalysis && strategyAnalysis.targetAllocations) {
+      const etfs = Object.entries(strategyAnalysis.targetAllocations)
+      console.log('ETFs from strategy analysis:', etfs.map(([etf, pct]) => `${etf}: ${pct}%`))
+
+      // Fetch real prices for all target ETFs
+      const targetETFs = await Promise.all(
+        etfs.map(async ([etf, percentage]) => {
+          try {
+            const priceResponse = await fetch(`${this.baseUrl}/quote/${etf}`)
+            if (priceResponse.ok) {
+              const priceData = await priceResponse.json()
+              const realPrice = priceData.price
+              console.log(`Real price for target ${etf}: $${realPrice.toFixed(2)} (was placeholder: $1)`)
+
+              return {
+                name: etf,
+                targetPercentage: percentage,
+                pricePerShare: realPrice,
+                allowedDeviation: 5 // ±5% allocation tolerance
+              }
+            } else {
+              console.warn(`Failed to fetch price for target ${etf}, using estimated price`)
+              return {
+                name: etf,
+                targetPercentage: percentage,
+                pricePerShare: this.getEstimatedPriceForETF(etf),
+                allowedDeviation: 5
+              }
+            }
+          } catch (error) {
+            console.error(`Error fetching price for target ${etf}:`, error)
+            return {
+              name: etf,
+              targetPercentage: percentage,
+              pricePerShare: this.getEstimatedPriceForETF(etf),
+              allowedDeviation: 5
+            }
+          }
+        })
+      )
+
+      console.log('Final target ETFs:', targetETFs.map(t => `${t.name}: ${t.targetPercentage}% @ $${t.pricePerShare.toFixed(2)}`))
+      return targetETFs
+    } else {
+      console.log('No strategy analysis, using equal distribution for:', selectedETFs)
+
+      // Fallback: equal distribution with real prices
+      const targetETFs = await Promise.all(
+        (selectedETFs || []).map(async (etf) => {
+          try {
+            const priceResponse = await fetch(`${this.baseUrl}/quote/${etf}`)
+            if (priceResponse.ok) {
+              const priceData = await priceResponse.json()
+              const realPrice = priceData.price
+              console.log(`Real price for fallback target ${etf}: $${realPrice.toFixed(2)} (was placeholder: $1)`)
+
+              return {
+                name: etf,
+                targetPercentage: 100 / (selectedETFs?.length || 1),
+                pricePerShare: realPrice,
+                allowedDeviation: 5
+              }
+            } else {
+              console.warn(`Failed to fetch price for fallback target ${etf}, using estimated price`)
+              return {
+                name: etf,
+                targetPercentage: 100 / (selectedETFs?.length || 1),
+                pricePerShare: this.getEstimatedPriceForETF(etf),
+                allowedDeviation: 5
+              }
+            }
+          } catch (error) {
+            console.error(`Error fetching price for fallback target ${etf}:`, error)
+            return {
+              name: etf,
+              targetPercentage: 100 / (selectedETFs?.length || 1),
+              pricePerShare: this.getEstimatedPriceForETF(etf),
+              allowedDeviation: 5
+            }
+          }
+        })
+      )
+
+      console.log('Final fallback target ETFs:', targetETFs.map(t => `${t.name}: ${t.targetPercentage}% @ $${t.pricePerShare.toFixed(2)}`))
+      return targetETFs
+    }
+  }
+
+  /**
+   * Enrich current holdings with real market prices
+   */
+  private async enrichCurrentHoldingsWithRealPrices(currentHoldings: PortfolioHolding[]): Promise<Array<{
+    name: string
+    shares: number
+    price: number
+  }>> {
+    console.log('=== Enriching Current Holdings with Real Prices ===')
+    console.log('Holdings to enrich:', currentHoldings.length)
+
+    const enrichedHoldings = await Promise.all(
+      currentHoldings.map(async (holding) => {
+        try {
+          // Fetch real current price for this ETF
+          const priceResponse = await fetch(`${this.baseUrl}/quote/${holding.etf}`)
+          if (priceResponse.ok) {
+            const priceData = await priceResponse.json()
+            const realPrice = priceData.price
+            console.log(`Real price for ${holding.etf}: $${realPrice.toFixed(2)} (was placeholder: $1)`)
+
+            return {
+              name: holding.etf,
+              shares: holding.shares,
+              price: realPrice
+            }
+          } else {
+            console.warn(`Failed to fetch price for ${holding.etf}, using estimated price`)
+            return {
+              name: holding.etf,
+              shares: holding.shares,
+              price: this.getEstimatedPriceForETF(holding.etf)
+            }
+          }
+        } catch (error) {
+          console.error(`Error fetching price for ${holding.etf}:`, error)
+          return {
+            name: holding.etf,
+            shares: holding.shares,
+            price: this.getEstimatedPriceForETF(holding.etf)
+          }
+        }
+      })
+    )
+
+    console.log('Enriched holdings:', enrichedHoldings.map(h => `${h.name}: ${h.shares} shares @ $${h.price.toFixed(2)}`))
+    return enrichedHoldings
+  }
+
+  /**
+   * Get intelligent price estimate for ETF based on its type
+   */
+  private getEstimatedPriceForETF(etf: string): number {
+    // Intelligent price estimates based on ETF categories (same as backend)
+    const estimatedPrices: { [key: string]: number } = {
+      // Stock ETFs - generally higher prices
+      'VTI': 320, 'SPY': 450, 'QQQ': 350, 'IWM': 200, 'IWV': 300,
+      'VEA': 60, 'VWO': 55, 'VXUS': 65, 'EWU': 35,
+
+      // Bond ETFs - generally moderate prices
+      'BND': 75, 'AGG': 100, 'TLT': 95, 'BWX': 50, 'SHY': 85,
+      'IEF': 90, 'GOVT': 70, 'SPLB': 55, 'VUBS': 50, 'BIL': 92,
+      'SGOV': 100,
+
+      // Commodity and alternative ETFs
+      'GLDM': 85, 'GLD': 180, 'IAU': 40, 'SLV': 20, 'PDBC': 20,
+
+      // Crypto ETFs
+      'IBIT': 50, 'FBTC': 65, 'BITO': 35,
+
+      // Sector ETFs
+      'VGT': 450, 'VHT': 250, 'VFH': 85, 'VDC': 180, 'VDE': 160,
+      'VPU': 150, 'VCR': 210, 'VIS': 120, 'VOX': 95, 'VNQ': 100,
+
+      // Additional common ETFs
+      'VT': 110, 'VSS': 115, 'VNQI': 60,
+      'BNDX': 55, 'EMB': 85, 'VTIP': 50, 'VGK': 50, 'VPL': 65
+    }
+
+    const upperETF = etf.toUpperCase()
+
+    // Look for exact match first
+    if (estimatedPrices[upperETF]) {
+      return estimatedPrices[upperETF]
+    }
+
+    // Try to match by pattern (starts with)
+    for (const [key, price] of Object.entries(estimatedPrices)) {
+      if (key !== 'default' && upperETF.startsWith(key.substring(0, 3))) {
+        return price
+      }
+    }
+
+    // Use default estimate for unknown ETFs
+    return 100
+  }
+
+  /**
+   * Transform enhanced optimization response to expected PortfolioOptimization format
+   */
+  private transformEnhancedResponse(result: any, originalRequest: OptimizationRequest): PortfolioOptimization {
+    const totalBudget = result.optimizationMetrics?.totalBudgetUsed || 0
+    const unusedBudget = result.optimizationMetrics?.unusedBudget || 0
+
+    return {
+      optimizedAllocations: result.allocations?.reduce((acc: any, allocation: any) => {
+        acc[allocation.etfName] = allocation.finalShares
+        return acc
+      }, {}) || {},
+      targetValues: result.allocations?.reduce((acc: any, allocation: any) => {
+        acc[allocation.etfName] = allocation.targetValue
+        return acc
+      }, {}) || {},
+      utilizedCapital: totalBudget,
+      uninvestedCash: unusedBudget,
+      utilizationRate: totalBudget > 0 ? ((totalBudget / (totalBudget + unusedBudget)) * 100) : 0,
+      objectiveValue: 0,
+      isOptimal: result.solverStatus === 'optimal',
+      solverStatus: result.solverStatus,
+      fallbackUsed: result.fallbackUsed || false,
+      allocations: result.allocations?.map((allocation: any) => ({
+        etf: allocation.etfName,
+        targetPercentage: allocation.targetPercentage,
+        targetValue: allocation.targetValue,
+        finalValue: allocation.finalValue,
+        finalShares: allocation.finalShares,
+        shares: allocation.finalShares,
+        sharesToBuy: allocation.sharesToBuy,
+        pricePerShare: allocation.costOfPurchase ? allocation.costOfPurchase / allocation.sharesToBuy : 0,
+        costOfPurchase: allocation.costOfPurchase,
+        deviation: allocation.deviation
+      })) || []
+    }
   }
 
   /**
@@ -242,13 +512,28 @@ class PortfolioService {
     }>
     extraCash: number
     optimizationStrategy?: string
+    useEnhancedBudget?: boolean
   }): Promise<any> {
+    // ENHANCED: Use enhanced budget strategy by default for better cash utilization
+    const optimizationRequest = {
+      ...request,
+      optimizationStrategy: request.useEnhancedBudget !== false ? 'minimize-leftover' : (request.optimizationStrategy || 'minimize-leftover'),
+      // Add objectives to trigger enhanced LP optimization with budget utilization focus
+      objectives: {
+        useAllBudget: true,
+        maximizeUtilization: true,
+        budgetWeight: 0.8,
+        fairnessWeight: 0.2,
+        utilizationDeviation: 5
+      }
+    }
+
     const response = await fetch(`${this.baseUrl}/optimization/rebalance`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(request),
+      body: JSON.stringify(optimizationRequest),
     })
 
     if (!response.ok) {
