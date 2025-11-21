@@ -1,7 +1,6 @@
-// Enhanced HTTP client with authentication support
+// HTTP client for backend API integration
 
 import type { ApiError } from './types'
-import { useAuthStore } from '@/stores/auth'
 
 export class ApiClient {
   private readonly baseUrl: string
@@ -19,32 +18,23 @@ export class ApiClient {
   }
 
   /**
-   * Get auth headers including Bearer token
+   * Get standard headers for API requests
    */
-  private getAuthHeaders(): Record<string, string> {
-    const authStore = useAuthStore()
-    const token = authStore.getToken()
-
-    const headers: Record<string, string> = {
+  private getHeaders(): Record<string, string> {
+    return {
       'Content-Type': 'application/json',
     }
-
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`
-    }
-
-    return headers
   }
 
   /**
-   * Fetch data from backend API with error handling and auth
+   * Fetch data from backend API with error handling
    */
   async fetch<T>(url: string, options?: RequestInit): Promise<T> {
     try {
       const response = await fetch(url, {
         ...options,
         headers: {
-          ...this.getAuthHeaders(),
+          ...this.getHeaders(),
           ...options?.headers,
         },
       })
@@ -71,7 +61,7 @@ export class ApiClient {
   }
 
   /**
-   * GET request helper with auth
+   * GET request helper
    */
   async get<T>(endpoint: string): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`
@@ -79,37 +69,37 @@ export class ApiClient {
   }
 
   /**
-   * POST request helper with auth
+   * POST request helper
    */
   async post<T>(endpoint: string, data: any): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`
     return this.fetch<T>(url, {
       method: 'POST',
-      headers: this.getAuthHeaders(),
+      headers: this.getHeaders(),
       body: JSON.stringify(data),
     })
   }
 
   /**
-   * PUT request helper with auth
+   * PUT request helper
    */
   async put<T>(endpoint: string, data: any): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`
     return this.fetch<T>(url, {
       method: 'PUT',
-      headers: this.getAuthHeaders(),
+      headers: this.getHeaders(),
       body: JSON.stringify(data),
     })
   }
 
   /**
-   * DELETE request helper with auth
+   * DELETE request helper
    */
   async delete<T>(endpoint: string): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`
     return this.fetch<T>(url, {
       method: 'DELETE',
-      headers: this.getAuthHeaders(),
+      headers: this.getHeaders(),
     })
   }
 }
