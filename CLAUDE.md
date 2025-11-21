@@ -157,20 +157,23 @@ momentum_rider/
 ```
 
 ### Key API Endpoints
+- **POST** `/api/portfolio/execution-plan` - Complete portfolio rebalancing (main endpoint)
 - **POST** `/api/portfolio/analyze` - Strategy analysis and target allocation
-- **POST** `/api/portfolio/optimize` - Linear programming optimization
-- **POST** `/api/portfolio/execution-plan` - Trade generation
+- **POST** `/api/optimization/rebalance` - Linear programming optimization
+- **POST** `/api/portfolio/pre-prices` - Batch price pre-fetching and caching
 - **GET** `/api/quote/{ticker}` - Current price and quote data
 - **GET** `/api/momentum/{ticker}` - Momentum scores and analysis
 - **GET** `/health` - System health check
 
 ### Core Services
-- **`server/services/portfolioService.js`** - Core portfolio analysis logic
+- **`server/services/portfolioService.js`** - Core portfolio analysis with price enrichment
 - **`server/services/financeService.js`** - Yahoo Finance API integration
+- **`server/services/preFetchService.js`** - Redis-first price caching and batch fetching
 - **`server/services/momentumService.js`** - Momentum scoring algorithms
 - **`server/services/portfolioOptimizationService.js`** - LP solver optimization
+- **`server/services/cacheService.js`** - Redis and memory caching management
 - **`frontend/src/components/StrategyHub.vue`** - Main unified interface
-- **`frontend/src/services/portfolio-service.ts`** - Frontend API client
+- **`frontend/src/services/portfolio-service.ts`** - Frontend API client with data transformation
 
 ## SPARC Workflow Phases
 
@@ -192,12 +195,15 @@ momentum_rider/
 - **Performance**: Implement multi-level caching (Redis + in-memory)
 
 ### Specific to Momentum Rider
-- **Price Data**: Always use real-time prices from financeService.getCurrentPrice()
-- **Caching**: 6-hour cache for market data to respect API limits
-- **Fallback Strategies**: Implement multiple optimization fallbacks
-- **Validation**: Validate all user inputs and financial data
-- **Logging**: Use Winston logger for production debugging
-- **Rate Limiting**: Built-in rate limiting for API protection
+- **Price Data**: Backend handles all pricing via preFetchService (Redis-first caching)
+- **Frontend**: Never sends prices in requests - backend manages all market data
+- **Caching**: Multi-tier caching (Redis → Memory → Yahoo Finance → Fallback)
+- **API Architecture**: Single execution plan API provides complete rebalancing solution
+- **Data Consistency**: All UI components use same execution plan response data
+- **Fallback Strategies**: Multiple optimization fallbacks with graceful degradation
+- **Validation**: Comprehensive input validation with Joi schemas
+- **Logging**: Winston logger with structured logs and error tracking
+- **Rate Limiting**: IP-based and user-based rate limiting for API protection
 
 ### Key Files to Know
 - **Large Component**: `frontend/src/components/StrategyHub.vue` (64KB) - Main interface
@@ -207,8 +213,12 @@ momentum_rider/
 
 ## Current Status & Maturity
 
-### ✅ Production-Ready Features
+### ✅ Production-Ready Features (Updated November 2025)
 - Complete portfolio management system with 3 investment strategies
+- **FIXED**: Accurate trade generation with no conflicting BUY/SELL signals
+- **FIXED**: Consistent data between Portfolio Rebalancing Summary and Trade Summary
+- **FIXED**: Proper price enrichment and caching (Redis-first with memory fallback)
+- **FIXED**: Frontend-backend data consistency (execution plan API as single source)
 - Real-time market data integration with caching
 - Linear programming optimization with constraints
 - Automated trade generation and execution planning
@@ -216,6 +226,15 @@ momentum_rider/
 - Docker containerization for deployment
 - Comprehensive error handling and logging
 - Multi-portfolio support and configuration management
+
+### 🔄 Resolved Issues (November 2025)
+- ✅ **Fixed**: VTI showing both SELL and BUY trades - now shows consistent SELL only
+- ✅ **Fixed**: Portfolio Rebalancing Summary showing $0 target allocations - now shows correct targets
+- ✅ **Fixed**: Optimization Summary incorrect totals - now shows accurate utilization rates
+- ✅ **Fixed**: "Unknown" ETF names in tables - now shows proper VTI/VOO/QQQ labels
+- ✅ **Fixed**: Frontend sending prices in requests - backend now handles all pricing
+- ✅ **Fixed**: Duplicate frontend services - cleaned up quote-service-new.ts etc.
+- ✅ **Fixed**: Data alignment issues between all portfolio summary tables
 
 ### 🔄 Known Technical Debt
 - **Large Component**: StrategyHub.vue needs refactoring into smaller components
@@ -258,6 +277,78 @@ momentum_rider/
 
 ### Migration & Planning
 `migration-planner`, `swarm-init`
+
+## 🧠 Claude Flow Memory Management
+
+### Using Memory for Project Tracking
+
+The project uses Claude Flow memory to track major accomplishments, architecture changes, and status updates over time.
+
+### Memory Commands
+
+```bash
+# Store major accomplishments
+npx claude-flow@alpha memory store "key_name" "Your accomplishment details" --namespace accomplishments
+
+# Store architecture decisions
+npx claude-flow@alpha memory store "architecture_change_2025_11_21" "Architecture description" --namespace architecture
+
+# Store status updates
+npx claude-flow@alpha memory store "status_update_2025_11_21" "Current project status" --namespace status
+
+# Query stored memories
+npx claude-flow@alpha memory query "portfolio rebalancing" --namespace accomplishments --limit 5
+
+# List all namespaces
+npx claude-flow@alpha memory list --reasoningbank
+
+# Show memory statistics
+npx claude-flow@alpha memory stats --reasoningbank
+```
+
+### Memory Namespaces Used
+
+- **`accomplishments`**: Major fixes, features completed, project milestones
+- **`architecture`**: System architecture decisions, API changes, data flow patterns
+- **`status`**: Current project status, performance metrics, known issues
+- **`debug`**: Troubleshooting sessions, bug fixes, root cause analysis
+
+### Best Practices
+
+1. **Timestamped Keys**: Use format `description_YYYY_MM_DD` for chronological tracking
+2. **Detailed Values**: Include root causes, solutions, and impact assessments
+3. **Namespace Separation**: Keep different types of information in appropriate namespaces
+4. **Regular Queries**: Query memory before starting major features to understand context
+
+### Project Startup: Load Recent Memory
+
+When starting work on this project, run these commands to understand current state:
+
+```bash
+# Check recent accomplishments and fixes
+npx claude-flow@alpha memory query "major fix" --namespace accomplishments --limit 3
+
+# Understand current architecture
+npx claude-flow@alpha memory query "architecture" --namespace architecture --limit 2
+
+# Check current project status
+npx claude-flow@alpha memory query "status" --namespace status --limit 1
+
+# Get memory statistics
+npx claude-flow@alpha memory stats --reasoningbank
+```
+
+### Example Memory Entry
+
+```bash
+npx claude-flow@alpha memory store "portfolio_rebalancing_fix_2025_11_21" "
+Fixed critical VTI conflicting trades issue:
+- Root cause: Execution plan service missing price enrichment
+- Solution: Added price fetching in generateExecutionPlan() method
+- Impact: Perfect alignment between Portfolio Summary and Trade Summary
+- Test result: VTI SELL 67 shares @ $320.10 = $21,447
+" --namespace accomplishments
+```
 
 ## 🎯 Claude Code vs MCP Tools
 
