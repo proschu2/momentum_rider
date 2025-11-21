@@ -187,10 +187,14 @@ class PortfolioService {
     console.log('=== Portfolio Service optimizePortfolio Debug (Enhanced) ===')
     console.log('Request payload:', JSON.stringify(request, null, 2))
 
-    // Transform request to use enhanced optimization endpoint with budget focus
+    // Transform request to NOT send prices - backend will handle all pricing
     const enhancedRequest = {
-      currentHoldings: await this.enrichCurrentHoldingsWithRealPrices(request.currentHoldings || []),
-      targetETFs: await this.buildTargetETFsFromStrategy(request.strategyAnalysis, request.selectedETFs),
+      currentHoldings: (request.currentHoldings || []).map(holding => ({
+        name: holding.etf,
+        shares: holding.shares
+        // Remove price - backend will fetch it
+      })),
+      targetETFs: this.buildTargetETFsFromStrategyWithoutPrices(request.strategyAnalysis, request.selectedETFs),
       extraCash: request.additionalCapital || 0,
       // Use enhanced budget strategy by default with proper objectives
       objectives: {
@@ -250,7 +254,51 @@ class PortfolioService {
   }
 
   /**
-   * Build targetETFs from strategy analysis results with real prices
+   * Build targetETFs from strategy analysis results WITHOUT prices (backend will handle pricing)
+   */
+  private buildTargetETFsFromStrategyWithoutPrices(strategyAnalysis: StrategyAnalysis | undefined, selectedETFs: string[]) {
+    console.log('=== Building Target ETFs Without Prices (backend will handle pricing) ===')
+
+    if (strategyAnalysis && strategyAnalysis.targetAllocations) {
+      const etfs = Object.entries(strategyAnalysis.targetAllocations)
+      console.log('ETFs from strategy analysis:', etfs.map(([etf, pct]) => `${etf}: ${pct}%`))
+
+      // Build target ETFs without prices - backend will fetch them
+      const targetETFs = etfs.map(([etf, percentage]) => {
+        console.log(`Target ETF ${etf}: ${percentage}% (backend will determine price)`)
+
+        return {
+          name: etf,
+          targetPercentage: percentage,
+          allowedDeviation: 5 // ±5% allocation tolerance
+          // Remove pricePerShare - backend will fetch it
+        }
+      })
+
+      console.log('Final target ETFs (no prices):', targetETFs.map(t => `${t.name}: ${t.targetPercentage}%`))
+      return targetETFs
+    } else {
+      console.log('No strategy analysis, using equal distribution for:', selectedETFs)
+
+      // Fallback: equal distribution without prices
+      const targetETFs = (selectedETFs || []).map((etf) => {
+        console.log(`Fallback target ETF ${etf}: ${ (100 / (selectedETFs?.length || 1)).toFixed(2) }% (backend will determine price)`)
+
+        return {
+          name: etf,
+          targetPercentage: 100 / (selectedETFs?.length || 1),
+          allowedDeviation: 5
+          // Remove pricePerShare - backend will fetch it
+        }
+      })
+
+      console.log('Final fallback target ETFs (no prices):', targetETFs.map(t => `${t.name}: ${t.targetPercentage}%`))
+      return targetETFs
+    }
+  }
+
+  /**
+   * Build targetETFs from strategy analysis results with real prices (DEPRECATED - use pre-fetched version)
    */
   private async buildTargetETFsFromStrategy(strategyAnalysis: StrategyAnalysis | undefined, selectedETFs: string[]) {
     console.log('=== Building Target ETFs with Real Prices ===')
@@ -266,7 +314,7 @@ class PortfolioService {
             const priceResponse = await fetch(`${this.baseUrl}/quote/${etf}`)
             if (priceResponse.ok) {
               const priceData = await priceResponse.json()
-              const realPrice = priceData.price
+              const realPrice = priceData.regularMarketPrice || priceData.price
               console.log(`Real price for target ${etf}: $${realPrice.toFixed(2)} (was placeholder: $1)`)
 
               return {
@@ -308,7 +356,7 @@ class PortfolioService {
             const priceResponse = await fetch(`${this.baseUrl}/quote/${etf}`)
             if (priceResponse.ok) {
               const priceData = await priceResponse.json()
-              const realPrice = priceData.price
+              const realPrice = priceData.regularMarketPrice || priceData.price
               console.log(`Real price for fallback target ${etf}: $${realPrice.toFixed(2)} (was placeholder: $1)`)
 
               return {
@@ -361,7 +409,7 @@ class PortfolioService {
           const priceResponse = await fetch(`${this.baseUrl}/quote/${holding.etf}`)
           if (priceResponse.ok) {
             const priceData = await priceResponse.json()
-            const realPrice = priceData.price
+            const realPrice = priceData.regularMarketPrice || priceData.price
             console.log(`Real price for ${holding.etf}: $${realPrice.toFixed(2)} (was placeholder: $1)`)
 
             return {
@@ -594,6 +642,13 @@ class PortfolioService {
 
     const result = await response.json()
     return result.performance
+  }
+
+  /**
+   * Pre-fetch prices for multiple tickers
+   */
+  async preFetchPrices(tickers: string[]): Promise<any> {
+    return this.apiClient.post<any>('/portfolio/pre-prices', { tickers })
   }
 
   /**

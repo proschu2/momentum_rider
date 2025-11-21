@@ -45,6 +45,10 @@ export interface QuoteResponse {
   marketState: string
   currency: string
   quoteType: string
+  regularMarketChangePercent?: number
+  regularMarketPreviousClose?: number
+  marketCap?: number
+  regularMarketVolume?: number
 }
 
 export interface AddCustomETFRequest {
@@ -222,7 +226,11 @@ export class ETFService {
         regularMarketPrice: response.regularMarketPrice || 0,
         marketState: response.marketState || 'UNKNOWN',
         currency: response.currency || 'USD',
-        quoteType: response.quoteType || 'ETF'
+        quoteType: response.quoteType || 'ETF',
+        regularMarketChangePercent: response.regularMarketChangePercent,
+        regularMarketPreviousClose: response.previousClose,
+        marketCap: response.marketCap,
+        regularMarketVolume: response.regularMarketVolume
       }
 
       // Cache the result in localStorage
