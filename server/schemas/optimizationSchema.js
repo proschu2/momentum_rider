@@ -25,10 +25,9 @@ const etfHoldingSchema = Joi.object({
     'number.max': 'Allowed deviation cannot exceed 100',
     'number.base': 'Allowed deviation must be a number',
   }),
-  pricePerShare: Joi.number().positive().precision(4).required().messages({
+  pricePerShare: Joi.number().positive().precision(4).optional().messages({
     'number.positive': 'Price per share must be positive',
     'number.base': 'Price per share must be a number',
-    'any.required': 'Price per share is required',
   }),
 }).messages({
   'object.unknown': 'Unknown field in ETF holding definition',
@@ -46,11 +45,10 @@ const currentHoldingSchema = Joi.object({
     'number.base': 'Shares must be a number',
     'any.required': 'Shares is required',
   }),
-  price: Joi.number().positive().precision(4).required().messages({
+  price: Joi.number().positive().precision(4).optional().messages({
     'number.positive': 'Price must be positive',
     'number.base': 'Price must be a number',
-    'any.required': 'Price is required',
-  }),
+    }),
 }).messages({
   'object.unknown': 'Unknown field in current holding definition',
 });

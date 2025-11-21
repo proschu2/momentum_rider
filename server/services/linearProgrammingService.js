@@ -7,6 +7,7 @@ const logger = require('../config/logger');
 const solver = require('javascript-lp-solver');
 
 class LinearProgrammingService {
+
   /**
    * Solve budget allocation using linear programming
    * @param {Object} input - Optimization input parameters
@@ -353,15 +354,8 @@ class LinearProgrammingService {
       const finalVarName = `final_${etf.name.replace(/[^a-zA-Z0-9]/g, '_')}`;
       const finalShares = Math.round(solution[finalVarName] || 0);
 
-      // Fetch real current price for accurate calculation
-      let realPrice = etf.pricePerShare;
-      try {
-        const financeService = require('./financeService');
-        const priceResult = financeService.getCurrentPrice(etf.name);
-        realPrice = priceResult.price || realPrice;
-      } catch (priceError) {
-        console.warn(`Failed to get real price for ${etf.name}, using provided price: $${realPrice}`, priceError.message);
-      }
+      // Use provided price for calculation (pre-fetched prices are handled in portfolio service)
+      const realPrice = etf.pricePerShare;
 
       const currentHolding = currentHoldingsMap.get(etf.name);
       const currentShares = currentHolding ? currentHolding.shares : 0;

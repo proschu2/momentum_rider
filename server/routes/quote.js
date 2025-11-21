@@ -19,7 +19,9 @@ router.get(
   async (req, res) => {
     try {
       const { ticker } = req.params;
-      const quoteData = await financeService.getCurrentPrice(ticker);
+
+      // Get full quote data from Yahoo Finance (not just price)
+      const quoteData = await financeService.getFullQuote(ticker);
       res.json(quoteData);
     } catch (error) {
       logger.logError(error, req);

@@ -6,6 +6,7 @@
 const logger = require('../config/logger');
 const linearProgrammingService = require('./linearProgrammingService');
 const cacheService = require('./cacheService');
+const preFetchService = require('./preFetchService');
 
 class PortfolioOptimizationService {
   /**
@@ -15,15 +16,16 @@ class PortfolioOptimizationService {
    */
   async optimizePortfolio(input) {
     try {
+      // DISABLED: Optimization caching with price pre-fetch is more efficient
       // Generate cache key
-      const cacheKey = this.generateCacheKey(input);
+      // const cacheKey = this.generateCacheKey(input);
 
       // Check cache first
-      const cachedResult = await cacheService.getCachedData(cacheKey);
-      if (cachedResult) {
-        logger.logInfo('Using cached optimization result');
-        return { ...cachedResult, cached: true };
-      }
+      // const cachedResult = await cacheService.getCachedData(cacheKey);
+      // if (cachedResult) {
+      //   logger.logInfo('Using cached optimization result');
+      //   return { ...cachedResult, cached: true };
+      // }
 
       const startTime = Date.now();
 
@@ -45,8 +47,8 @@ class PortfolioOptimizationService {
         result = await this.attemptLinearProgramming(input);
 
         if (result.solverStatus === 'optimal') {
-          // Cache successful LP result
-          await cacheService.setCachedData(cacheKey, result);
+          // DISABLED: Cache successful LP result (price pre-fetch is more efficient)
+          // await cacheService.setCachedData(cacheKey, result);
           return result;
         }
       } catch (lpError) {
@@ -88,8 +90,8 @@ class PortfolioOptimizationService {
         result.fallbackReason = `LP had ${result.optimizationMetrics.unusedPercentage.toFixed(1)}% unused cash, forced heuristic fallback`;
       }
 
-      // Cache fallback result with shorter TTL
-      await cacheService.setCachedData(cacheKey, result);
+      // DISABLED: Cache fallback result with shorter TTL (price pre-fetch is more efficient)
+      // await cacheService.setCachedData(cacheKey, result);
 
       return result;
     } catch (error) {
@@ -108,9 +110,66 @@ class PortfolioOptimizationService {
     console.log('=== CASH UTILIZATION DEBUG: LP START ===');
     console.log('LP timeout:', timeoutMs, 'ms');
     
-    // Calculate total available budget for debugging
-    const { currentHoldings = [], extraCash } = input;
-    const currentHoldingsValue = currentHoldings.reduce(
+    // Calculate total available budget for debugging - fetch missing prices
+    const { currentHoldings = [], extraCash, targetETFs = [] } = input;
+
+    // Check if we need to fetch prices
+    const needsPriceFetch = currentHoldings.some(h => !h.price) || targetETFs.some(t => !t.pricePerShare);
+
+    let prices = {};
+    if (needsPriceFetch) {
+      console.log('=== FETCHING MISSING PRICES ===');
+      // Collect all tickers that need prices
+      const missingHoldings = currentHoldings.filter(h => !h.price);
+      const missingTargets = targetETFs.filter(t => !t.pricePerShare);
+      console.log('Missing price holdings:', missingHoldings.map(h => h.name));
+      console.log('Missing price targets:', missingTargets.map(t => t.name));
+
+      const tickers = [
+        ...missingHoldings.map(h => h.name),
+        ...missingTargets.map(t => t.name)
+      ].filter((ticker, index, arr) => arr.indexOf(ticker) === index); // Remove duplicates
+
+      console.log('Tickers to fetch:', tickers);
+
+      if (tickers.length > 0) {
+        try {
+          const priceResult = await preFetchService.preFetchPrices(tickers);
+          // Extract price values from price objects
+          const rawPrices = priceResult.prices || {};
+          prices = {};
+
+          Object.entries(rawPrices).forEach(([ticker, priceData]) => {
+            if (priceData && typeof priceData === 'object' && 'price' in priceData) {
+              prices[ticker] = priceData.price;
+            } else if (typeof priceData === 'number') {
+              prices[ticker] = priceData;
+            } else {
+              console.warn(`Invalid price format for ${ticker}:`, priceData);
+              prices[ticker] = 100; // fallback
+            }
+          });
+
+          console.log(`Extracted prices for ${Object.keys(prices).length} tickers:`, prices);
+        } catch (error) {
+          console.warn('Failed to fetch prices, using fallbacks:', error);
+        }
+      }
+    }
+
+    // Enrich holdings with prices
+    const enrichedHoldings = currentHoldings.map(holding => ({
+      ...holding,
+      price: holding.price || prices[holding.name] || 100 // fallback price
+    }));
+
+    // Enrich targetETFs with prices
+    const enrichedTargetETFs = targetETFs.map(etf => ({
+      ...etf,
+      pricePerShare: etf.pricePerShare || prices[etf.name] || 100 // fallback price
+    }));
+
+    const currentHoldingsValue = enrichedHoldings.reduce(
       (sum, holding) => sum + holding.shares * holding.price,
       0
     );
@@ -120,7 +179,15 @@ class PortfolioOptimizationService {
     console.log('Current holdings to liquidate:', currentHoldingsValue);
     console.log('Extra cash:', extraCash);
     console.log('Total liquidated value:', totalAvailableBudget);
-    console.log('LP Input:', JSON.stringify(input, null, 2));
+
+    // Use enriched data with prices for LP solver
+    const enrichedInput = {
+      ...input,
+      currentHoldings: enrichedHoldings,
+      targetETFs: enrichedTargetETFs
+    };
+
+    console.log('LP Input (enriched with prices):', JSON.stringify(enrichedInput, null, 2));
 
     const timeoutPromise = new Promise((_, reject) => {
       setTimeout(() => reject(new Error('Linear programming timeout')), timeoutMs);
@@ -129,7 +196,7 @@ class PortfolioOptimizationService {
     const lpPromise = new Promise((resolve, reject) => {
       try {
         console.log('=== CALLING LP SOLVER ===');
-        const result = linearProgrammingService.solve(input);
+        const result = linearProgrammingService.solve(enrichedInput);
         console.log('=== LP RESULT ANALYSIS ===');
         console.log('LP Result:', JSON.stringify(result, null, 2));
         

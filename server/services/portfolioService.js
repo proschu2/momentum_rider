@@ -5,12 +5,47 @@
 const financeService = require('./financeService');
 const customETFService = require('./customETFService');
 const portfolioOptimizationService = require('./portfolioOptimizationService');
+const preFetchService = require('./preFetchService');
 const logger = require('../config/logger');
 
 class PortfolioService {
   constructor() {
     this.cache = new Map();
     this.cacheTimeout = 5 * 60 * 1000; // 5 minutes
+  }
+
+  /**
+   * Get current price with pre-fetch service caching (optimized)
+   * Falls back to financeService if not available in cache
+   */
+  async getCurrentPriceOptimized(ticker) {
+    try {
+      // Try pre-fetch service first (Redis-first caching)
+      const cachedPrice = await preFetchService.getCachedPrice(ticker);
+      if (cachedPrice) {
+        logger.logDebug('Price retrieved from pre-fetch cache', { ticker });
+        return cachedPrice;
+      }
+    } catch (error) {
+      logger.logDebug('Pre-fetch service unavailable, falling back to finance service', {
+        ticker,
+        error: error.message
+      });
+    }
+
+    // Fallback to original financeService
+    try {
+      const price = await financeService.getCurrentPrice(ticker);
+      logger.logDebug('Price retrieved from finance service (fallback)', { ticker });
+      return price;
+    } catch (fallbackError) {
+      logger.logError('Both pre-fetch and finance service failed', {
+        ticker,
+        preFetchError: error?.message,
+        financeError: fallbackError.message
+      });
+      throw fallbackError;
+    }
   }
 
   /**
@@ -77,7 +112,7 @@ class PortfolioService {
       for (const holding of currentHoldings) {
         try {
           console.log(`Getting price for ${holding.etf}...`);
-          const priceData = await financeService.getCurrentPrice(holding.etf);
+          const priceData = await this.getCurrentPriceOptimized(holding.etf);
           console.log(`Price data received for ${holding.etf}:`, {
             priceData,
             dataType: typeof priceData,
@@ -200,7 +235,7 @@ class PortfolioService {
         if (ibitMomentum.absoluteMomentum) {
           let ibitPrice = 52.0; // Reasonable fallback price for IBIT
           try {
-            const priceResult = await financeService.getCurrentPrice('IBIT');
+            const priceResult = await this.getCurrentPriceOptimized('IBIT');
             ibitPrice = priceResult.price || ibitPrice;
           } catch (priceError) {
             console.warn(`Failed to get current price for IBIT:`, priceError.message);
@@ -222,7 +257,7 @@ class PortfolioService {
       if (positiveETFs.length === 0) {
         let fallbackPrice = 100.0; // Reasonable fallback price
         try {
-          const priceResult = await financeService.getCurrentPrice(fallbackETF);
+          const priceResult = await this.getCurrentPriceOptimized(fallbackETF);
           fallbackPrice = priceResult.price || fallbackPrice;
         } catch (priceError) {
           console.warn(`Failed to get current price for fallback ETF ${fallbackETF}:`, priceError.message);
@@ -422,7 +457,7 @@ class PortfolioService {
 
           // Fallback to API call with better error handling
           try {
-            const priceData = await financeService.getCurrentPrice(etf);
+            const priceData = await this.getCurrentPriceOptimized(etf);
             if (priceData && priceData.price && priceData.price > 0 && priceData.price < 100000) {
               prices[etf] = priceData.price;
               console.log(`Price fetched for ${etf} (API fallback):`, {
@@ -501,7 +536,7 @@ class PortfolioService {
       console.log('Preparing holdings with prices for optimization...');
       const holdingsWithPrices = await Promise.all(currentHoldings.map(async holding => {
         try {
-          const priceData = await financeService.getCurrentPrice(holding.etf);
+          const priceData = await this.getCurrentPriceOptimized(holding.etf);
           console.log(`Price data for ${holding.etf}:`, {
             priceData,
             dataType: typeof priceData,
@@ -619,6 +654,23 @@ class PortfolioService {
 
   
   /**
+   * Helper method to get price for an ETF
+   */
+  async getETFPrice(ticker) {
+    try {
+      const priceResult = await preFetchService.fetchTickerPrice(ticker);
+      if (priceResult.success) {
+        return typeof priceResult.price === 'object' && priceResult.price.price
+          ? priceResult.price.price
+          : priceResult.price;
+      }
+    } catch (error) {
+      console.warn(`Failed to fetch price for ${ticker}:`, error);
+    }
+    return null; // Return null if price fetch fails
+  }
+
+  /**
    * Generate execution plan with specific trades
    */
   async generateExecutionPlan({ strategy, selectedETFs, additionalCapital, currentHoldings, constraints }) {
@@ -633,12 +685,67 @@ class PortfolioService {
         currentHoldings: currentHoldings
       });
 
-      // Get optimized allocation using existing service
+      // Debug current holdings structure
+      console.log('=== CURRENT HOLDINGS STRUCTURE DEBUG ===');
+      if (currentHoldings && currentHoldings.length > 0) {
+        currentHoldings.forEach(holding => {
+          console.log(`Holding ${holding.etf}:`, {
+            shares: holding.shares,
+            price: holding.price,
+            pricePerShare: holding.pricePerShare,
+            totalValue: holding.totalValue,
+            calculatedValue: holding.price ? holding.price * holding.shares : 'NO_PRICE'
+          });
+        });
+      }
+
+      // ENRICH CURRENT HOLDINGS WITH PRICES (same as optimization service)
+      const needsPriceFetch = currentHoldings.some(h => !h.price || !h.totalValue);
+      let enrichedHoldings = currentHoldings;
+
+      if (needsPriceFetch) {
+        console.log('=== ENRICHING EXECUTION PLAN HOLDINGS WITH PRICES ===');
+        const tickers = currentHoldings.map(h => h.etf);
+
+        let prices = {};
+        if (tickers.length > 0) {
+          try {
+            const priceResult = await preFetchService.preFetchPrices(tickers);
+            const rawPrices = priceResult.prices || {};
+            prices = {};
+
+            Object.entries(rawPrices).forEach(([ticker, priceData]) => {
+              if (priceData && typeof priceData === 'object' && 'price' in priceData) {
+                prices[ticker] = priceData.price;
+              } else if (typeof priceData === 'number') {
+                prices[ticker] = priceData;
+              } else {
+                console.warn(`Invalid price format for ${ticker}:`, priceData);
+                prices[ticker] = 100;
+              }
+            });
+
+            console.log('Enriched execution plan prices:', prices);
+          } catch (error) {
+            console.warn('Failed to fetch prices for execution plan, using fallbacks:', error);
+          }
+        }
+
+        enrichedHoldings = currentHoldings.map(holding => ({
+          ...holding,
+          price: holding.price || prices[holding.etf] || 100,
+          totalValue: holding.totalValue || (holding.price || prices[holding.etf] || 100) * holding.shares
+        }));
+
+        console.log('Enriched holdings for execution plan:', enrichedHoldings);
+      }
+
+      // Use enriched holdings for optimization
       const optimization = await this.optimizePortfolio({
         strategy,
         selectedETFs,
         additionalCapital,
-        currentHoldings,
+        currentHoldings: enrichedHoldings,
         constraints
       });
 
@@ -653,24 +760,119 @@ class PortfolioService {
       const trades = [];
       let totalTradeValue = 0;
 
-      // Process buy trades from optimization
+      console.log('=== REBALANCING TRADES GENERATION ===');
+      console.log('Enriched current holdings:', enrichedHoldings);
+      console.log('Optimization target allocations:', optimization.allocations);
+
+      // Process rebalancing trades: compare current holdings vs target allocations
+      if (enrichedHoldings && optimization.allocations) {
+        // Create a map of current holdings for easy lookup
+        const currentHoldingsMap = new Map();
+        enrichedHoldings.forEach(holding => {
+          if (holding.shares > 0) {
+            // Calculate totalValue from price * shares if not provided
+            const calculatedTotalValue = holding.price
+              ? holding.price * holding.shares
+              : holding.totalValue || 0;
+
+            console.log(`Creating map entry for ${holding.etf}:`, {
+              shares: holding.shares,
+              price: holding.price,
+              providedTotalValue: holding.totalValue,
+              calculatedTotalValue,
+              pricePerShare: holding.pricePerShare
+            });
+
+            currentHoldingsMap.set(holding.etf, {
+              shares: holding.shares,
+              totalValue: calculatedTotalValue,
+              pricePerShare: holding.pricePerShare || holding.price || (calculatedTotalValue / holding.shares) || 0
+            });
+          }
+        });
+
+        // Check each target allocation against current holdings
+        for (const allocation of optimization.allocations) {
+          const etfName = allocation.etfName;
+          const targetValue = allocation.finalValue || 0;
+          const currentHolding = currentHoldingsMap.get(etfName);
+
+          if (currentHolding) {
+            // This ETF exists in current holdings
+            const currentValue = currentHolding.totalValue;
+            const difference = targetValue - currentValue;
+
+            console.log(`Rebalancing ${etfName}:`, {
+              currentValue,
+              targetValue,
+              difference,
+              shouldBuy: difference > 0,
+              shouldSell: difference < 0
+            });
+
+            if (Math.abs(difference) > 10) { // Only trade if difference > $10
+              if (difference > 0) {
+                // Need to buy more - get current price
+                const etfPrice = await this.getETFPrice(etfName);
+                const price = currentHolding.pricePerShare || etfPrice || 100;
+                const sharesToBuy = difference / price;
+                trades.push({
+                  etf: etfName,
+                  action: 'buy',
+                  shares: sharesToBuy,
+                  value: difference,
+                  price: price,
+                  reason: 'Portfolio Rebalance - Underweight Target'
+                });
+                totalTradeValue += difference;
+              } else if (difference < 0) {
+                // Need to sell excess - get current price
+                const etfPrice = await this.getETFPrice(etfName);
+                const price = currentHolding.pricePerShare || etfPrice || 100;
+                const excessValue = Math.abs(difference);
+                const sharesToSell = excessValue / price;
+                trades.push({
+                  etf: etfName,
+                  action: 'sell',
+                  shares: sharesToSell,
+                  value: excessValue,
+                  price: price,
+                  reason: 'Portfolio Rebalance - Overweight Target'
+                });
+                totalTradeValue += excessValue;
+              }
+            }
+
+            // Remove from map so we don't process it again as non-target
+            currentHoldingsMap.delete(etfName);
+          }
+        }
+      }
+
+      // Process buy trades from optimization (for new holdings or underweight)
       if (optimization.allocations) {
-        optimization.allocations.forEach(allocation => {
-          if (allocation.sharesToBuy > 0) {
+        for (const allocation of optimization.allocations) {
+          // Skip if we already processed this ETF in rebalancing
+          const alreadyProcessed = trades.some(trade => trade.etf === allocation.etfName);
+          if (!alreadyProcessed && allocation.sharesToBuy > 0) {
+            // Get real price for this ETF
+            const etfPrice = await this.getETFPrice(allocation.etfName);
+            const finalPrice = etfPrice || 100; // fallback price
+
             trades.push({
               etf: allocation.etfName,
               action: 'buy',
               shares: allocation.sharesToBuy,
-              value: allocation.costOfPurchase,
-              price: allocation.costOfPurchase / allocation.sharesToBuy,
-              reason: 'Portfolio Rebalance - Underweight'
+              value: allocation.costOfPurchase || (allocation.sharesToBuy * finalPrice),
+              price: finalPrice,
+              reason: 'Portfolio Rebalance - New Position'
             });
-            totalTradeValue += allocation.costOfPurchase;
+            totalTradeValue += allocation.costOfPurchase || (allocation.sharesToBuy * finalPrice);
           }
-        });
+        }
       }
 
-      // Process sell trades for holdings not in target
+      // Process sell trades for holdings not in target at all
       if (optimization.holdingsToSell) {
         optimization.holdingsToSell.forEach(holding => {
           trades.push({
@@ -688,7 +890,7 @@ class PortfolioService {
       // Additional logic: Identify holdings that are not in selectedETFs but have current value
       // This ensures we sell all non-target holdings
       const selectedETFSet = new Set(selectedETFs);
-      const nonTargetHoldings = currentHoldings.filter(holding =>
+      const nonTargetHoldings = enrichedHoldings.filter(holding =>
         !selectedETFSet.has(holding.etf) && holding.shares > 0
       );
 
@@ -701,29 +903,25 @@ class PortfolioService {
         );
 
         if (!alreadyIncluded) {
-          try {
-            const priceData = await financeService.getCurrentPrice(holding.etf);
-            const price = priceData.price;
-            const totalValue = holding.shares * price;
+          // Use enriched price and totalValue directly
+          const price = holding.price;
+          const totalValue = holding.totalValue;
 
-            trades.push({
-              etf: holding.etf,
-              action: 'sell',
-              shares: holding.shares,
-              value: totalValue,
-              price: price,
-              reason: 'Not in target allocation'
-            });
-            totalTradeValue += totalValue;
+          trades.push({
+            etf: holding.etf,
+            action: 'sell',
+            shares: holding.shares,
+            value: totalValue,
+            price: price,
+            reason: 'Not in target allocation'
+          });
+          totalTradeValue += totalValue;
 
-            console.log(`Added sell trade for non-target holding ${holding.etf}:`, {
-              shares: holding.shares,
-              price,
-              totalValue
-            });
-          } catch (error) {
-            console.error(`Failed to get price for non-target holding ${holding.etf}:`, error);
-          }
+          console.log(`Added sell trade for non-target holding ${holding.etf}:`, {
+            shares: holding.shares,
+            price,
+            totalValue
+          });
         }
       }
 
@@ -968,7 +1166,7 @@ class PortfolioService {
     for (const holding of holdings) {
       try {
         console.log(`Getting price for ${holding.etf}...`);
-        const priceData = await financeService.getCurrentPrice(holding.etf);
+        const priceData = await this.getCurrentPriceOptimized(holding.etf);
         console.log(`Price data received for ${holding.etf}:`, {
           priceData,
           dataType: typeof priceData,
@@ -1035,8 +1233,8 @@ class PortfolioService {
 
         executedTrades.push({
           ...trade,
-          executedPrice: trade.price || (await financeService.getCurrentPrice(trade.etf)).price,
-          executedValue: trade.shares * (trade.price || (await financeService.getCurrentPrice(trade.etf)).price),
+          executedPrice: trade.price || (await this.getCurrentPriceOptimized(trade.etf)).price,
+          executedValue: trade.shares * (trade.price || (await this.getCurrentPriceOptimized(trade.etf)).price),
           status: 'executed',
           timestamp: new Date().toISOString()
         });

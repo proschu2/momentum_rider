@@ -259,4 +259,39 @@ router.get('/performance/:strategyType', async (req, res) => {
   }
 });
 
+/**
+ * Pre-fetch prices for multiple tickers and cache them
+ * POST /api/portfolio/pre-prices
+ * Body: { tickers: string[] }
+ */
+router.post('/pre-prices', validateBody(Joi.object({
+  tickers: Joi.array().items(Joi.string()).min(1).max(50).required()
+})), async (req, res) => {
+  try {
+    const { tickers } = req.body;
+
+    logger.logInfo('Pre-fetching prices for tickers', {
+      tickers: tickers.join(', '),
+      count: tickers.length
+    });
+
+    const preFetchService = require('../services/preFetchService');
+    const result = await preFetchService.preFetchPrices(tickers);
+
+    res.json({
+      success: true,
+      ...result,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    logger.logError(error, 'Price pre-fetch failed');
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 module.exports = router;

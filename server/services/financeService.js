@@ -311,11 +311,95 @@ async function getTickerName(ticker) {
   }
 }
 
+/**
+ * Get full quote data from Yahoo Finance with comprehensive information
+ */
+async function getFullQuote(ticker) {
+  try {
+    // Check cache first for full quote data
+    const cacheKey = `full_quote_${ticker}`;
+    const cached = await cacheService.getCachedData(cacheKey);
+    if (cached) {
+      logger.logDebug('Full quote retrieved from cache', { ticker });
+      return cached;
+    }
+
+    logger.logInfo('Fetching full quote from Yahoo Finance API', { ticker });
+
+    // Add delay to help prevent rate limiting
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    const quoteData = await yahooFinance.quote(ticker);
+
+    // Create full quote response with all fields the frontend expects
+    const fullQuote = {
+      // Basic quote info
+      symbol: quoteData.symbol,
+      shortName: quoteData.shortName,
+      longName: quoteData.longName,
+      currency: quoteData.currency || 'USD',
+      quoteType: quoteData.quoteType || 'ETF',
+      marketState: quoteData.marketState,
+
+      // Price data
+      regularMarketPrice: quoteData.regularMarketPrice,
+      previousClose: quoteData.previousClose,
+      regularMarketOpen: quoteData.regularMarketOpen,
+      dayHigh: quoteData.dayHigh,
+      dayLow: quoteData.dayLow,
+
+      // Change data
+      regularMarketChange: quoteData.regularMarketChange,
+      regularMarketChangePercent: quoteData.regularMarketChangePercent,
+
+      // Additional data
+      marketCap: quoteData.marketCap,
+      regularMarketVolume: quoteData.regularMarketVolume,
+      fiftyTwoWeekHigh: quoteData.fiftyTwoWeekHigh,
+      fiftyTwoWeekLow: quoteData.fiftyTwoWeekLow,
+
+      // Metadata
+      timestamp: new Date().toISOString(),
+      source: 'yahoo_finance'
+    };
+
+    // Cache full quote data for longer (since it's comprehensive)
+    await cacheService.setCachedData(cacheKey, fullQuote, 14400); // 4 hours
+
+    logger.logInfo('Full quote fetched and cached successfully', {
+      ticker,
+      name: fullQuote.shortName,
+      price: fullQuote.regularMarketPrice
+    });
+
+    return fullQuote;
+  } catch (error) {
+    logger.logError(error, { ticker });
+
+    // Return minimal quote on error
+    return {
+      symbol: ticker,
+      shortName: `${ticker} ETF`,
+      longName: `${ticker} ETF`,
+      currency: 'USD',
+      quoteType: 'ETF',
+      marketState: 'UNKNOWN',
+      regularMarketPrice: null,
+      previousClose: null,
+      regularMarketChange: null,
+      regularMarketChangePercent: null,
+      timestamp: new Date().toISOString(),
+      source: 'error_fallback'
+    };
+  }
+}
+
 module.exports = {
   getQuote,
   getHistoricalWeeklyData,
   getHistoricalDailyData,
   getCurrentPrice,
+  getFullQuote,
   getTickerName,
   findClosestWeeklyPrice,
   calculateReturnFromPrice,
