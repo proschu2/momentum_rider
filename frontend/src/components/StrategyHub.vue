@@ -270,123 +270,172 @@
       </div>
     </div>
 
-    <!-- Strategy Analysis Results -->
-    <div v-if="analysisResults" class="analysis-results">
-      <h2 class="section-title">Strategy Analysis Results</h2>
-
-      <div class="results-grid">
-        <!-- Current vs Target Portfolio Composition -->
-        <div class="result-card">
-          <h3 class="card-title">Portfolio Rebalancing Summary</h3>
-          <div class="rebalancing-table">
-            <div class="table-header">
-              <span>ETF</span>
-              <span>Current Holdings</span>
-              <span>Target Allocation</span>
-              <span>Change</span>
-            </div>
-            <div
-              v-for="comparison in filteredPortfolioComparison"
-              :key="comparison.etf"
-              class="table-row"
-            >
-              <span class="etf-name">{{ comparison?.etf || 'Unknown' }}</span>
-              <span class="current-value">${{ comparison?.currentValue?.toLocaleString() || '0' }}</span>
-              <span class="target-value">${{ comparison?.targetValue?.toLocaleString() || '0' }}</span>
-              <span :class="['action-badge', comparison.action]">
-                {{ comparison.action.toUpperCase() }}
-              </span>
-            </div>
-            <div class="rebalancing-note">
-              <small>*Target values include rebalanced portfolio composition</small>
-            </div>
-          </div>
+    <!-- Unified Portfolio Execution Interface -->
+    <div v-if="analysisResults && filteredPortfolioComparison.length > 0" class="portfolio-execution">
+      <!-- Header with Metrics -->
+      <div class="execution-header">
+        <div class="execution-title">
+          <h3 class="title-text">Portfolio Execution Plan</h3>
+          <p class="title-subtitle">{{ selectedStrategy?.name || 'Selected Strategy' }}</p>
         </div>
 
-        <!-- Optimization Results -->
-        <div class="result-card">
-          <h3 class="card-title">Optimization Summary</h3>
-          <div class="optimization-metrics">
-            <div class="metric">
-              <div class="metric-label">Total Investment</div>
-              <div class="metric-value">${{ analysisResults?.totalInvestment?.toLocaleString() || '0' }}</div>
+        <!-- Compact Metrics Bar -->
+        <div class="metrics-bar">
+          <div class="metric-item">
+            <div class="metric-content">
+              <span class="metric-value">${{ analysisResults?.totalInvestment?.toLocaleString() || '0' }}</span>
+              <span class="metric-label">Total</span>
             </div>
-            <div class="metric">
-              <div class="metric-label">Utilized Capital</div>
-              <div class="metric-value">${{ analysisResults?.utilizedCapital?.toLocaleString() || '0' }}</div>
+          </div>
+          <div class="metric-item">
+            <div class="metric-content">
+              <span class="metric-value">{{ analysisResults?.utilizationRate?.toFixed(1) || '0.0' }}%</span>
+              <span class="metric-label">Used</span>
             </div>
-            <div class="metric">
-              <div class="metric-label">Uninvested Cash</div>
-              <div class="metric-value">${{ analysisResults?.uninvestedCash?.toLocaleString() || '0' }}</div>
+          </div>
+          <div class="metric-item">
+            <div class="metric-content">
+              <span class="metric-value">${{ analysisResults?.uninvestedCash?.toLocaleString() || '0' }}</span>
+              <span class="metric-label">Left</span>
             </div>
-            <div class="metric">
-              <div class="metric-label">Utilization Rate</div>
-              <div class="metric-value">{{ analysisResults?.utilizationRate?.toFixed(1) || '0.0' }}%</div>
-            </div>
+          </div>
+          <div class="metric-item">
+            <span :class="['utilization-indicator', getUtilizationClass()]">
+              {{ getUtilizationEmoji() }}
+            </span>
           </div>
         </div>
       </div>
 
-      <!-- Execution Plan -->
-      <div class="execution-plan">
-        <h3 class="card-title">Trade Execution Plan</h3>
-        
-        <!-- Trade Summary -->
-        <div class="trade-summary" v-if="executionPlan.length > 0">
-          <div class="summary-item">
-            <span class="summary-label">Total Trades:</span>
-            <span class="summary-value">{{ executionPlan.length }}</span>
-          </div>
-          <div class="summary-item">
-            <span class="summary-label">Buy Actions:</span>
-            <span class="summary-value buy">{{ executionPlan.filter(t => t.action === 'buy').length }}</span>
-          </div>
-          <div class="summary-item">
-            <span class="summary-label">Sell Actions:</span>
-            <span class="summary-value sell">{{ executionPlan.filter(t => t.action === 'sell').length }}</span>
-          </div>
-          <div class="summary-item">
-            <span class="summary-label">Total Sell Proceeds:</span>
-            <span class="summary-value">${{ totalSellProceeds.toLocaleString() }}</span>
-          </div>
-          <div class="summary-item">
-            <span class="summary-label">Available Cash After Sales:</span>
-            <span class="summary-value">${{ availableCashAfterSales.toLocaleString() }}</span>
-          </div>
-        </div>
-
-        <div class="trade-list">
+      <!-- Mobile Cards / Desktop Table -->
+      <div class="execution-content">
+        <!-- Mobile: Card Layout -->
+        <div class="mobile-cards">
           <div
-            v-for="trade in executionPlan"
-            :key="`${trade.etf}-${trade.action}`"
-            :class="['trade-item', trade.action]"
+            v-for="comparison in filteredPortfolioComparison"
+            :key="comparison.etf"
+            class="etf-card"
+            @click="toggleCardExpansion(comparison.etf)"
           >
-            <div class="trade-action">{{ trade?.action?.toUpperCase() || 'UNKNOWN' }}</div>
-            <div class="trade-details">
-              <span class="trade-etf">{{ trade?.etf || 'Unknown' }}</span>
-              <span class="trade-shares">{{ trade?.shares?.toFixed(2) || '0.00' }} shares</span>
-              <span class="trade-value">${{ trade?.value?.toLocaleString() || '0' }}</span>
+            <!-- Card Header -->
+            <div class="card-header">
+              <div class="etf-info">
+                <span class="etf-name">{{ comparison.etf }}</span>
+                <span class="action-status" :class="comparison.action">
+                  {{ getActionIcon(comparison.action) }} {{ comparison.action.toUpperCase() }}
+                </span>
+              </div>
+              <div class="trade-value" :class="getTradeValueClass(comparison)">
+                {{ formatTradeValue(comparison) }}
+              </div>
             </div>
-            <div class="trade-reason">{{ trade?.reason || 'No reason provided' }}</div>
+
+            <!-- Expandable Details -->
+            <div v-if="expandedCards.has(comparison.etf)" class="card-details">
+              <div class="detail-row">
+                <span class="detail-label">Current:</span>
+                <span class="detail-value">${{ comparison.currentValue?.toLocaleString() || '0' }} ({{ comparison.currentShares || 0 }} sh)</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Target:</span>
+                <span class="detail-value">${{ comparison.targetValue?.toLocaleString() || '0' }} ({{ ((comparison.targetAllocation || 0) * 100).toFixed(1) }}%)</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Shares to Trade:</span>
+                <span class="detail-value">{{ comparison.sharesToTrade?.toFixed(2) || '0.00' }}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Reason:</span>
+                <span class="detail-value reason-badge">{{ getCompactReason(comparison) }}</span>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div class="execution-actions">
-          <button
-            @click="executeTrades"
-            :disabled="!canExecute || isExecuting"
-            class="btn btn-success execute-btn"
+        <!-- Desktop: Table Layout -->
+        <div class="desktop-table">
+          <div class="table-header">
+            <span>ETF</span>
+            <span>Current Holdings</span>
+            <span>Target Allocation</span>
+            <span>Action Status</span>
+            <span>Shares to Trade</span>
+            <span>Trade Value</span>
+            <span>Reason</span>
+          </div>
+          <div
+            v-for="comparison in filteredPortfolioComparison"
+            :key="comparison.etf"
+            class="table-row"
           >
-            <span v-if="isExecuting" class="loading-spinner"></span>
-            {{ isExecuting ? 'Executing...' : 'Execute Trades' }}
-          </button>
-          <button
-            @click="optimizeFurther"
-            class="btn btn-secondary"
-          >
-            Optimize Further
-          </button>
+            <span class="etf-name">{{ comparison.etf }}</span>
+            <span class="current-value">${{ comparison.currentValue?.toLocaleString() || '0' }}</span>
+            <span class="target-value">${{ comparison.targetValue?.toLocaleString() || '0' }} ({{ ((comparison.targetAllocation || 0) * 100).toFixed(1) }}%)</span>
+            <span class="action-status" :class="comparison.action">
+              {{ getActionIcon(comparison.action) }} {{ comparison.action.toUpperCase() }}
+            </span>
+            <span class="shares-to-trade">{{ comparison.sharesToTrade?.toFixed(2) || '0.00' }}</span>
+            <span class="trade-value" :class="getTradeValueClass(comparison)">
+              {{ formatTradeValue(comparison) }}
+            </span>
+            <span class="compact-reason">{{ getCompactReason(comparison) }}</span>
+          </div>
         </div>
+      </div>
+
+      <!-- Execution Summary -->
+      <div class="execution-summary">
+        <div class="summary-title">📋 Trade Summary</div>
+        <div class="summary-metrics">
+          <div class="summary-item">
+            <span class="summary-label">
+              {{ executionPlan.filter(t => t.action === 'buy').length }} BUY orders:
+            </span>
+            <span class="summary-value buy">
+              +${{ totalBuyCost.toLocaleString() }}
+            </span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">
+              {{ executionPlan.filter(t => t.action === 'sell').length }} SELL orders:
+            </span>
+            <span class="summary-value sell">
+              -${{ totalSellProceeds.toLocaleString() }}
+            </span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Net cash flow:</span>
+            <span class="summary-value" :class="getNetCashFlowClass()">
+              {{ formatNetCashFlow() }}
+            </span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Optimization:</span>
+            <span class="summary-value method">Linear Programming</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Confidence:</span>
+            <span class="summary-value confidence">🟢 High</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Execution Actions -->
+      <div class="execution-actions">
+        <button
+          @click="executeTrades"
+          :disabled="!canExecute || isExecuting"
+          class="btn btn-success execute-btn"
+        >
+          <span v-if="isExecuting" class="loading-spinner"></span>
+          {{ isExecuting ? 'Executing...' : 'Execute Trades' }}
+        </button>
+        <button
+          @click="optimizeFurther"
+          class="btn btn-secondary"
+        >
+          Optimize Further
+        </button>
       </div>
     </div>
   </div>
@@ -443,6 +492,10 @@ interface PortfolioComparison {
   currentValue: number
   targetValue: number
   action: 'buy' | 'sell' | 'hold'
+  currentShares?: number
+  targetAllocation?: number
+  sharesToTrade?: number
+  reason?: string
 }
 
 interface Trade {
@@ -479,6 +532,7 @@ const analysisResults = ref<AnalysisResults | null>(null)
 const portfolioComparison = ref<PortfolioComparison[]>([])
 const executionPlan = ref<Trade[]>([])
 const cachedPrices = ref<Record<string, number>>({})
+const expandedCards = ref(new Set<string>())
 
 // Available strategies
 const availableStrategies: Strategy[] = [
@@ -576,6 +630,12 @@ const canExecute = computed(() => {
 const totalSellProceeds = computed(() => {
   return executionPlan.value
     .filter(trade => trade.action === 'sell')
+    .reduce((sum, trade) => sum + trade.value, 0)
+})
+
+const totalBuyCost = computed(() => {
+  return executionPlan.value
+    .filter(trade => trade.action === 'buy')
     .reduce((sum, trade) => sum + trade.value, 0)
 })
 
@@ -1120,6 +1180,88 @@ const executeTrades = async () => {
 const optimizeFurther = () => {
   // Implement further optimization logic
   console.log('Further optimization...')
+}
+
+// UI Utility Methods for New Portfolio Execution Interface
+const toggleCardExpansion = (etf: string) => {
+  if (expandedCards.value.has(etf)) {
+    expandedCards.value.delete(etf)
+  } else {
+    expandedCards.value.add(etf)
+  }
+}
+
+const getActionIcon = (action: string) => {
+  switch (action) {
+    case 'buy':
+      return '+'
+    case 'sell':
+      return '-'
+    case 'hold':
+      return '•'
+    default:
+      return '•'
+  }
+}
+
+const getTradeValueClass = (comparison: any) => {
+  if (comparison.action === 'buy') return 'buy-value'
+  if (comparison.action === 'sell') return 'sell-value'
+  return 'hold-value'
+}
+
+const formatTradeValue = (comparison: any) => {
+  // Calculate trade value based on actual execution plan data
+  const trade = executionPlan.value.find(t => t.etf === comparison.etf && t.action === comparison.action)
+  if (trade) {
+    const prefix = comparison.action === 'sell' ? '-' : '+'
+    return `${prefix}$${Math.abs(trade.value).toLocaleString()}`
+  }
+
+  // Fallback calculation if trade not found
+  const targetPricePerShare = comparison.targetValue > 0 && comparison.targetAllocation > 0
+    ? comparison.targetValue / comparison.targetAllocation
+    : 0
+
+  const value = (comparison.sharesToTrade || 0) * targetPricePerShare
+  const prefix = comparison.action === 'sell' ? '-' : '+'
+  return `${prefix}$${Math.abs(value).toLocaleString()}`
+}
+
+const getCompactReason = (comparison: any) => {
+  // Extract key reason from verbose descriptions
+  if (comparison.reason?.toLowerCase().includes('rebalance')) return '-Rebalance'
+  if (comparison.reason?.toLowerCase().includes('new')) return '-New Pos'
+  if (comparison.reason?.toLowerCase().includes('remove')) return '-Remove'
+  if (comparison.reason?.toLowerCase().includes('momentum')) return '-Momentum'
+  return '-Strategy'
+}
+
+const getUtilizationClass = () => {
+  const rate = analysisResults.value?.utilizationRate || 0
+  if (rate >= 95) return 'high'
+  if (rate >= 80) return 'medium'
+  return 'low'
+}
+
+const getUtilizationEmoji = () => {
+  const rate = analysisResults.value?.utilizationRate || 0
+  if (rate >= 95) return '✓'
+  if (rate >= 80) return '!'
+  return '!'
+}
+
+const getNetCashFlowClass = () => {
+  const netFlow = totalBuyCost.value - totalSellProceeds.value
+  if (netFlow > 0) return 'buy-value'
+  if (netFlow < 0) return 'sell-value'
+  return 'hold-value'
+}
+
+const formatNetCashFlow = () => {
+  const netFlow = totalBuyCost.value - totalSellProceeds.value
+  const prefix = netFlow >= 0 ? '+' : ''
+  return `${prefix}$${Math.abs(netFlow).toLocaleString()}`
 }
 
 // localStorage keys
@@ -2169,6 +2311,554 @@ input:checked + .toggle-slider:before {
   .deviation-info small {
     color: #495057;
     line-height: 1.4;
+  }
+}
+
+/* ===== MOBILE-FIRST RESPONSIVE PORTFOLIO EXECUTION INTERFACE ===== */
+
+.portfolio-execution {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  margin: 2rem 0;
+}
+
+/* Header Section */
+.execution-header {
+  padding: 1.5rem 0;
+  margin-bottom: 1.5rem;
+}
+
+.execution-title {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.title-icon {
+  font-size: 1.5rem;
+}
+
+.title-text {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0;
+  color: #1f2937;
+}
+
+.title-subtitle {
+  font-size: 0.9rem;
+  color: #6b7280;
+  margin: 0.25rem 0 0 0;
+}
+
+.metrics-bar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  align-items: center;
+}
+
+.metric-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.metric-icon {
+  font-size: 1.25rem;
+}
+
+.metric-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.metric-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1;
+  color: #1f2937;
+}
+
+.metric-label {
+  font-size: 0.75rem;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.utilization-indicator {
+  font-size: 1.5rem;
+  padding: 0.5rem;
+  border-radius: 50%;
+  text-align: center;
+  width: 3rem;
+  height: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.utilization-indicator.high { background: rgba(16, 185, 129, 0.1); }
+.utilization-indicator.medium { background: rgba(245, 158, 11, 0.1); }
+.utilization-indicator.low { background: rgba(239, 68, 68, 0.1); }
+
+/* Mobile Cards Layout */
+.mobile-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.etf-card {
+  background: white;
+  border-radius: 8px;
+  padding: 1rem;
+  border: 1px solid #e5e7eb;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+  min-height: 80px;
+}
+
+.etf-card:hover {
+  border-color: #d1d5db;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.etf-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 1;
+}
+
+.etf-name {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #1f2937;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.action-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  width: fit-content;
+  border: 1px solid transparent;
+}
+
+.action-status.buy {
+  background: rgba(16, 185, 129, 0.1);
+  color: #059669;
+  border-color: rgba(16, 185, 129, 0.2);
+}
+
+.action-status.sell {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
+.action-status.hold {
+  background: rgba(245, 158, 11, 0.1);
+  color: #d97706;
+  border-color: rgba(245, 158, 11, 0.2);
+}
+
+.trade-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  text-align: right;
+  min-width: 100px;
+}
+
+.buy-value { background: rgba(16, 185, 129, 0.1); color: #059669; }
+.sell-value { background: rgba(239, 68, 68, 0.1); color: #dc2626; }
+.hold-value { background: rgba(245, 158, 11, 0.1); color: #d97706; }
+
+/* Expandable Details */
+.card-details {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.detail-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #6b7280;
+  min-width: 100px;
+}
+
+.detail-value {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #1f2937;
+  text-align: right;
+  flex: 1;
+}
+
+.reason-badge {
+  background: rgba(102, 126, 234, 0.1);
+  color: #4f46e5;
+  padding: 0.25rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border: 1px solid rgba(102, 126, 234, 0.2);
+}
+
+/* Desktop Table Layout - Hidden on Mobile */
+.desktop-table {
+  display: none;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+  overflow: hidden;
+}
+
+.desktop-table .table-header {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr 1.2fr 1fr 1fr 1fr 1fr;
+  gap: 1rem;
+  padding: 1rem;
+  background: #f8fafc;
+  font-weight: 600;
+  color: #374151;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 0.9rem;
+}
+
+.desktop-table .table-row {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr 1.2fr 1fr 1fr 1fr 1fr;
+  gap: 1rem;
+  padding: 1rem;
+  border-bottom: 1px solid #f1f5f9;
+  align-items: center;
+}
+
+.desktop-table .table-row:hover {
+  background: #f8fafc;
+}
+
+.desktop-table .etf-name {
+  font-weight: 700;
+  color: #1f2937;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.desktop-table .current-value,
+.desktop-table .target-value {
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.desktop-table .shares-to-trade {
+  text-align: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+}
+
+.desktop-table .compact-reason {
+  background: rgba(102, 126, 234, 0.1);
+  color: #4f46e5;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-align: center;
+  border: 1px solid rgba(102, 126, 234, 0.2);
+}
+
+/* Execution Summary */
+.execution-summary {
+  padding: 1.5rem 0;
+  margin-bottom: 1.5rem;
+}
+
+.summary-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.summary-metrics {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+.summary-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 0;
+}
+
+.summary-label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #6b7280;
+}
+
+.summary-value {
+  font-size: 0.9rem;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.summary-value.buy { color: #059669; }
+.summary-value.sell { color: #dc2626; }
+.summary-value.method { color: #667eea; }
+.summary-value.confidence { color: #059669; }
+
+/* Execution Actions */
+.execution-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: stretch;
+}
+
+/* ===== RESPONSIVE BREAKPOINTS ===== */
+
+/* Tablet Styles (768px and up) */
+@media (min-width: 768px) {
+  .execution-header {
+    padding: 2rem;
+  }
+
+  .execution-title {
+    margin-bottom: 2rem;
+  }
+
+  .metrics-bar {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
+  }
+
+  .mobile-cards {
+    gap: 1.25rem;
+  }
+
+  .etf-card {
+    padding: 1.25rem;
+  }
+
+  .card-header {
+    gap: 1.5rem;
+  }
+
+  .summary-metrics {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+
+  .execution-actions {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 1rem;
+  }
+}
+
+/* Desktop Styles (1024px and up) */
+@media (min-width: 1024px) {
+  .portfolio-execution {
+    margin: 3rem 0;
+  }
+
+  .execution-header {
+    padding: 2.5rem;
+    border-radius: 20px;
+  }
+
+  .title-icon {
+    font-size: 2.5rem;
+  }
+
+  .title-text {
+    font-size: 1.75rem;
+  }
+
+  .metrics-bar {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 2rem;
+  }
+
+  .metric-item {
+    padding: 1rem;
+  }
+
+  .metric-value {
+    font-size: 1.25rem;
+  }
+
+  /* Hide mobile cards on desktop */
+  .mobile-cards {
+    display: none;
+  }
+
+  /* Show desktop table on desktop */
+  .desktop-table {
+    display: block;
+  }
+
+  .summary-metrics {
+    grid-template-columns: repeat(5, 1fr);
+  }
+
+  .execution-actions {
+    justify-content: center;
+  }
+
+  .btn {
+    min-width: 200px;
+  }
+}
+
+/* Large Desktop Styles (1280px and up) */
+@media (min-width: 1280px) {
+  .execution-header {
+    padding: 3rem;
+  }
+
+  .metrics-bar {
+    gap: 2.5rem;
+  }
+
+  .summary-metrics {
+    grid-template-columns: repeat(5, 1fr);
+    gap: 1.5rem;
+  }
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+  .portfolio-execution {
+    color: #f9fafb;
+  }
+
+  .etf-card,
+  .execution-summary {
+    background: #1f2937;
+    border-color: #374151;
+    color: #f9fafb;
+  }
+
+  .etf-card:hover {
+    border-color: #667eea;
+  }
+
+  .card-details {
+    border-top-color: #374151;
+  }
+
+  .detail-label {
+    color: #9ca3af;
+  }
+
+  .detail-value {
+    color: #f9fafb;
+  }
+
+  .summary-item {
+    background: #374151;
+    border-left-color: #667eea;
+  }
+
+  .desktop-table {
+    background: #1f2937;
+    border-color: #374151;
+  }
+
+  .desktop-table .table-header {
+    background: linear-gradient(135deg, #374151, #1f2937);
+    color: #f9fafb;
+  }
+
+  .desktop-table .table-row {
+    border-bottom-color: #374151;
+  }
+
+  .desktop-table .table-row:hover {
+    background: #374151;
+  }
+
+  .desktop-table .current-value,
+  .desktop-table .target-value {
+    color: #9ca3af;
+  }
+
+  .desktop-table .etf-name {
+    color: #f9fafb;
+  }
+}
+
+/* Accessibility Enhancements */
+@media (prefers-reduced-motion: reduce) {
+  .etf-card,
+  .metric-item,
+  .action-status,
+  .utilization-indicator {
+    transition: none;
+  }
+}
+
+/* High Contrast Mode */
+@media (prefers-contrast: high) {
+  .etf-card,
+  .execution-summary {
+    border-width: 2px;
+  }
+
+  .action-status {
+    border: 2px solid currentColor;
   }
 }
 </style>

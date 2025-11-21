@@ -9,13 +9,27 @@
     "dev:frontend": "cd frontend && npm run dev",
     "build": "cd frontend && npm run build",
     "start": "cd server && npm start",
-    "install:all": "npm install && cd server && npm install && cd ../frontend && npm install",
+    "install:all": "npm install && cd server && npm install && cd ../frontend && npm install && npx playwright install",
     "test": "cd server && npm test && cd ../frontend && npm test",
+    "test:unit": "cd server && npm test && cd ../frontend && npm test",
+    "test:integration": "cd frontend && npm test tests/integration/",
+    "test:e2e": "npx playwright test",
+    "test:performance": "npx playwright test tests/performance/",
+    "test:coverage": "cd server && npm run test:coverage && cd ../frontend && npm run test:coverage",
+    "test:ci": "./scripts/run-all-tests.sh",
+    "test:e2e:ui": "npx playwright test --ui",
+    "test:e2e:debug": "npx playwright test --debug",
+    "test:e2e:mobile": "npx playwright test --project=\"Mobile Chrome\" --project=\"Mobile Safari\"",
+    "test:e2e:desktop": "npx playwright test --project=chromium --project=firefox --project=webkit",
+    "test:watch": "cd server && npm run test:watch & cd frontend && npm run test:watch",
+    "test:smoke": "cd server && npm test && cd frontend && npm test tests/integration/portfolio-service.test.ts",
+    "test:full": "./scripts/run-all-tests.sh && npm run test:e2e",
     "lint": "cd server && npm run lint && cd ../frontend && npm run lint",
     "format": "cd server && npm run format && cd ../frontend && npm run format"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "@playwright/test": "^1.40.0"
   },
   "keywords": [
     "etf",
@@ -23,7 +37,14 @@
     "momentum",
     "investment",
     "vue",
-    "nodejs"
+    "nodejs",
+    "testing",
+    "e2e",
+    "playwright",
+    "vitest",
+    "jest",
+    "financial-applications",
+    "portfolio-optimization"
   ],
   "author": "Momentum Rider Team",
   "license": "MIT"
