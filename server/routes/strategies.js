@@ -94,6 +94,17 @@ router.get('/types', async (req, res) => {
         parameters: {
           strategyWeights: 'Object mapping strategy types to weights'
         }
+      },
+      {
+        type: 'allweather',
+        name: 'All-Weather Portfolio',
+        description: 'Dalio-inspired All-Weather strategy with 10-month SMA trend filtering and SGOV cash fallback',
+        parameters: {
+          smaPeriod: 'SMA period for trend filtering (default: 10 months)',
+          rebalanceDate: 'Monthly rebalancing date (default: current date)',
+          currentPositions: 'Current ETF positions for optimization',
+          totalPortfolioValue: 'Total portfolio value for calculations'
+        }
       }
     ];
 
@@ -208,60 +219,6 @@ router.post('/:strategyId/calculate', async (req, res) => {
     logger.logError(error, 'Failed to calculate allocation');
     res.status(400).json({
       error: error.message
-    });
-  }
-});
-
-/**
- * Get available strategy types
- * GET /api/strategies/types
- */
-router.get('/types', async (req, res) => {
-  try {
-    const strategyTypes = [
-      {
-        type: 'percentage',
-        name: 'Percentage Allocation',
-        description: 'Fixed percentage allocation for each ETF',
-        parameters: {
-          allocations: 'Object mapping tickers to percentage allocations'
-        }
-      },
-      {
-        type: 'momentum',
-        name: 'Momentum Allocation',
-        description: 'Allocate to top N ETFs based on momentum scores',
-        parameters: {
-          topN: 'Number of top ETFs to select',
-          momentumThreshold: 'Minimum momentum score required'
-        }
-      },
-      {
-        type: 'sma',
-        name: 'SMA Trend Following',
-        description: 'Allocate based on 200-day Simple Moving Average trends',
-        parameters: {
-          smaPeriod: 'SMA period (default: 200)',
-          trendThreshold: 'Trend threshold percentage'
-        }
-      },
-      {
-        type: 'hybrid',
-        name: 'Hybrid Strategy',
-        description: 'Combine multiple strategies with weighted allocations',
-        parameters: {
-          strategyWeights: 'Object mapping strategy types to weights'
-        }
-      }
-    ];
-
-    res.json({
-      strategyTypes
-    });
-  } catch (error) {
-    logger.logError(error, 'Failed to get strategy types');
-    res.status(500).json({
-      error: 'Failed to retrieve strategy types'
     });
   }
 });

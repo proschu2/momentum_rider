@@ -5,6 +5,7 @@
 const momentumService = require('./momentumService');
 const customETFService = require('./customETFService');
 const smaService = require('./smaService');
+const allWeatherService = require('./allWeatherService');
 const cacheService = require('./cacheService');
 const logger = require('../config/logger');
 const fs = require('fs').promises;
@@ -18,7 +19,7 @@ const STRATEGY_FILE = path.join(__dirname, '../local_data/strategies.json');
  * @typedef {Object} AllocationStrategy
  * @property {string} id - Unique strategy ID
  * @property {string} name - Strategy name
- * @property {string} type - Strategy type (percentage, momentum, sma, hybrid)
+ * @property {string} type - Strategy type (percentage, momentum, sma, hybrid, allweather)
  * @property {StrategyParameters} parameters - Strategy parameters
  * @property {string} created - Creation timestamp
  * @property {string} updated - Last update timestamp
@@ -113,7 +114,7 @@ async function createStrategy(config) {
     }
 
     // Validate strategy type
-    const validTypes = ['percentage', 'momentum', 'sma', 'hybrid'];
+    const validTypes = ['percentage', 'momentum', 'sma', 'hybrid', 'allweather'];
     if (!validTypes.includes(type)) {
       throw new Error(`Invalid strategy type. Must be one of: ${validTypes.join(', ')}`);
     }
@@ -269,6 +270,10 @@ async function calculateAllocation(etfUniverse, strategy, currentHoldings = {}) 
 
       case 'hybrid':
         allocation = await calculateHybridAllocation(etfUniverse, strategy.parameters);
+        break;
+
+      case 'allweather':
+        allocation = await allWeatherService.analyzeAllWeatherStrategy(etfUniverse, strategy.parameters, currentHoldings);
         break;
 
       default:

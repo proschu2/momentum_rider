@@ -6,7 +6,15 @@ const financeService = require('./financeService');
 const customETFService = require('./customETFService');
 const portfolioOptimizationService = require('./portfolioOptimizationService');
 const preFetchService = require('./preFetchService');
+const allWeatherService = require('./allWeatherService');
 const logger = require('../config/logger');
+const {
+  ALL_WEATHER_ETFS,
+  isAllWeatherETF,
+  isMomentumETF,
+  getStrategyTypeForETF,
+  STRATEGY_TYPES
+} = require('../config/strategies');
 
 class PortfolioService {
   constructor() {
@@ -59,6 +67,7 @@ class PortfolioService {
 
       let targetAllocations = {};
       let momentumScores = {};
+      let allWeatherResult = null; // Declare outside switch
 
       switch (strategy.type) {
         case 'momentum':
@@ -70,7 +79,15 @@ class PortfolioService {
           console.log('Debug: After assignment. GLDM has price:', 'GLDM' in momentumScores ? 'price' in momentumScores['GLDM'] : 'GLDM not found');
           break;
         case 'allweather':
-          targetAllocations = await this.analyzeAllWeatherStrategy(selectedETFs, strategy.parameters);
+          allWeatherResult = await allWeatherService.analyzeAllWeatherStrategy(selectedETFs, strategy.parameters);
+          // Extract targetAllocations from All-Weather targetETFs
+          targetAllocations = {};
+          if (allWeatherResult && allWeatherResult.targetETFs) {
+            allWeatherResult.targetETFs.forEach(etf => {
+              targetAllocations[etf.name] = etf.targetPercentage;
+            });
+            console.log('🎯 Extracted All-Weather target allocations:', targetAllocations);
+          }
           break;
         case 'custom':
           targetAllocations = strategy.parameters.allocations || {};
@@ -141,6 +158,14 @@ class PortfolioService {
       // Debug: Check momentumScores before final return
       console.log('Debug: momentumScores in analyzeStrategy return:', JSON.stringify(momentumScores, null, 2));
 
+      // Add strategyAnalysis for frontend compatibility
+      let strategyAnalysis = null;
+      if (strategy.type === 'allweather' && allWeatherResult) {
+        strategyAnalysis = {
+          targetETFs: allWeatherResult.targetETFs || []
+        };
+      }
+
       const result = {
         totalInvestment,
         currentPortfolioValue,
@@ -150,6 +175,7 @@ class PortfolioService {
         strategy: strategy.type,
         selectedETFs,
         momentumScores,
+        strategyAnalysis, // CRITICAL: Add strategyAnalysis for frontend
         analysisTimestamp: new Date().toISOString()
       };
 
@@ -311,84 +337,21 @@ class PortfolioService {
   }
 
   /**
-   * Analyze all-weather strategy
+   * Analyze all-weather strategy using comprehensive All-Weather service
    */
-  async analyzeAllWeatherStrategy(selectedETFs, parameters) {
-    const { smaPeriod = 200, bondFallbackPercent = 80 } = parameters;
-
+  async analyzeAllWeatherStrategy(selectedETFs, parameters, portfolioData = {}) {
     try {
-      // Default all-weather allocations (Dalio-inspired)
-      const defaultAllocations = {
-        'VTI': 30,   // US Stocks
-        'VEA': 15,   // Developed International
-        'VWO': 5,    // Emerging Markets
-        'TLT': 40,   // Long-term Treasury
-        'BND': 7.5,  // Total Bond Market
-        'PDBC': 2.5, // Commodities
-        'GLDM': 2.5, // Gold
-        'IBIT': 4    // Bitcoin (if included)
-      };
+      console.log('🌤️  PortfolioService: Analyzing All-Weather strategy...');
 
-      // Filter to only include selected ETFs
-      const filteredAllocations = {};
-      let totalFiltered = 0;
+      // Delegate to the dedicated All-Weather service
+      const allWeatherAnalysis = await allWeatherService.analyzeAllWeatherStrategy(
+        selectedETFs,
+        parameters,
+        portfolioData
+      );
 
-      selectedETFs.forEach(etf => {
-        if (defaultAllocations[etf]) {
-          filteredAllocations[etf] = defaultAllocations[etf];
-          totalFiltered += defaultAllocations[etf];
-        }
-      });
-
-      // Check ETFs against SMA
-      const smaResults = await this.checkSMATrend(selectedETFs, smaPeriod);
-
-      // Adjust allocations based on SMA signals
-      const adjustedAllocations = {};
-      let stockAllocation = 0;
-      let bondAllocation = 0;
-
-      Object.entries(filteredAllocations).forEach(([etf, allocation]) => {
-        const smaResult = smaResults[etf];
-
-        if (this.isStockETF(etf)) {
-          if (smaResult && smaResult.aboveSMA) {
-            adjustedAllocations[etf] = allocation;
-            stockAllocation += allocation;
-          } else {
-            // Move stock allocation to bonds
-            bondAllocation += allocation;
-          }
-        } else if (this.isBondETF(etf)) {
-          adjustedAllocations[etf] = allocation;
-          bondAllocation += allocation;
-        } else {
-          // Keep other allocations as is (commodities, gold, etc.)
-          adjustedAllocations[etf] = allocation;
-        }
-      });
-
-      // If stocks need fallback to bonds, redistribute
-      if (stockAllocation < bondFallbackPercent) {
-        // Find the largest bond allocation and add the stock allocation
-        const bondETFs = Object.keys(adjustedAllocations).filter(etf => this.isBondETF(etf));
-        if (bondETFs.length > 0) {
-          const largestBondETF = bondETFs.reduce((max, etf) =>
-            adjustedAllocations[etf] > adjustedAllocations[max] ? etf : max
-          );
-          adjustedAllocations[largestBondETF] += stockAllocation;
-        }
-      }
-
-      // Normalize to 100%
-      const total = Object.values(adjustedAllocations).reduce((sum, val) => sum + val, 0);
-      if (total > 0) {
-        Object.keys(adjustedAllocations).forEach(etf => {
-          adjustedAllocations[etf] = (adjustedAllocations[etf] / total) * 100;
-        });
-      }
-
-      return adjustedAllocations;
+      console.log('✅ All-Weather strategy analysis completed');
+      return allWeatherAnalysis;
 
     } catch (error) {
       logger.logError(error, 'All-weather strategy analysis failed');
@@ -425,44 +388,108 @@ class PortfolioService {
         analysisValid: analysis.totalInvestment != null && analysis.totalInvestment > 0
       });
 
-      // Extract prices from momentum analysis (already fetched during analysis)
+      // Extract prices from analysis (different handling for momentum vs All-Weather)
       const prices = {};
       console.log('=== ENHANCED PRICE EXTRACTION DEBUG ===');
-      for (const etf of selectedETFs) {
-        const momentumData = analysis.momentumScores?.[etf];
 
-        // Extract price from momentum data - handle different data structures
-        let momentumPrice = null;
-        if (momentumData) {
-          momentumPrice = momentumData.price || momentumData.currentPrice || momentumData.quote?.price;
+      for (const etf of selectedETFs) {
+        let extractedPrice = null;
+        let priceSource = '';
+
+        // Check if this is an All-Weather ETF (these don't have momentum data)
+        const isAllWeatherETF = isAllWeatherETF(etf);
+        const isAllWeatherStrategy = strategy?.type === STRATEGY_TYPES.ALL_WEATHER;
+
+        if (isAllWeatherStrategy || isAllWeatherETF) {
+          // For All-Weather strategy or All-Weather ETFs, get prices from trend signals or cached data
+          const trendSignal = analysis.trendSignals?.[etf];
+          if (trendSignal && trendSignal.currentPrice) {
+            extractedPrice = trendSignal.currentPrice;
+            priceSource = 'All-Weather trend signals';
+            console.log(`Price extracted for ${etf}:`, {
+              price: extractedPrice,
+              source: priceSource,
+              signal: trendSignal.signal,
+              SMA: trendSignal.SMA,
+              strategyCheck: isAllWeatherStrategy,
+              etfCheck: isAllWeatherETF
+            });
+          } else {
+            // For All-Weather, use preFetchService to get cached prices
+            try {
+              const priceData = await preFetchService.getCachedPrice(etf);
+              if (priceData && priceData.price && priceData.price > 0 && priceData.price < 100000) {
+                // Extract price from response object if needed
+                extractedPrice = typeof priceData === 'object' && priceData.price ? priceData.price : priceData;
+                priceSource = 'cached price (preFetchService)';
+                console.log(`Price extracted for ${etf}:`, {
+                  price: extractedPrice,
+                  source: priceSource,
+                  originalData: priceData,
+                  strategyCheck: isAllWeatherStrategy,
+                  etfCheck: isAllWeatherETF
+                });
+              }
+            } catch (cacheError) {
+              console.warn(`Failed to get cached price for ${etf}:`, cacheError);
+            }
+          }
+        } else if (strategy?.type === STRATEGY_TYPES.MOMENTUM) {
+          // Only extract momentum data for explicit momentum strategy AND non-All-Weather ETFs
+          const momentumData = analysis.momentumScores?.[etf];
+
+          // Extract price from momentum data - handle different data structures
+          let momentumPrice = null;
+          if (momentumData) {
+            momentumPrice = momentumData.price || momentumData.currentPrice || momentumData.quote?.price;
+          }
+
+          if (momentumPrice && momentumPrice > 0 && momentumPrice < 100000) {
+            extractedPrice = momentumPrice;
+            priceSource = 'momentum analysis';
+            console.log(`Price extracted for ${etf}:`, {
+              price: extractedPrice,
+              source: priceSource,
+              absoluteMomentum: momentumData.absoluteMomentum,
+              score: momentumData.score,
+              dataKeys: Object.keys(momentumData)
+            });
+          }
+        } else {
+          // For unknown strategy or mixed scenarios, use preFetchService as safe default
+          console.log(`Unknown strategy (${strategy?.type}) for ${etf}, using cached prices as safe default`);
+          try {
+            const priceData = await preFetchService.getCachedPrice(etf);
+            if (priceData && priceData.price && priceData.price > 0 && priceData.price < 100000) {
+              extractedPrice = typeof priceData === 'object' && priceData.price ? priceData.price : priceData;
+              priceSource = 'cached price (safe default)';
+              console.log(`Safe default price extracted for ${etf}:`, {
+                price: extractedPrice,
+                source: priceSource,
+                strategyType: strategy?.type || 'undefined'
+              });
+            }
+          } catch (cacheError) {
+            console.warn(`Failed to get cached price for ${etf} (safe default):`, cacheError);
+          }
         }
 
-        if (momentumPrice && momentumPrice > 0 && momentumPrice < 100000) {
-          // Use price from momentum analysis (should be successful now)
-          prices[etf] = momentumPrice;
-          console.log(`Price extracted for ${etf}:`, {
-            price: momentumPrice,
-            source: 'momentum analysis',
-            absoluteMomentum: momentumData.absoluteMomentum,
-            score: momentumData.score,
-            dataKeys: Object.keys(momentumData)
-          });
-        } else {
-          console.warn(`Invalid or missing momentum price for ${etf}:`, {
-            momentumPrice: momentumPrice,
-            momentumData: momentumData,
-            hasMomentumData: !!momentumData,
-            dataKeys: momentumData ? Object.keys(momentumData) : []
+        // If we still don't have a valid price, try API call as fallback
+        if (!extractedPrice || extractedPrice <= 0 || extractedPrice >= 100000) {
+          console.warn(`Invalid or missing price for ${etf}, trying API fallback:`, {
+            extractedPrice,
+            priceSource,
+            strategy: strategy?.type
           });
 
-          // Fallback to API call with better error handling
           try {
             const priceData = await this.getCurrentPriceOptimized(etf);
             if (priceData && priceData.price && priceData.price > 0 && priceData.price < 100000) {
-              prices[etf] = priceData.price;
+              extractedPrice = priceData.price;
+              priceSource = 'direct API call (fallback)';
               console.log(`Price fetched for ${etf} (API fallback):`, {
-                price: priceData.price,
-                source: 'direct API call',
+                price: extractedPrice,
+                source: priceSource,
                 timestamp: priceData.timestamp
               });
             } else {
@@ -481,6 +508,13 @@ class PortfolioService {
               source: 'intelligent fallback based on ETF type'
             });
           }
+        } else {
+          // Successfully extracted price, assign it
+          prices[etf] = extractedPrice;
+          console.log(`Final price assigned for ${etf}:`, {
+            price: extractedPrice,
+            source: priceSource
+          });
         }
       }
 

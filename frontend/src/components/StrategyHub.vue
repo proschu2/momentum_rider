@@ -98,35 +98,62 @@
         </div>
 
         <!-- All Weather Strategy Configuration -->
-        <div v-if="selectedStrategy.id === 'allweather'" class="config-panel">
-          <div class="config-group">
-            <label class="config-label">SMA Period</label>
-            <div class="input-with-unit">
+        <div v-if="selectedStrategy.id === 'allweather'" class="config-panel compact">
+          <div class="allweather-header compact">
+            <div class="allweather-icon">🌤️</div>
+            <div class="allweather-title">
+              <h3>All-Weather Portfolio</h3>
+              <p>Fixed optimized ETF universe with trend filtering</p>
+            </div>
+          </div>
+
+          <div class="compact-configs">
+            <div class="config-group compact">
+              <label class="config-label">Portfolio Value</label>
               <input
-                v-model.number="strategyConfig.allweather.smaPeriod"
+                v-model.number="strategyConfig.allweather.totalPortfolioValue"
                 type="number"
-                min="50"
-                max="300"
-                step="10"
-                class="config-input"
+                min="1000"
+                max="10000000"
+                step="1000"
+                class="config-input compact"
+                placeholder="100000"
               />
-              <span class="unit">days</span>
+            </div>
+
+            <div class="config-group compact">
+              <label class="config-label">SMA Period</label>
+              <div class="input-with-unit compact">
+                <input
+                  v-model.number="strategyConfig.allweather.smaPeriod"
+                  type="number"
+                  min="6"
+                  max="24"
+                  step="1"
+                  class="config-input compact"
+                />
+                <span class="unit">months</span>
+              </div>
             </div>
           </div>
 
           <div class="config-group">
-            <label class="config-label">Bond Allocation When Below SMA</label>
-            <div class="input-with-unit">
-              <input
-                v-model.number="strategyConfig.allweather.bondFallbackPercent"
-                type="number"
-                min="0"
-                max="100"
-                step="5"
-                class="config-input"
-              />
-              <span class="unit">%</span>
+            <label class="config-label">📊 Analysis Options</label>
+            <div class="compact-options">
+              <label class="compact-checkbox">
+                <input
+                  v-model="strategyConfig.allweather.showTrendSignals"
+                  type="checkbox"
+                />
+                <span>Show trend signals & SGOV allocation</span>
+              </label>
             </div>
+          </div>
+
+          <div class="config-help compact">
+            <strong>ETF Universe:</strong> VTI, VEA, VWO, IEF, TIP, IGIL.L, PDBC, GLDM, SGOV (auto-selected) |
+            <strong>Methodology:</strong> 10-month SMA trend filtering + SGOV cash fallback |
+            <strong>Expense Ratio:</strong> 0.162%
           </div>
         </div>
 
@@ -189,7 +216,7 @@
 
   
         <!-- ETF Selection -->
-        <div class="etf-selection-section">
+        <div v-show="selectedStrategy?.id !== 'allweather'" class="etf-selection-section">
           <h3 class="subsection-title">Select ETF Universe</h3>
 
           <!-- Search and Filter -->
@@ -303,6 +330,101 @@
             <span :class="['utilization-indicator', getUtilizationClass()]">
               {{ getUtilizationEmoji() }}
             </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- All-Weather Specific Displays -->
+      <div v-if="selectedStrategy?.id === 'allweather' && strategyConfig.allweather.showTrendSignals">
+        <!-- Trend Signals Section -->
+        <div v-if="analysisResults?.trendSignals" class="trend-signals-section">
+          <h4 class="section-title">📈 10-Month SMA Trend Signals</h4>
+          <div class="trend-signals-container">
+            <div
+              v-for="(signal, etf) in analysisResults.trendSignals"
+              :key="etf"
+              :class="['trend-signal-card', signal.signal === 1 ? 'in-uptrend' : 'in-downtrend']"
+            >
+              <div class="trend-signal-header">
+                <span class="trend-signal-ticker">{{ etf }}</span>
+                <span :class="['trend-signal-status', signal.signal === 1 ? 'in' : 'out']">
+                  {{ signal.action }}
+                </span>
+              </div>
+              <div class="trend-signal-details">
+                {{ signal.analysis.percentDifference }} from 10-month SMA
+              </div>
+              <div class="trend-signal-price">
+                <span>Price: ${{ signal.analysis.price }}</span>
+                <span>SMA: ${{ signal.analysis.sma }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SGOV Allocation Section -->
+        <div v-if="analysisResults?.targetAllocations" class="sgov-section">
+          <div class="sgov-allocation-card">
+            <div class="sgov-allocation-header">
+              <span class="sgov-allocation-icon">💰</span>
+              <span class="sgov-allocation-title">SGOV Cash Allocation</span>
+            </div>
+            <div class="sgov-allocation-details">
+              <div class="sgov-metric">
+                <div class="sgov-metric-value">{{ analysisResults.targetAllocations.sgovAllocation.toFixed(1) }}%</div>
+                <div class="sgov-metric-label">Cash Position</div>
+              </div>
+              <div class="sgov-metric">
+                <div class="sgov-metric-value">{{ analysisResults.targetAllocations.totalActiveWeight.toFixed(1) }}%</div>
+                <div class="sgov-metric-label">Deployed Capital</div>
+              </div>
+              <div class="sgov-metric">
+                <div class="sgov-metric-value">{{ analysisResults.targetAllocations.trendFilteredETFs.length }}</div>
+                <div class="sgov-metric-label">Active ETFs</div>
+              </div>
+              <div class="sgov-metric">
+                <div class="sgov-metric-value">4.8%</div>
+                <div class="sgov-metric-label">Expected Yield</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Methodology Info -->
+        <div class="allweather-methodology">
+          <h4 class="section-title">🎯 All-Weather Methodology</h4>
+          <div class="methodology-grid">
+            <div class="methodology-item">
+              <div class="methodology-icon">📊</div>
+              <div class="methodology-text">
+                <strong>10-Month SMA</strong> trend filtering for all positions
+              </div>
+            </div>
+            <div class="methodology-item">
+              <div class="methodology-icon">🎯</div>
+              <div class="methodology-text">
+                <strong>Dynamic Deviation Tolerances</strong> (±1-5% based on position size)
+              </div>
+            </div>
+            <div class="methodology-item">
+              <div class="methodology-icon">🔢</div>
+              <div class="methodology-text">
+                <strong>Integer Share Optimization</strong> with linear programming
+              </div>
+            </div>
+            <div class="methodology-item">
+              <div class="methodology-icon">💰</div>
+              <div class="methodology-text">
+                <strong>SGOV Cash Fallback</strong> for trend exit proceeds
+              </div>
+            </div>
+          </div>
+          <div class="methodology-summary">
+            <small>
+              <strong>Expense Ratio:</strong> {{ analysisResults?.expenseRatio ? (analysisResults.expenseRatio * 100).toFixed(3) : '0.162' }}% |
+              <strong>Validation:</strong> {{ analysisResults?.finalPortfolioState?.validation?.isValid ? '✅ PASSED' : '❌ FAILED' }} |
+              <strong>Rebalancing:</strong> Monthly
+            </small>
           </div>
         </div>
       </div>
@@ -473,7 +595,9 @@ interface StrategyConfig {
   }
   allweather: {
     smaPeriod: number
-    bondFallbackPercent: number
+    totalPortfolioValue: number
+    rebalanceDate: string
+    showTrendSignals: boolean
   }
   custom: {
     allocations: Record<string, number>
@@ -485,6 +609,34 @@ interface AnalysisResults {
   utilizedCapital: number
   uninvestedCash: number
   utilizationRate: number
+  // All-Weather specific fields
+  strategy?: string
+  trendSignals?: Record<string, {
+    currentPrice: number
+    sma10Month: number
+    signal: number
+    priceToSmaRatio: number
+    action: string
+    analysis: {
+      price: string
+      sma: string
+      difference: string
+      percentDifference: string
+    }
+  }>
+  targetAllocations?: {
+    etfAllocations: Record<string, number>
+    sgovAllocation: number
+    totalActiveWeight: number
+    trendFilteredETFs: string[]
+  }
+  expenseRatio?: number
+  finalPortfolioState?: {
+    validation: {
+      isValid: boolean
+      violations: any[]
+    }
+  }
 }
 
 interface PortfolioComparison {
@@ -564,8 +716,10 @@ const strategyConfig = reactive<StrategyConfig>({
     fallbackETF: 'SGOV'
   },
   allweather: {
-    smaPeriod: 200,
-    bondFallbackPercent: 80
+    smaPeriod: 10, // 10-month SMA (not days)
+    totalPortfolioValue: 100000,
+    rebalanceDate: new Date().toISOString().split('T')[0] || '2025-11-21', // Today's date in YYYY-MM-DD format
+    showTrendSignals: true
   },
   custom: {
     allocations: {}
@@ -655,15 +809,21 @@ const filteredPortfolioComparison = computed(() => {
 const selectStrategy = (strategy: Strategy) => {
   selectedStrategy.value = strategy
 
-  // Select ALL available ETFs by default for any strategy
-  // If ETFs are not loaded yet, the watcher will handle selection when data becomes available
-  if (allETFs.value.length > 0) {
-    selectedETFs.value = allETFs.value.map(etf => etf.ticker)
-    console.log(`Selected all ${selectedETFs.value.length} ETFs for ${strategy.id} strategy`)
+  // For All-Weather strategy, use the fixed optimized ETF universe
+  if (strategy.id === 'allweather') {
+    const allWeatherETFs = ['VTI', 'VEA', 'VWO', 'IEF', 'TIP', 'IGIL.L', 'PDBC', 'GLDM', 'SGOV']
+    selectedETFs.value = allWeatherETFs
+    console.log(`Selected All-Weather ETF universe: ${allWeatherETFs.join(', ')}`)
   } else {
-    console.log('ETF data not yet loaded, will select all when data becomes available')
-    // Clear any existing selection to ensure the watcher will select all when data loads
-    selectedETFs.value = []
+    // For other strategies, select ALL available ETFs by default
+    if (allETFs.value.length > 0) {
+      selectedETFs.value = allETFs.value.map(etf => etf.ticker)
+      console.log(`Selected all ${selectedETFs.value.length} ETFs for ${strategy.id} strategy`)
+    } else {
+      console.log('ETF data not yet loaded, will select all when data becomes available')
+      // Clear any existing selection to ensure the watcher will select all when data loads
+      selectedETFs.value = []
+    }
   }
 
   // Refresh momentum scores when strategy changes
@@ -716,17 +876,42 @@ const analyzeStrategy = async () => {
     if (selectedStrategy.value?.id === 'momentum') {
       parameters = strategyConfig.momentum;
     } else if (selectedStrategy.value?.id === 'allweather') {
-      parameters = strategyConfig.allweather;
+      // For All-Weather strategy, calculate total portfolio value (current holdings + cash)
+      // and use that as the totalPortfolioValue parameter
+      const currentHoldingsValue = currentHoldings.value.reduce((total: number, holding: any) => {
+        const price = cachedPrices.value[holding.etf] || holding.price || 0;
+        return total + (holding.shares * price);
+      }, 0);
+
+      const totalPortfolioValue = currentHoldingsValue + (props.portfolio?.additionalCash || 0);
+
+      // Update the All-Weather config with calculated total portfolio value
+      parameters = {
+        ...strategyConfig.allweather,
+        totalPortfolioValue: totalPortfolioValue
+      };
+
+      console.log('All-Weather portfolio calculation:', {
+        currentHoldingsValue,
+        additionalCash: props.portfolio?.additionalCash || 0,
+        totalPortfolioValue,
+        holdingsCount: currentHoldings.value.length
+      });
     } else if (selectedStrategy.value?.id === 'custom') {
       parameters = strategyConfig.custom;
     }
+
+    // For All-Weather strategy, ensure we use the correct ETF universe
+    const etfUniverse = selectedStrategy.value?.id === 'allweather'
+      ? ['VTI', 'VEA', 'VWO', 'IEF', 'TIP', 'IGIL.L', 'PDBC', 'GLDM', 'SGOV']
+      : selectedETFs.value;
 
     const analysisRequest = {
       strategy: {
         type: selectedStrategy.value?.id as 'momentum' | 'allweather' | 'custom' || 'custom',
         parameters: parameters
       },
-      selectedETFs: selectedETFs.value,
+      selectedETFs: etfUniverse,
       additionalCapital: props.portfolio ? props.portfolio.additionalCash : 0,
       currentHoldings: currentHoldings.value
     }
@@ -734,8 +919,9 @@ const analyzeStrategy = async () => {
     // Debug: Log what we're sending
     console.log('Sending analysis request:', {
       strategy: selectedStrategy.value?.id || 'unknown',
-      selectedETFsCount: selectedETFs.value.length,
-      selectedETFs: selectedETFs.value,
+      selectedETFsCount: etfUniverse.length,
+      selectedETFs: etfUniverse,
+      isAllWeatherStrategy: selectedStrategy.value?.id === 'allweather',
       momentumConfig: strategyConfig.momentum,
       additionalCapital: analysisRequest.additionalCapital,
       portfolioCash: props.portfolio?.additionalCash,
@@ -743,9 +929,9 @@ const analyzeStrategy = async () => {
     })
 
     // Pre-fetch current prices for all selected ETFs to ensure we have latest data
-    console.log('Pre-fetching prices for selected ETFs:', selectedETFs.value)
+    console.log('Pre-fetching prices for selected ETFs:', etfUniverse)
     try {
-      const tickersToFetch = selectedETFs.value
+      const tickersToFetch = etfUniverse
       if (tickersToFetch.length > 0) {
         const priceFetchResult = await portfolioService.preFetchPrices(tickersToFetch)
         console.log('Price pre-fetch completed:', priceFetchResult)
@@ -905,8 +1091,7 @@ const analyzeStrategy = async () => {
 
           console.log('✅ Generated execution plan with', executionPlan.value.length, 'trades:', {
             buys: executionPlan.value.filter(t => t.action === 'buy').length,
-            sells: executionPlan.value.filter(t => t.action === 'sell').length,
-            vtiTrade: executionPlan.value.find(t => t.etf === 'VTI')
+            sells: executionPlan.value.filter(t => t.action === 'sell').length
           })
         } catch (error) {
           console.error('❌ Error processing execution plan:', error)
@@ -1039,13 +1224,19 @@ const analyzeStrategy = async () => {
   }
 }
 
-// Watch for allETFs to be loaded and ensure all ETFs are selected if a strategy is active
+// Watch for allETFs to be loaded and ensure appropriate ETFs are selected for the strategy
 watch(allETFs, (newETFs) => {
   if (newETFs.length > 0 && selectedStrategy.value) {
-    // If we have a strategy selected but no ETFs selected yet, select all of them
+    // If we have a strategy selected but no ETFs selected yet, select appropriate ETFs
     if (selectedETFs.value.length === 0) {
-      console.log('ETF data loaded, selecting all ETFs for strategy:', selectedStrategy.value.id)
-      selectedETFs.value = newETFs.map(etf => etf.ticker)
+      if (selectedStrategy.value.id === 'allweather') {
+        const allWeatherETFs = ['VTI', 'VEA', 'VWO', 'IEF', 'TIP', 'IGIL.L', 'PDBC', 'GLDM', 'SGOV']
+        selectedETFs.value = allWeatherETFs
+        console.log('ETF data loaded, selecting All-Weather ETF universe:', allWeatherETFs.join(', '))
+      } else {
+        selectedETFs.value = newETFs.map(etf => etf.ticker)
+        console.log('ETF data loaded, selecting all ETFs for strategy:', selectedStrategy.value.id)
+      }
     }
   }
 }, { immediate: true })
@@ -1062,8 +1253,14 @@ watch(selectedStrategy, () => {
   }
 }, { deep: true })
 
-// Refresh momentum scores for all ETFs
+// Refresh momentum scores for all ETFs (only if not All-Weather strategy)
 const refreshMomentumScores = async () => {
+  // Skip momentum refresh for All-Weather strategy since it doesn't use momentum scores
+  if (selectedStrategy.value?.id === 'allweather') {
+    console.log('Skipping momentum refresh for All-Weather strategy')
+    return
+  }
+
   try {
     const allTickers = Object.values(etfConfigStore.etfUniverse).flat()
     console.log('Refreshing momentum scores for', allTickers.length, 'ETFs...')
@@ -1353,12 +1550,26 @@ onMounted(async () => {
   try {
     await etfConfigStore.loadETFUniverse()
 
-    // Get all tickers from the universe
-    const allTickers = Object.values(etfConfigStore.etfUniverse).flat()
+    // Check the current strategy to determine which ETFs to load
+    const savedStrategy = localStorage.getItem('momentum-rider-selected-strategy')
+    const currentStrategy = savedStrategy || selectedStrategy.value?.id || 'momentum'
+    console.log('Current strategy for ETF universe loading:', currentStrategy)
 
-    // Fetch real quote data for all ETFs with better error handling
-    console.log('Fetching real ETF data for', allTickers.length, 'tickers...')
-    const quotePromises = allTickers.map(async ticker => {
+    // Get strategy-specific tickers from the universe
+    let strategyTickers: string[] = []
+    if (currentStrategy === 'allweather') {
+      // All-Weather specific ETF universe
+      strategyTickers = ['VTI', 'VEA', 'VWO', 'IEF', 'TIP', 'IGIL.L', 'PDBC', 'GLDM', 'SGOV']
+      console.log('Loading All-Weather ETF universe:', strategyTickers)
+    } else {
+      // Momentum strategy ETF universe
+      strategyTickers = Object.values(etfConfigStore.etfUniverse).flat()
+      console.log('Loading Momentum ETF universe (', strategyTickers.length, 'tickers):', strategyTickers)
+    }
+
+    // Fetch real quote data for strategy-specific ETFs with better error handling
+    console.log('Fetching real ETF data for', strategyTickers.length, 'tickers...')
+    const quotePromises = strategyTickers.map(async ticker => {
       try {
         console.log(`Fetching quote for ${ticker}...`)
         const quote = await etfService.getQuote(ticker)
@@ -1380,7 +1591,7 @@ onMounted(async () => {
       .map(result => result.value)
       .filter(quote => quote.success)
 
-    console.log(`Successfully fetched quotes for ${quotes.length}/${allTickers.length} ETFs`)
+    console.log(`Successfully fetched quotes for ${quotes.length}/${strategyTickers.length} ETFs`)
 
     // Log sample successful quotes for debugging
     if (quotes.length > 0) {
@@ -1390,51 +1601,64 @@ onMounted(async () => {
     // Create a ticker to quote mapping
     const quoteMap = new Map(quotes.map(quote => [quote.ticker, quote]))
 
-    // Fetch real momentum scores from the portfolio analysis API
-    console.log('Fetching momentum scores for ETFs...')
+    // Fetch momentum scores ONLY if needed (not for All-Weather strategy)
+    console.log('Determining if momentum scores are needed...')
     let momentumScores: { [ticker: string]: number } = {}
-    try {
-      const momentumResponse = await portfolioService.analyzeStrategy({
-        strategy: {
-          type: 'momentum',
-          parameters: {
-            momentum: {
-              topN: 10, // Get scores for all ETFs
-              includeIBIT: false,
-              fallbackETF: 'SGOV'
+
+    if (currentStrategy !== 'allweather') {
+      console.log('Fetching momentum scores for non-All-Weather strategy:', currentStrategy)
+      try {
+        const momentumResponse = await portfolioService.analyzeStrategy({
+          strategy: {
+            type: 'momentum',
+            parameters: {
+              momentum: {
+                topN: 10, // Get scores for all ETFs
+                includeIBIT: false,
+                fallbackETF: 'SGOV'
+              }
             }
-          }
-        },
-        selectedETFs: allTickers,
-        additionalCapital: 0,
-        currentHoldings: []
-      })
+          },
+          selectedETFs: strategyTickers,
+          additionalCapital: 0,
+          currentHoldings: []
+        })
 
-      // Extract momentum scores from the analysis
-      momentumScores = Object.entries((momentumResponse as any).analysis?.momentumScores || {}).reduce((acc, [ticker, data]: [string, any]) => {
-        const score = typeof data === 'object' && data.score ? data.score : (typeof data === 'number' ? data : 0)
-        acc[ticker] = score
-        return acc
-      }, {} as { [ticker: string]: number })
+        // Extract momentum scores from the analysis
+        momentumScores = Object.entries((momentumResponse as any).analysis?.momentumScores || {}).reduce((acc, [ticker, data]: [string, any]) => {
+          const score = typeof data === 'object' && data.score ? data.score : (typeof data === 'number' ? data : 0)
+          acc[ticker] = score
+          return acc
+        }, {} as { [ticker: string]: number })
 
-      console.log('Loaded momentum scores for', Object.keys(momentumScores).length, 'ETFs')
-      console.log('Sample momentum scores:', Object.entries(momentumScores).slice(0, 3))
-    } catch (momentumError) {
-      console.warn('Failed to fetch momentum scores, using zeros:', momentumError)
-      // Use zero momentum scores as fallback
-      momentumScores = allTickers.reduce((acc, ticker) => {
+        console.log('Loaded momentum scores for', Object.keys(momentumScores).length, 'ETFs')
+        console.log('Sample momentum scores:', Object.entries(momentumScores).slice(0, 3))
+      } catch (momentumError) {
+        console.warn('Failed to fetch momentum scores, using zeros:', momentumError)
+        // Use zero momentum scores as fallback
+        momentumScores = strategyTickers.reduce((acc, ticker) => {
+          acc[ticker] = 0
+          return acc
+        }, {} as { [ticker: string]: number })
+      }
+    } else {
+      console.log('Skipping momentum scores for All-Weather strategy - not needed')
+      // Use zero momentum scores for All-Weather (they won't be displayed anyway)
+      momentumScores = strategyTickers.reduce((acc, ticker) => {
         acc[ticker] = 0
         return acc
       }, {} as { [ticker: string]: number })
     }
 
-    // Transform store data to ETFInfo format with real data
-    allETFs.value = Object.entries(etfConfigStore.etfUniverse).flatMap(([category, tickers]) =>
-      tickers.map(ticker => {
+    // Transform strategy tickers to ETFInfo format with real data
+    if (currentStrategy === 'allweather') {
+      // For All-Weather, create custom categories for each ETF
+      allETFs.value = strategyTickers.map(ticker => {
         const quote = quoteMap.get(ticker)
+        const category = `All-Weather ${ticker}`
         return {
           ticker,
-          name: quote?.shortName || quote?.longName || `${ticker} ${category} ETF`,
+          name: quote?.shortName || quote?.longName || `${ticker} ETF`,
           category,
           isCustom: false,
           currentPrice: quote?.regularMarketPrice || cachedPrices.value[ticker] || null,
@@ -1445,23 +1669,62 @@ onMounted(async () => {
           momentumScore: momentumScores[ticker] || 0
         }
       })
-    )
+    } else {
+      // For Momentum, use the original categories from etfConfigStore
+      allETFs.value = []
+      for (const category in etfConfigStore.etfUniverse) {
+        const tickers = etfConfigStore.etfUniverse[category]
+        for (let i = 0; i < tickers.length; i++) {
+          const ticker = tickers[i]
+          if (strategyTickers.indexOf(ticker) !== -1) {
+            const quote = quoteMap.get(ticker)
+            allETFs.value.push({
+              ticker,
+              name: quote?.shortName || quote?.longName || `${ticker} ${category} ETF`,
+              category,
+              isCustom: false,
+              currentPrice: quote?.regularMarketPrice || cachedPrices.value[ticker] || null,
+              dayChange: quote?.regularMarketChangePercent || null,
+              previousClose: quote?.regularMarketPreviousClose || null,
+              marketCap: quote?.marketCap || null,
+              volume: quote?.regularMarketVolume || null,
+              momentumScore: momentumScores[ticker] || 0
+            })
+          }
+        }
+      }
+    }
 
-    console.log('Loaded real ETF data with momentum for', allETFs.value.length, 'ETFs')
+    console.log('Loaded real ETF data for', allETFs.value.length, 'ETFs (strategy:', currentStrategy, ')')
   } catch (error) {
     console.error('Failed to load ETF universe or fetch data:', error)
 
+    // Check the current strategy for fallback as well
+    const savedStrategy = localStorage.getItem('momentum-rider-selected-strategy')
+    const currentStrategy = savedStrategy || selectedStrategy.value?.id || 'momentum'
+
+    let fallbackTickers: string[] = []
+    if (currentStrategy === 'allweather') {
+      fallbackTickers = ['VTI', 'VEA', 'VWO', 'IEF', 'TIP', 'IGIL.L', 'PDBC', 'GLDM', 'SGOV']
+    } else {
+      fallbackTickers = []
+      for (const category in etfConfigStore.etfUniverse) {
+        const tickers = etfConfigStore.etfUniverse[category]
+        for (let i = 0; i < tickers.length; i++) {
+          fallbackTickers.push(tickers[i])
+        }
+      }
+    }
+
     // Fallback to mock data if there's an error
-    allETFs.value = Object.entries(etfConfigStore.etfUniverse).flatMap(([category, tickers]) =>
-      tickers.map(ticker => ({
-        ticker,
-        name: `${ticker} ${category} ETF`,
-        category,
-        isCustom: false,
-        currentPrice: Math.random() * 200 + 50, // Mock price
-        momentumScore: (Math.random() - 0.5) * 20 // Mock momentum score
-      }))
-    )
+    allETFs.value = fallbackTickers.map(ticker => ({
+      ticker,
+      name: `${ticker} ETF`,
+      category: currentStrategy === 'allweather' ? `All-Weather ${ticker}` : `${ticker} Category`,
+      isCustom: false,
+      currentPrice: Math.random() * 200 + 50, // Mock price
+      momentumScore: (Math.random() - 0.5) * 20 // Mock momentum score
+    }))
   }
 })
 </script>
@@ -2848,6 +3111,357 @@ input:checked + .toggle-slider:before {
   .utilization-indicator {
     transition: none;
   }
+}
+
+/* All-Weather Strategy Specific Styles */
+.allweather-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 12px;
+  margin-bottom: 20px;
+}
+
+.allweather-icon {
+  font-size: 2.5rem;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+}
+
+.allweather-header.compact {
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.allweather-title h3 {
+  font-size: 1.2rem;
+}
+
+.compact-configs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 16px;
+}
+
+.config-group.compact {
+  margin-bottom: 12px;
+}
+
+.config-input.compact {
+  padding: 10px;
+  font-size: 0.95rem;
+}
+
+.input-with-unit.compact {
+  gap: 6px;
+}
+
+.compact-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.compact-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+
+.config-help.compact {
+  font-size: 0.85rem;
+  line-height: 1.5;
+  padding: 12px;
+  background: #f0f8ff;
+  border-radius: 6px;
+  border-left: 4px solid #007bff;
+}
+
+.allweather-title h3 {
+  margin: 0 0 8px 0;
+  font-size: 1.4rem;
+  font-weight: 600;
+}
+
+.allweather-title p {
+  margin: 0;
+  font-size: 0.95rem;
+  opacity: 0.9;
+}
+
+.config-help {
+  color: #666;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  margin-top: 4px;
+}
+
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 24px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-label {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: .4s;
+  border-radius: 24px;
+}
+
+.toggle-label:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .4s;
+  border-radius: 50%;
+}
+
+.toggle-switch input:checked + .toggle-label {
+  background-color: #007bff;
+}
+
+.toggle-switch input:checked + .toggle-label:before {
+  transform: translateX(26px);
+}
+
+.etf-universe-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.etf-category {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 16px;
+  border-left: 4px solid #007bff;
+}
+
+.category-header {
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 12px;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.etf-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.etf-item {
+  font-size: 0.85rem;
+  color: #666;
+  padding: 6px 8px;
+  background: white;
+  border-radius: 4px;
+  border: 1px solid #e0e0e0;
+}
+
+.etf-note {
+  font-style: italic;
+  color: #888;
+  font-size: 0.8rem;
+}
+
+/* Trend Signal Display Styles */
+.trend-signals-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin: 20px 0;
+}
+
+.trend-signal-card {
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 16px;
+  position: relative;
+  overflow: hidden;
+}
+
+.trend-signal-card.in-uptrend {
+  border-left: 4px solid #28a745;
+}
+
+.trend-signal-card.in-downtrend {
+  border-left: 4px solid #dc3545;
+}
+
+.trend-signal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.trend-signal-ticker {
+  font-weight: 600;
+  font-size: 1rem;
+  color: #333;
+}
+
+.trend-signal-status {
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 12px;
+}
+
+.trend-signal-status.in {
+  background: #d4edda;
+  color: #155724;
+}
+
+.trend-signal-status.out {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.trend-signal-details {
+  font-size: 0.85rem;
+  color: #666;
+  line-height: 1.4;
+}
+
+.trend-signal-price {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #f0f0f0;
+}
+
+/* SGOV Allocation Display */
+.sgov-allocation-card {
+  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+  color: white;
+  border-radius: 8px;
+  padding: 20px;
+  margin: 20px 0;
+}
+
+.sgov-allocation-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.sgov-allocation-title {
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.sgov-allocation-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 16px;
+}
+
+.sgov-metric {
+  text-align: center;
+}
+
+.sgov-metric-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.sgov-metric-label {
+  font-size: 0.85rem;
+  opacity: 0.9;
+}
+
+/* Section Titles */
+.section-title {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #333;
+  margin: 20px 0 16px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* All-Weather Methodology */
+.allweather-methodology {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 20px;
+  margin: 20px 0;
+  border: 1px solid #e0e0e0;
+}
+
+.methodology-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.methodology-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  background: white;
+  border-radius: 6px;
+  border: 1px solid #e0e0e0;
+}
+
+.methodology-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.methodology-text {
+  font-size: 0.9rem;
+  color: #666;
+  line-height: 1.4;
+}
+
+.methodology-text strong {
+  color: #333;
+}
+
+.methodology-summary {
+  padding-top: 12px;
+  border-top: 1px solid #e0e0e0;
+  text-align: center;
+}
+
+.methodology-summary small {
+  color: #666;
+  font-size: 0.85rem;
 }
 
 /* High Contrast Mode */

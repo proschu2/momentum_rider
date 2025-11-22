@@ -187,6 +187,10 @@ class PortfolioService {
     console.log('=== Portfolio Service optimizePortfolio Debug (Enhanced) ===')
     console.log('Request payload:', JSON.stringify(request, null, 2))
 
+    // Ensure we use the correct ETF universe based on strategy
+    const correctedETFs = this.getStrategySpecificETFUniverse(request.strategyAnalysis, request.selectedETFs)
+    console.log('Corrected ETF universe for optimization:', correctedETFs)
+
     // Transform request to NOT send prices - backend will handle all pricing
     const enhancedRequest = {
       currentHoldings: (request.currentHoldings || []).map(holding => ({
@@ -194,7 +198,7 @@ class PortfolioService {
         shares: holding.shares
         // Remove price - backend will fetch it
       })),
-      targetETFs: this.buildTargetETFsFromStrategyWithoutPrices(request.strategyAnalysis, request.selectedETFs),
+      targetETFs: this.buildTargetETFsFromStrategyWithoutPrices(request.strategyAnalysis, correctedETFs),
       extraCash: request.additionalCapital || 0,
       // Use enhanced budget strategy by default with proper objectives
       objectives: {
@@ -219,8 +223,12 @@ class PortfolioService {
     if (!response.ok) {
       const error = await response.json()
       console.error('Enhanced Optimization API Error Response:', error)
-      // Fallback to original endpoint if enhanced fails
-      return this.fallbackToOriginalOptimization(request)
+      // Fallback to original endpoint if enhanced fails, but with corrected ETF universe
+      const correctedRequest = {
+        ...request,
+        selectedETFs: this.getStrategySpecificETFUniverse(request.strategyAnalysis, request.selectedETFs)
+      }
+      return this.fallbackToOriginalOptimization(correctedRequest)
     }
 
     const result = await response.json()
@@ -256,12 +264,59 @@ class PortfolioService {
   /**
    * Build targetETFs from strategy analysis results WITHOUT prices (backend will handle pricing)
    */
+  private getStrategySpecificETFUniverse(strategyAnalysis: StrategyAnalysis | undefined, selectedETFs: string[]): string[] {
+    // For All-Weather strategy, use the specific ETF universe regardless of selection
+    if (strategyAnalysis && strategyAnalysis.etfUniverse && Array.isArray(strategyAnalysis.etfUniverse)) {
+      console.log('Using strategy-specific ETF universe:', strategyAnalysis.etfUniverse)
+      return strategyAnalysis.etfUniverse
+    }
+
+    // Check if it's All-Weather based on other indicators
+    if (strategyAnalysis && strategyAnalysis.targetAllocations &&
+        typeof strategyAnalysis.targetAllocations === 'object' &&
+        'etfAllocations' in strategyAnalysis.targetAllocations) {
+      const allWeatherETFs = ['VTI', 'VEA', 'VWO', 'IEF', 'TIP', 'IGIL.L', 'PDBC', 'GLDM', 'SGOV']
+      console.log('Detected All-Weather strategy, using ETF universe:', allWeatherETFs)
+      return allWeatherETFs
+    }
+
+    // Fallback to provided selectedETFs
+    return selectedETFs
+  }
+
   private buildTargetETFsFromStrategyWithoutPrices(strategyAnalysis: StrategyAnalysis | undefined, selectedETFs: string[]) {
     console.log('=== Building Target ETFs Without Prices (backend will handle pricing) ===')
+    console.log('Strategy analysis available:', !!strategyAnalysis)
+    console.log('Strategy analysis type:', typeof strategyAnalysis)
 
     if (strategyAnalysis && strategyAnalysis.targetAllocations) {
-      const etfs = Object.entries(strategyAnalysis.targetAllocations)
-      console.log('ETFs from strategy analysis:', etfs.map(([etf, pct]) => `${etf}: ${pct}%`))
+      let etfs: [string, number][] = []
+      console.log('Strategy targetAllocations type:', typeof strategyAnalysis.targetAllocations)
+      console.log('Strategy targetAllocations keys:', Object.keys(strategyAnalysis.targetAllocations))
+
+      // Handle All-Weather strategy nested response format
+      if (typeof strategyAnalysis.targetAllocations === 'object' && 'etfAllocations' in strategyAnalysis.targetAllocations) {
+        // All-Weather strategy format: { etfAllocations: { "VTI": 22.2, "VEA": 22.2, ... } }
+        const allWeatherAllocations = (strategyAnalysis.targetAllocations as any).etfAllocations
+        if (typeof allWeatherAllocations === 'object' && allWeatherAllocations !== null) {
+          etfs = Object.entries(allWeatherAllocations).filter(([etf, pct]) =>
+            typeof etf === 'string' && etf.length > 0 && typeof pct === 'number' && pct > 0
+          )
+          console.log('ETFs from All-Weather strategy analysis:', etfs.map(([etf, pct]) => `${etf}: ${pct}%`))
+        }
+      } else if (typeof strategyAnalysis.targetAllocations === 'object' && !('etfAllocations' in strategyAnalysis.targetAllocations)) {
+        // Standard format: { "VTI": 22.2, "VEA": 22.2, ... }
+        etfs = Object.entries(strategyAnalysis.targetAllocations).filter(([etf, pct]) =>
+          typeof etf === 'string' && etf.length > 0 && typeof pct === 'number' && pct > 0
+        )
+        console.log('ETFs from standard strategy analysis:', etfs.map(([etf, pct]) => `${etf}: ${pct}%`))
+      }
+
+      // Validate we have valid ETFs
+      if (etfs.length === 0) {
+        console.warn('No valid ETF allocations found in strategy analysis, using fallback')
+        return this.createFallbackTargetETFs(selectedETFs)
+      }
 
       // Build target ETFs without prices - backend will fetch them
       const targetETFs = etfs.map(([etf, percentage]) => {
@@ -269,7 +324,7 @@ class PortfolioService {
 
         return {
           name: etf,
-          targetPercentage: percentage,
+          targetPercentage: Number(percentage), // Ensure number type
           allowedDeviation: 5 // ±5% allocation tolerance
           // Remove pricePerShare - backend will fetch it
         }
@@ -278,23 +333,32 @@ class PortfolioService {
       console.log('Final target ETFs (no prices):', targetETFs.map(t => `${t.name}: ${t.targetPercentage}%`))
       return targetETFs
     } else {
-      console.log('No strategy analysis, using equal distribution for:', selectedETFs)
-
-      // Fallback: equal distribution without prices
-      const targetETFs = (selectedETFs || []).map((etf) => {
-        console.log(`Fallback target ETF ${etf}: ${ (100 / (selectedETFs?.length || 1)).toFixed(2) }% (backend will determine price)`)
-
-        return {
-          name: etf,
-          targetPercentage: 100 / (selectedETFs?.length || 1),
-          allowedDeviation: 5
-          // Remove pricePerShare - backend will fetch it
-        }
-      })
-
-      console.log('Final fallback target ETFs (no prices):', targetETFs.map(t => `${t.name}: ${t.targetPercentage}%`))
-      return targetETFs
+      console.log('No strategy analysis or invalid targetAllocations, using fallback for:', selectedETFs)
+      return this.createFallbackTargetETFs(selectedETFs)
     }
+  }
+
+  private createFallbackTargetETFs(selectedETFs: string[]) {
+    console.log('Creating fallback target ETFs for:', selectedETFs)
+
+    // For All-Weather, ensure we use the correct universe even in fallback
+    const fallbackETFs = selectedETFs.length > 0 ? selectedETFs :
+      ['VTI', 'VEA', 'VWO', 'IEF', 'TIP', 'IGIL.L', 'PDBC', 'GLDM', 'SGOV']
+
+    const targetETFs = fallbackETFs.map((etf) => {
+      const percentage = 100 / fallbackETFs.length
+      console.log(`Fallback target ETF ${etf}: ${percentage.toFixed(2)}% (backend will determine price)`)
+
+      return {
+        name: etf,
+        targetPercentage: percentage,
+        allowedDeviation: 5
+        // Remove pricePerShare - backend will fetch it
+      }
+    })
+
+    console.log('Final fallback target ETFs (no prices):', targetETFs.map(t => `${t.name}: ${t.targetPercentage.toFixed(2)}%`))
+    return targetETFs
   }
 
   /**
@@ -530,12 +594,19 @@ class PortfolioService {
    * Generate execution plan with specific trades
    */
   async generateExecutionPlan(request: OptimizationRequest): Promise<ExecutionPlan> {
+    // Ensure we use the correct ETF universe based on strategy
+    const correctedRequest = {
+      ...request,
+      selectedETFs: this.getStrategySpecificETFUniverse(request.strategyAnalysis, request.selectedETFs)
+    }
+    console.log('Execution plan using corrected ETF universe:', correctedRequest.selectedETFs)
+
     const response = await fetch(`${this.baseUrl}/portfolio/execution-plan`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(request),
+      body: JSON.stringify(correctedRequest),
     })
 
     if (!response.ok) {

@@ -48,5 +48,29 @@
     },
     "created": "2025-11-17T21:43:36.301Z",
     "updated": "2025-11-17T21:43:36.301Z"
+  },
+  {
+    "id": "default-allweather-2025",
+    "name": "All-Weather Portfolio (Dalio)",
+    "type": "allweather",
+    "parameters": {
+      "smaPeriod": 10,
+      "rebalanceDate": "2025-11-21T00:00:00.000Z",
+      "totalPortfolioValue": 100000,
+      "currentPositions": {
+        "VTI": 0,
+        "VEA": 0,
+        "VWO": 0,
+        "IEF": 0,
+        "TIP": 0,
+        "IGIL": 0,
+        "PDBC": 0,
+        "GLDM": 0,
+        "SGOV": 0
+      }
+    },
+    "created": "2025-11-21T15:00:00.000Z",
+    "updated": "2025-11-21T15:00:00.000Z",
+    "description": "Dalio-inspired All-Weather portfolio with 10-month SMA trend filtering, optimized ETF universe, and SGOV cash fallback"
   }
 ]
