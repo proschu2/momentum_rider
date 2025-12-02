@@ -397,10 +397,10 @@ class PortfolioService {
         let priceSource = '';
 
         // Check if this is an All-Weather ETF (these don't have momentum data)
-        const isAllWeatherETF = isAllWeatherETF(etf);
+        const isAllWeatherAsset = isAllWeatherETF(etf);
         const isAllWeatherStrategy = strategy?.type === STRATEGY_TYPES.ALL_WEATHER;
 
-        if (isAllWeatherStrategy || isAllWeatherETF) {
+        if (isAllWeatherStrategy || isAllWeatherAsset) {
           // For All-Weather strategy or All-Weather ETFs, get prices from trend signals or cached data
           const trendSignal = analysis.trendSignals?.[etf];
           if (trendSignal && trendSignal.currentPrice) {
@@ -412,7 +412,7 @@ class PortfolioService {
               signal: trendSignal.signal,
               SMA: trendSignal.SMA,
               strategyCheck: isAllWeatherStrategy,
-              etfCheck: isAllWeatherETF
+              etfCheck: isAllWeatherAsset
             });
           } else {
             // For All-Weather, use preFetchService to get cached prices
@@ -427,7 +427,7 @@ class PortfolioService {
                   source: priceSource,
                   originalData: priceData,
                   strategyCheck: isAllWeatherStrategy,
-                  etfCheck: isAllWeatherETF
+                  etfCheck: isAllWeatherAsset
                 });
               }
             } catch (cacheError) {
