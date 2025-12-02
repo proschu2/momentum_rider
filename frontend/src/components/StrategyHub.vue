@@ -460,7 +460,7 @@
               </div>
               <div class="detail-row">
                 <span class="detail-label">Target:</span>
-                <span class="detail-value">${{ comparison.targetValue?.toLocaleString() || '0' }} ({{ ((comparison.targetAllocation || 0) * 100).toFixed(1) }}%)</span>
+                <span class="detail-value">{{ comparison.targetValue?.toLocaleString() || '0' }} ({{ (comparison.targetAllocation || 0).toFixed(1) }}%)</span>
               </div>
               <div class="detail-row">
                 <span class="detail-label">Shares to Trade:</span>
@@ -492,7 +492,7 @@
           >
             <span class="etf-name">{{ comparison.etf }}</span>
             <span class="current-value">${{ comparison.currentValue?.toLocaleString() || '0' }}</span>
-            <span class="target-value">${{ comparison.targetValue?.toLocaleString() || '0' }} ({{ ((comparison.targetAllocation || 0) * 100).toFixed(1) }}%)</span>
+            <span class="target-value">{{ comparison.targetValue?.toLocaleString() || '0' }} ({{ (comparison.targetAllocation || 0).toFixed(1) }}%)</span>
             <span class="action-status" :class="comparison.action">
               {{ getActionIcon(comparison.action) }} {{ comparison.action.toUpperCase() }}
             </span>
@@ -1127,7 +1127,20 @@ const analyzeStrategy = async () => {
             action = 'hold' // Within $10 of target, no action needed
           }
 
-          return { etf, currentValue, targetValue, action }
+          // Calculate target allocation percentage from the optimization result
+          const targetAllocation = allocation.targetPercentage || 0
+
+          // Calculate shares to trade based on value difference and price
+          const pricePerShare = allocation.pricePerShare || 100
+          const valueDifference = targetValue - currentValue
+          let sharesToTrade = 0
+          if (action === 'buy' && valueDifference > 0) {
+            sharesToTrade = Math.floor(valueDifference / pricePerShare)
+          } else if (action === 'sell' && valueDifference < 0) {
+            sharesToTrade = Math.floor(Math.abs(valueDifference) / pricePerShare)
+          }
+
+          return { etf, currentValue, targetValue, targetAllocation, sharesToTrade, action }
         })
 
         portfolioComparison.value = cleanSlateComparisons
@@ -1142,11 +1155,24 @@ const analyzeStrategy = async () => {
           const currentValue = analysis.currentValues[etf] || 0
           const targetValue = targetValues[etf] || 0
 
-          let action: 'buy' | 'sell' | 'hold' = 'hold'
-          if (targetValue > currentValue * 1.05) action = 'buy'
-          else if (targetValue < currentValue * 0.95) action = 'sell'
+          // Calculate target allocation percentage from analysis results
+          const targetAllocation = analysis.targetAllocations?.[etf] || 0
 
-          return { etf, currentValue, targetValue, action }
+          // Calculate shares to trade based on value difference and price
+          const pricePerShare = analysis.momentumScores?.[etf]?.price || cachedPrices.value[etf] || 100
+          const valueDifference = targetValue - currentValue
+          let sharesToTrade = 0
+          if (targetValue > currentValue * 1.05) { // Buy action
+            action = 'buy'
+            sharesToTrade = Math.floor(valueDifference / pricePerShare)
+          } else if (targetValue < currentValue * 0.95) { // Sell action
+            action = 'sell'
+            sharesToTrade = Math.floor(Math.abs(valueDifference) / pricePerShare)
+          } else {
+            action = 'hold'
+          }
+
+          return { etf, currentValue, targetValue, targetAllocation, sharesToTrade, action }
         })
 
         // Next, identify holdings that are NOT in the target strategy and should be sold
@@ -3045,14 +3071,18 @@ input:checked + .toggle-slider:before {
 @media (prefers-color-scheme: dark) {
   .portfolio-execution {
     color: #f9fafb;
+    /* Keep light background for portfolio execution */
   }
 
+  /* Keep light backgrounds for execution plan components */
+  /*
   .etf-card,
   .execution-summary {
     background: #1f2937;
     border-color: #374151;
     color: #f9fafb;
   }
+  */
 
   .etf-card:hover {
     border-color: #667eea;
@@ -3070,6 +3100,8 @@ input:checked + .toggle-slider:before {
     color: #f9fafb;
   }
 
+  /* Keep light backgrounds for summary items and tables */
+  /*
   .summary-item {
     background: #374151;
     border-left-color: #667eea;
@@ -3092,14 +3124,16 @@ input:checked + .toggle-slider:before {
   .desktop-table .table-row:hover {
     background: #374151;
   }
+  */
 
+  /* Use dark text colors for better visibility on light backgrounds */
   .desktop-table .current-value,
   .desktop-table .target-value {
-    color: #9ca3af;
+    color: #374151; /* Dark gray for light background */
   }
 
   .desktop-table .etf-name {
-    color: #f9fafb;
+    color: #1f2937; /* Darker text for ETF names on light background */
   }
 }
 
@@ -3362,7 +3396,7 @@ input:checked + .toggle-slider:before {
 /* SGOV Allocation Display */
 .sgov-allocation-card {
   background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-  color: white;
+  color: #1f2937; /* Dark text for visibility */
   border-radius: 8px;
   padding: 20px;
   margin: 20px 0;

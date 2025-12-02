@@ -54,14 +54,14 @@ const STRATEGY_CONFIG = {
     description: 'Dalio-inspired All-Weather strategy with 10-month SMA trend filtering and SGOV cash fallback',
     etfs: ALL_WEATHER_ETFS,
     targetAllocations: {
-      'VTI': 30,      // US Stocks
-      'VEA': 40,      // Developed Markets Stocks
-      'VWO': 15,      // Emerging Markets Stocks
-      'IEF': 7.5,     // US Treasury Bonds
-      'TIP': 7.5,     // TIPS Bonds
-      'IGIL.L': 7.5,  // International TIPS
-      'PDBC': 7.5,    // Commodities
-      'GLDM': 7.5     // Gold
+      'VTI': 10,      // US Stocks - 10%
+      'VEA': 10,      // Developed market (ex US) stocks - 10%
+      'VWO': 5,       // Emerging market stocks - 5%
+      'IEF': 40,      // 7-10 year Treasuries - 40%
+      'TIP': 7.5,     // US TIPS - 7.5%
+      'IGIL.L': 7.5,  // Int'l inflation-linked gov't bonds - 7.5%
+      'PDBC': 10,     // Commodities basket - 10%
+      'GLDM': 10      // Gold - 10%
     },
     cashETF: 'SGOV',
     smaPeriod: 10, // months
