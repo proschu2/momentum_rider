@@ -164,6 +164,11 @@ class PortfolioService {
         strategyAnalysis = {
           targetETFs: allWeatherResult.targetETFs || []
         };
+        // Add trend signals to strategyAnalysis for frontend SMA display
+        if (allWeatherResult.trendSignals) {
+          strategyAnalysis.trendSignals = allWeatherResult.trendSignals;
+          console.log('✅ Added trend signals to All-Weather strategy analysis');
+        }
       }
 
       const result = {
@@ -655,14 +660,14 @@ class PortfolioService {
       console.log('=== FINAL PORTFOLIO SERVICE RESULT ===');
       console.log('Total budget used:', totalBudgetUsed);
       console.log('Unused budget:', unusedBudget);
-      console.log('Unused percentage:', unusedPercentage.toFixed(2) + '%');
-      console.log('Utilization rate:', (100 - unusedPercentage).toFixed(2) + '%');
+      console.log('Unused percentage:', Number(unusedPercentage || 0).toFixed(2) + '%');
+      console.log('Utilization rate:', Number(100 - (unusedPercentage || 0)).toFixed(2) + '%');
       console.log('Solver status:', optimizationResult.solverStatus);
       console.log('Fallback used:', optimizationResult.fallbackUsed);
-      
+
       if (unusedPercentage > 10) {
         console.warn('=== FINAL CASH UTILIZATION PROBLEM CONFIRMED ===');
-        console.warn('High unused cash percentage in final result:', unusedPercentage.toFixed(2) + '%');
+        console.warn('High unused cash percentage in final result:', Number(unusedPercentage || 0).toFixed(2) + '%');
         console.warn('This confirms the optimization issue needs to be fixed');
       }
 

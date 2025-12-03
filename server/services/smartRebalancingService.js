@@ -27,7 +27,7 @@ class SmartRebalancingService {
   async performSmartRebalancing(optimizationInput, currentResult, totalAvailableBudget) {
     try {
       console.log('=== SMART REBALANCING START ===');
-      console.log('Current utilization:', (100 - (currentResult.optimizationMetrics?.unusedPercentage || 0)).toFixed(2) + '%');
+      console.log('Current utilization:', Number(100 - (currentResult.optimizationMetrics?.unusedPercentage || 0)).toFixed(2) + '%');
 
       let bestResult = currentResult;
       let bestUtilizationRate = 100 - (currentResult.optimizationMetrics?.unusedPercentage || 0);
@@ -47,8 +47,8 @@ class SmartRebalancingService {
         const improvement = newUtilizationRate - bestUtilizationRate;
 
         console.log(`Strategy ${strategy} result:`, {
-          utilizationRate: newUtilizationRate.toFixed(2) + '%',
-          improvement: improvement.toFixed(2) + '%',
+          utilizationRate: Number(newUtilizationRate || 0).toFixed(2) + '%',
+          improvement: Number(improvement || 0).toFixed(2) + '%',
           isBetter: improvement > this.minImprovementThreshold
         });
 
@@ -67,7 +67,7 @@ class SmartRebalancingService {
       );
 
       console.log('=== SMART REBALANCING COMPLETE ===');
-      console.log('Final utilization rate:', (100 - (finalResult.optimizationMetrics?.unusedPercentage || 0)).toFixed(2) + '%');
+      console.log('Final utilization rate:', Number(100 - (finalResult.optimizationMetrics?.unusedPercentage || 0)).toFixed(2) + '%');
 
       return {
         ...finalResult,

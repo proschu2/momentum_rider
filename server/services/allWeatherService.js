@@ -278,7 +278,7 @@ class AllWeatherService {
           lastUpdated: new Date().toISOString()
         };
 
-        console.log(`✅ ${etf}: $${currentPrice.toFixed(2)} (${historicalPrices.length} months of data)`);
+        console.log(`✅ ${etf}: $${Number(currentPrice).toFixed(2)} (${historicalPrices.length} months of data)`);
 
       } catch (error) {
         console.error(`❌ Failed to fetch data for ${etf}:`, error.message);
@@ -294,7 +294,7 @@ class AllWeatherService {
           historicalPrices: Array(10).fill(100.0),
           lastUpdated: new Date().toISOString()
         };
-        console.log(`✅ SGOV: $${marketData.SGOV.currentPrice.toFixed(2)} (cash fallback)`);
+        console.log(`✅ SGOV: $${Number(marketData.SGOV.currentPrice || 0).toFixed(2)} (cash fallback)`);
       } catch (error) {
         console.warn(`⚠️  Could not add SGOV pricing:`, error.message);
       }
@@ -387,7 +387,7 @@ class AllWeatherService {
       const actualDateStr = this.findActualDateForPrice(dailyData, price, targetDate);
 
       prices.push(price);
-      console.log(`📅 ${calendarDays} calendar days ago (target ${targetDateStr}): $${price.toFixed(2)} (${actualDateStr})`);
+      console.log(`📅 ${calendarDays} calendar days ago (target ${targetDateStr}): $${Number(price).toFixed(2)} (${actualDateStr})`);
     }
 
     // Sort prices from oldest to newest for SMA calculation
@@ -427,8 +427,46 @@ class AllWeatherService {
       const currentPrice = etfData.currentPrice;
       const monthlyPrices = etfData.historicalPrices.slice(-smaPeriod);
 
+      // Validate we have valid data before calculating
+      if (!currentPrice || !monthlyPrices || monthlyPrices.length === 0) {
+        console.warn(`⚠️  ${etf}: Missing price data - skipping signal calculation`);
+        trendSignals[etf] = {
+          currentPrice: currentPrice || 0,
+          sma10Month: 0,
+          signal: 0,
+          priceToSmaRatio: 0,
+          action: 'EXIT TO SGOV',
+          analysis: {
+            price: (currentPrice || 0).toFixed(2),
+            sma: '0.00',
+            difference: '0.00',
+            percentDifference: '0.00%'
+          }
+        };
+        return;
+      }
+
       // Calculate SMA
       const sma = monthlyPrices.reduce((sum, price) => sum + price, 0) / monthlyPrices.length;
+
+      // Validate SMA calculation
+      if (!isFinite(sma) || sma <= 0) {
+        console.warn(`⚠️  ${etf}: Invalid SMA calculation (${sma}) - using fallback`);
+        trendSignals[etf] = {
+          currentPrice,
+          sma10Month: currentPrice, // Use current price as fallback
+          signal: 1, // Keep deployed if current price is valid
+          priceToSmaRatio: 0,
+          action: 'KEEP DEPLOYED',
+          analysis: {
+            price: currentPrice.toFixed(2),
+            sma: currentPrice.toFixed(2),
+            difference: '0.00',
+            percentDifference: '0.00%'
+          }
+        };
+        return;
+      }
 
       // Determine signal
       const signal = currentPrice > sma ? 1 : 0;
@@ -533,12 +571,12 @@ class AllWeatherService {
     console.log('🔢 Running linear programming optimization for integer shares...');
 
     const optimalShares = {};
-    let remainingCash = totalPortfolioValue;
+    let remainingCash = totalPortfolioValue || 0;
 
     // Calculate target dollar amounts for each ETF
     const targetDollarAmounts = {};
     etfs.forEach(etf => {
-      targetDollarAmounts[etf] = totalPortfolioValue * (targetAllocations.etfAllocations[etf] / 100);
+      targetDollarAmounts[etf] = (totalPortfolioValue || 0) * (targetAllocations.etfAllocations[etf] / 100);
     });
 
     // For each ETF, find optimal integer shares within deviation bounds
@@ -565,7 +603,7 @@ class AllWeatherService {
 
       for (const shares of candidateShares) {
         const actualValue = shares * currentPrice;
-        const actualWeight = (actualValue / totalPortfolioValue) * 100;
+        const actualWeight = totalPortfolioValue && totalPortfolioValue > 0 ? (actualValue / totalPortfolioValue) * 100 : 0;
         const targetWeight = etfInfo.targetWeight;
 
         // Check if within deviation bounds
@@ -589,7 +627,8 @@ class AllWeatherService {
       const usedValue = bestShares * currentPrice;
       remainingCash -= usedValue;
 
-      console.log(`📊 ${etf}: ${bestShares} shares @ $${currentPrice.toFixed(2)} = $${usedValue.toFixed(2)} (${(usedValue/totalPortfolioValue*100).toFixed(2)}%)`);
+      const portfolioPercentage = totalPortfolioValue && totalPortfolioValue > 0 ? (usedValue/totalPortfolioValue*100).toFixed(2) : '0.00';
+    console.log(`📊 ${etf}: ${bestShares} shares @ $${currentPrice.toFixed(2)} = $${usedValue.toFixed(2)} (${portfolioPercentage}%)`);
     }
 
     // SGOV gets all remaining cash
@@ -699,7 +738,7 @@ class AllWeatherService {
       const shares = optimalShares[etf] || 0;
       const price = marketData[etf]?.currentPrice || (etf === 'SGOV' ? 100 : 0);
       const value = shares * price;
-      const weight = totalPortfolioValue > 0 ? (value / totalPortfolioValue) * 100 : 0;
+      const weight = totalPortfolioValue && totalPortfolioValue > 0 ? (value / totalPortfolioValue) * 100 : 0;
 
       const etfInfo = this.etfUniverse[etf];
       const targetWeight = etfInfo?.targetWeight || 0;

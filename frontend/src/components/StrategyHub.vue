@@ -99,42 +99,8 @@
 
         <!-- All Weather Strategy Configuration -->
         <div v-if="selectedStrategy.id === 'allweather'" class="config-panel compact">
-          <div class="allweather-header compact">
-            <div class="allweather-icon">🌤️</div>
-            <div class="allweather-title">
-              <h3>All-Weather Portfolio</h3>
-              <p>Dalio-inspired allocation with 10-month SMA trend filtering</p>
-            </div>
-          </div>
-
-          <!-- Configuration Summary -->
-          <div class="config-summary">
-            <div class="summary-item">
-              <div class="summary-icon">💰</div>
-              <div class="summary-text">
-                <strong>Portfolio:</strong> Uses actual holdings value
-              </div>
-            </div>
-            <div class="summary-item">
-              <div class="summary-icon">📊</div>
-              <div class="summary-text">
-                <strong>SMA Period:</strong> Fixed at 10 months
-              </div>
-            </div>
-            <div class="summary-item">
-              <div class="summary-icon">🎯</div>
-              <div class="summary-text">
-                <strong>ETFs:</strong> 9 optimized assets
-              </div>
-            </div>
-          </div>
-
-          <!-- Minimal ETF Cards View -->
+          <!-- ETF Cards View -->
           <div class="minimal-etf-cards">
-            <div class="cards-header">
-              <h4>ETF Universe Performance</h4>
-              <span class="subtitle">10-month Simple Moving Average Analysis</span>
-            </div>
             <div class="cards-grid">
               <div
                 v-for="etf in getAllWeatherETFs()"
@@ -149,28 +115,12 @@
                 <div class="card-details">
                   <div class="card-price">${{ getETFPrice(etf) }}</div>
                   <div class="card-sma">SMA: ${{ getETFSMA(etf) }}</div>
+                  <div class="card-diff" :class="getPercentDiffClass(etf)">
+                    {{ getPercentDifference(etf) }}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-
-          <div class="config-group">
-            <label class="config-label">📊 Analysis Options</label>
-            <div class="compact-options">
-              <label class="compact-checkbox">
-                <input
-                  v-model="strategyConfig.allweather.showTrendSignals"
-                  type="checkbox"
-                />
-                <span>Show detailed trend signals & SGOV allocation</span>
-              </label>
-            </div>
-          </div>
-
-          <div class="config-help compact">
-            <strong>Strategy:</strong> 10-month SMA trend filtering with SGOV cash fallback |
-            <strong>Universe:</strong> VTI, VEA, VWO, IEF, TIP, IGIL.L, PDBC, GLDM, SGOV |
-            <strong>Expense Ratio:</strong> 0.162% | <strong>Rebalancing:</strong> Monthly
           </div>
         </div>
 
@@ -278,20 +228,20 @@
               <div class="etf-header">
                 <span class="etf-ticker">{{ etf.ticker }}</span>
                 <span v-if="etf.isCustom" class="custom-badge">Custom</span>
-                <span v-if="(etf.momentumScore ?? 0) > 0" class="positive-badge">+{{ (etf.momentumScore ?? 0).toFixed(1) }}%</span>
+                <span v-if="(etf.momentumScore ?? 0) > 0" class="positive-badge">+{{ Number(etf.momentumScore ?? 0).toFixed(1) }}%</span>
               </div>
               <div class="etf-details">
                 <div class="etf-name">{{ etf.name }}</div>
                 <div class="etf-category">{{ etf.category }}</div>
                 <div class="etf-price-info">
                   <div v-if="etf.currentPrice" class="etf-price">
-                    ${{ etf.currentPrice.toFixed(2) }}
+                    ${{ Number(etf.currentPrice).toFixed(2) }}
                   </div>
                   <div v-else class="etf-price-placeholder">
                     No price data
                   </div>
                   <div v-if="etf.dayChange" class="etf-change" :class="etf.dayChange >= 0 ? 'positive' : 'negative'">
-                    {{ etf.dayChange >= 0 ? '+' : '' }}{{ etf.dayChange.toFixed(2) }}%
+                    {{ etf.dayChange >= 0 ? '+' : '' }}{{ Number(etf.dayChange).toFixed(2) }}%
                   </div>
                 </div>
               </div>
@@ -333,7 +283,7 @@
           </div>
           <div class="metric-item">
             <div class="metric-content">
-              <span class="metric-value">{{ analysisResults?.utilizationRate?.toFixed(1) || '0.0' }}%</span>
+              <span class="metric-value">{{ Number(analysisResults?.utilizationRate || 0).toFixed(1) }}%</span>
               <span class="metric-label">Used</span>
             </div>
           </div>
@@ -351,101 +301,7 @@
         </div>
       </div>
 
-      <!-- All-Weather Specific Displays -->
-      <div v-if="selectedStrategy?.id === 'allweather' && strategyConfig.allweather.showTrendSignals">
-        <!-- Trend Signals Section -->
-        <div v-if="analysisResults?.trendSignals" class="trend-signals-section">
-          <h4 class="section-title">📈 10-Month SMA Trend Signals</h4>
-          <div class="trend-signals-container">
-            <div
-              v-for="(signal, etf) in analysisResults.trendSignals"
-              :key="etf"
-              :class="['trend-signal-card', signal.signal === 1 ? 'in-uptrend' : 'in-downtrend']"
-            >
-              <div class="trend-signal-header">
-                <span class="trend-signal-ticker">{{ etf }}</span>
-                <span :class="['trend-signal-status', signal.signal === 1 ? 'in' : 'out']">
-                  {{ signal.action }}
-                </span>
-              </div>
-              <div class="trend-signal-details">
-                {{ signal.analysis.percentDifference }} from 10-month SMA
-              </div>
-              <div class="trend-signal-price">
-                <span>Price: ${{ signal.analysis.price }}</span>
-                <span>SMA: ${{ signal.analysis.sma }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- SGOV Allocation Section -->
-        <div v-if="analysisResults?.targetAllocations" class="sgov-section">
-          <div class="sgov-allocation-card">
-            <div class="sgov-allocation-header">
-              <span class="sgov-allocation-icon">💰</span>
-              <span class="sgov-allocation-title">SGOV Cash Allocation</span>
-            </div>
-            <div class="sgov-allocation-details">
-              <div class="sgov-metric">
-                <div class="sgov-metric-value">{{ analysisResults.targetAllocations.sgovAllocation.toFixed(1) }}%</div>
-                <div class="sgov-metric-label">Cash Position</div>
-              </div>
-              <div class="sgov-metric">
-                <div class="sgov-metric-value">{{ analysisResults.targetAllocations.totalActiveWeight.toFixed(1) }}%</div>
-                <div class="sgov-metric-label">Deployed Capital</div>
-              </div>
-              <div class="sgov-metric">
-                <div class="sgov-metric-value">{{ analysisResults.targetAllocations.trendFilteredETFs.length }}</div>
-                <div class="sgov-metric-label">Active ETFs</div>
-              </div>
-              <div class="sgov-metric">
-                <div class="sgov-metric-value">4.8%</div>
-                <div class="sgov-metric-label">Expected Yield</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Methodology Info -->
-        <div class="allweather-methodology">
-          <h4 class="section-title">🎯 All-Weather Methodology</h4>
-          <div class="methodology-grid">
-            <div class="methodology-item">
-              <div class="methodology-icon">📊</div>
-              <div class="methodology-text">
-                <strong>10-Month SMA</strong> trend filtering for all positions
-              </div>
-            </div>
-            <div class="methodology-item">
-              <div class="methodology-icon">🎯</div>
-              <div class="methodology-text">
-                <strong>Dynamic Deviation Tolerances</strong> (±1-5% based on position size)
-              </div>
-            </div>
-            <div class="methodology-item">
-              <div class="methodology-icon">🔢</div>
-              <div class="methodology-text">
-                <strong>Integer Share Optimization</strong> with linear programming
-              </div>
-            </div>
-            <div class="methodology-item">
-              <div class="methodology-icon">💰</div>
-              <div class="methodology-text">
-                <strong>SGOV Cash Fallback</strong> for trend exit proceeds
-              </div>
-            </div>
-          </div>
-          <div class="methodology-summary">
-            <small>
-              <strong>Expense Ratio:</strong> {{ analysisResults?.expenseRatio ? (analysisResults.expenseRatio * 100).toFixed(3) : '0.162' }}% |
-              <strong>Validation:</strong> {{ analysisResults?.finalPortfolioState?.validation?.isValid ? '✅ PASSED' : '❌ FAILED' }} |
-              <strong>Rebalancing:</strong> Monthly
-            </small>
-          </div>
-        </div>
-      </div>
-
+  
       <!-- Mobile Cards / Desktop Table -->
       <div class="execution-content">
         <!-- Mobile: Card Layout -->
@@ -477,11 +333,11 @@
               </div>
               <div class="detail-row">
                 <span class="detail-label">Target:</span>
-                <span class="detail-value">{{ comparison.targetValue?.toLocaleString() || '0' }} ({{ (comparison.targetAllocation || 0).toFixed(1) }}%)</span>
+                <span class="detail-value">{{ comparison.targetValue?.toLocaleString() || '0' }} ({{ Number(comparison.targetAllocation || 0).toFixed(1) }}%)</span>
               </div>
               <div class="detail-row">
                 <span class="detail-label">Shares to Trade:</span>
-                <span class="detail-value">{{ comparison.sharesToTrade?.toFixed(2) || '0.00' }}</span>
+                <span class="detail-value">{{ Number(comparison.sharesToTrade || 0).toFixed(2) }}</span>
               </div>
               <div class="detail-row">
                 <span class="detail-label">Reason:</span>
@@ -509,11 +365,11 @@
           >
             <span class="etf-name">{{ comparison.etf }}</span>
             <span class="current-value">${{ comparison.currentValue?.toLocaleString() || '0' }}</span>
-            <span class="target-value">{{ comparison.targetValue?.toLocaleString() || '0' }} ({{ (comparison.targetAllocation || 0).toFixed(1) }}%)</span>
+            <span class="target-value">{{ comparison.targetValue?.toLocaleString() || '0' }} ({{ Number(comparison.targetAllocation || 0).toFixed(1) }}%)</span>
             <span class="action-status" :class="comparison.action">
               {{ getActionIcon(comparison.action) }} {{ comparison.action.toUpperCase() }}
             </span>
-            <span class="shares-to-trade">{{ comparison.sharesToTrade?.toFixed(2) || '0.00' }}</span>
+            <span class="shares-to-trade">{{ Number(comparison.sharesToTrade || 0).toFixed(2) }}</span>
             <span class="trade-value" :class="getTradeValueClass(comparison)">
               {{ formatTradeValue(comparison) }}
             </span>
@@ -1109,7 +965,8 @@ const analyzeStrategy = async () => {
       totalInvestment: analysis.totalInvestment,
       utilizedCapital: optimizationResult.utilizedCapital || analysis.totalInvestment * 0.95,
       uninvestedCash: optimizationResult.uninvestedCash || analysis.totalInvestment * 0.05,
-      utilizationRate: optimizationResult.utilizationRate || 95
+      utilizationRate: optimizationResult.utilizationRate || 95,
+      trendSignals: analysis.strategyAnalysis?.trendSignals || {}
     }
 
       // Use the execution plan result that contains both buys AND sells
@@ -1165,8 +1022,9 @@ const analyzeStrategy = async () => {
             action = 'hold' // Within $10 of target, no action needed
           }
 
-          // Calculate target allocation percentage from the optimization result
-          const targetAllocation = allocation.targetPercentage || 0
+          // Calculate target allocation percentage from actual target value and total portfolio value
+          const totalPortfolioValue = analysis.totalInvestment || 0
+          const targetAllocation = totalPortfolioValue > 0 ? (targetValue / totalPortfolioValue) * 100 : 0
 
           // Get actual shares from execution plan API response instead of calculating locally
           const executionTrade = executionPlan.value.find(trade => trade.etf === etf)
@@ -1203,8 +1061,9 @@ const analyzeStrategy = async () => {
           const currentValue = analysis.currentValues[etf] || 0
           const targetValue = targetValues[etf] || 0
 
-          // Calculate target allocation percentage from analysis results
-          const targetAllocation = analysis.targetAllocations?.[etf] || 0
+          // Calculate target allocation percentage from actual target value and total portfolio value
+          const totalPortfolioValue = analysis.totalInvestment || 0
+          const targetAllocation = totalPortfolioValue > 0 ? (targetValue / totalPortfolioValue) * 100 : 0
 
           // Get actual shares from execution plan API response instead of calculating locally
           const executionTrade = executionPlan.value.find(trade => trade.etf === etf)
@@ -1411,7 +1270,7 @@ const executeTrades = async () => {
     
     // Execute SELL trades first
     for (const trade of sellTrades) {
-      console.log(`Executing SELL: ${trade.shares.toFixed(2)} shares of ${trade.etf}`)
+      console.log(`Executing SELL: ${Number(trade.shares || 0).toFixed(2)} shares of ${trade.etf}`)
       
       // Use portfolio store to sell holdings
       if (props.portfolio.id) {
@@ -1427,7 +1286,7 @@ const executeTrades = async () => {
     
     // Execute BUY trades with available cash (including sell proceeds)
     for (const trade of buyTrades) {
-      console.log(`Executing BUY: ${trade.shares.toFixed(2)} shares of ${trade.etf}`)
+      console.log(`Executing BUY: ${Number(trade.shares || 0).toFixed(2)} shares of ${trade.etf}`)
       
       // Use portfolio store to add holdings
       if (props.portfolio.id) {
@@ -1549,9 +1408,24 @@ const formatNetCashFlow = () => {
 // All-Weather ETF Card Helper Methods
 const getAllWeatherETFs = () => {
   const allWeatherTickers = ['VTI', 'VEA', 'VWO', 'IEF', 'TIP', 'IGIL.L', 'PDBC', 'GLDM', 'SGOV']
+  const hasAnalysis = analysisResults.value?.trendSignals && Object.keys(analysisResults.value.trendSignals).length > 0
+
   return allWeatherTickers.map(ticker => {
     const etfInfo = allETFs.value.find(etf => etf.ticker === ticker)
     const trendSignal = analysisResults.value?.trendSignals?.[ticker]
+
+    // If no analysis results yet, use placeholder data
+    if (!hasAnalysis) {
+      return {
+        ticker,
+        name: etfInfo?.name || `${ticker} ETF`,
+        currentPrice: etfInfo?.currentPrice || 0,
+        sma: 0,
+        signal: 0,
+        action: 'ANALYZE',
+        percentDifference: '0%'
+      }
+    }
 
     return {
       ticker,
@@ -1574,21 +1448,34 @@ const getETFCardClass = (etf: any) => {
 const getETFStatus = (etf: any) => {
   if (etf.action === 'BUY') return 'BUY'
   if (etf.action === 'SELL') return 'SELL'
+  if (etf.action === 'ANALYZE') return 'ANALYZE'
   return 'HOLD'
 }
 
 const getETFStatusClass = (etf: any) => {
   if (etf.action === 'BUY') return 'status-buy'
   if (etf.action === 'SELL') return 'status-sell'
+  if (etf.action === 'ANALYZE') return 'status-analyze'
   return 'status-hold'
 }
 
 const getETFPrice = (etf: any) => {
-  return etf.currentPrice > 0 ? etf.currentPrice.toFixed(2) : '---'
+  return etf.currentPrice && etf.currentPrice > 0 ? etf.currentPrice.toFixed(2) : '---'
 }
 
 const getETFSMA = (etf: any) => {
-  return etf.sma > 0 ? etf.sma.toFixed(2) : '---'
+  return etf.sma && etf.sma > 0 ? etf.sma.toFixed(2) : '---'
+}
+
+const getPercentDifference = (etf: any) => {
+  if (!etf.currentPrice || !etf.sma || etf.sma === 0) return '---'
+  const percentDiff = ((Number(etf.currentPrice) - Number(etf.sma)) / Number(etf.sma) * 100)
+  return `${percentDiff >= 0 ? '+' : ''}${Number(percentDiff).toFixed(1)}%`
+}
+
+const getPercentDiffClass = (etf: any) => {
+  if (!etf.currentPrice || !etf.sma) return ''
+  return etf.currentPrice > etf.sma ? 'positive-diff' : 'negative-diff'
 }
 
 // localStorage keys
@@ -3614,6 +3501,240 @@ input:checked + .toggle-slider:before {
   font-size: 0.85rem;
 }
 
+/* All-Weather Configuration Enhancements */
+.config-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin: 20px 0;
+  padding: 20px;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+
+.config-summary .summary-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: white;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  transition: all 0.2s ease;
+}
+
+.config-summary .summary-item:hover {
+  border-color: #667eea;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
+}
+
+.summary-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.summary-text {
+  font-size: 0.9rem;
+  color: #4b5563;
+  line-height: 1.4;
+}
+
+.summary-text strong {
+  color: #1f2937;
+}
+
+/* Minimal ETF Cards View */
+.minimal-etf-cards {
+  margin: 20px 0;
+}
+
+.cards-header {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.cards-header h4 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0 0 4px 0;
+}
+
+.subtitle {
+  font-size: 0.85rem;
+  color: #6b7280;
+  font-style: italic;
+}
+
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.cards-grid.single-column {
+  grid-template-columns: 1fr;
+  max-width: 200px;
+  margin: 16px auto 0;
+}
+
+.minimal-etf-card {
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px;
+  text-align: center;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.minimal-etf-card:hover {
+  border-color: #667eea;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+}
+
+
+.minimal-etf-card.in-uptrend {
+  border-left: 4px solid #10b981;
+  background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%);
+}
+
+.minimal-etf-card.in-downtrend {
+  border-left: 4px solid #ef4444;
+  background: linear-gradient(135deg, #fef2f2 0%, #ffffff 100%);
+}
+
+.minimal-etf-card.neutral {
+  border-left: 4px solid #6b7280;
+  background: linear-gradient(135deg, #f9fafb 0%, #ffffff 100%);
+}
+
+.card-ticker {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1f2937;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.card-status {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 3px 8px;
+  border-radius: 12px;
+  margin-bottom: 8px;
+  display: inline-block;
+}
+
+.status-buy {
+  background: #d1fae5;
+  color: #065f46;
+  border: 1px solid #10b981;
+}
+
+.status-sell {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #ef4444;
+}
+
+.status-hold {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #f59e0b;
+}
+
+.status-analyze {
+  background: #e0e7ff;
+  color: #3730a3;
+  border: 1px solid #667eea;
+}
+
+.card-details {
+  font-size: 0.75rem;
+  color: #6b7280;
+  line-height: 1.3;
+}
+
+.card-price {
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 2px;
+}
+
+.card-sma {
+  color: #4b5563;
+  font-weight: 500;
+}
+
+.card-diff {
+  font-size: 0.7rem;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.card-diff.positive-diff {
+  color: #059669;
+  background: rgba(16, 185, 129, 0.1);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.card-diff.negative-diff {
+  color: #dc2626;
+  background: rgba(239, 68, 68, 0.1);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+/* Responsive Design for ETF Cards */
+@media (max-width: 768px) {
+  .cards-grid {
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 8px;
+  }
+
+  .minimal-etf-card {
+    padding: 10px;
+  }
+
+  .card-ticker {
+    font-size: 0.9rem;
+  }
+
+  .config-summary {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .cards-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+
+  .minimal-etf-card {
+    padding: 8px;
+  }
+
+  .card-ticker {
+    font-size: 0.8rem;
+  }
+
+  .card-status {
+    font-size: 0.7rem;
+    padding: 2px 6px;
+  }
+}
+
 /* High Contrast Mode */
 @media (prefers-contrast: high) {
   .etf-card,
@@ -3623,6 +3744,14 @@ input:checked + .toggle-slider:before {
 
   .action-status {
     border: 2px solid currentColor;
+  }
+
+  .minimal-etf-card {
+    border-width: 2px;
+  }
+
+  .card-status {
+    border-width: 2px;
   }
 }
 </style>
