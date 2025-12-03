@@ -106,12 +106,14 @@ app.use(
       
       const allowedOrigins = process.env.ALLOWED_ORIGINS
         ? process.env.ALLOWED_ORIGINS.split(',')
-        : [
-            'http://localhost:5173',
-            'http://localhost:3000',
-            'http://frontend:5173',
-            'http://backend:3001'
-          ];
+        : process.env.NODE_ENV === 'production'
+          ? ['*']  // Allow all origins in production
+          : [
+              'http://localhost:5173',
+              'http://localhost:3000',
+              'http://frontend:5173',
+              'http://backend:3001'
+            ];
       
       if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes('*')) {
         callback(null, true);
@@ -155,18 +157,26 @@ app.use('/health', healthRoutes);
 
 // Serve static files from frontend build directory in production mode
 if (process.env.NODE_ENV === 'production') {
-  const frontendBuildPath = path.join(__dirname, 'frontend/dist');
+  // In Docker container, frontend dist is in same directory as server.js
+  // In local development, it might be in a sibling directory
+  const frontendBuildPath = path.join(__dirname, '..', 'frontend', 'dist');
+
+  // Fallback to server/frontend/dist if the above doesn't exist
+  const fallbackPath = path.join(__dirname, 'frontend', 'dist');
+
+  const fs = require('fs');
+  const actualFrontendPath = fs.existsSync(frontendBuildPath) ? frontendBuildPath : fallbackPath;
   
   // Serve static files (CSS, JS, images, etc.)
-  app.use(express.static(frontendBuildPath, {
+  app.use(express.static(actualFrontendPath, {
     maxAge: '1y', // Cache static assets for 1 year
     etag: false   // Disable etag for better performance
   }));
-  
+
   // Handle SPA routing - serve index.html for all non-API routes
   app.get('*', (req, res) => {
     if (!req.path.startsWith('/api/')) {
-      res.sendFile(path.join(frontendBuildPath, 'index.html'));
+      res.sendFile(path.join(actualFrontendPath, 'index.html'));
     }
   });
 }

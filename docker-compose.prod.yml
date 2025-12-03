@@ -12,18 +12,21 @@ services:
       - ALLOWED_ORIGINS=*
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - REDIS_DATABASE=0
+      - REDIS_TTL_SECONDS=300
+      - DOCKER_ENV=true
     depends_on:
       - redis
     networks:
       - momentum-network-prod
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) }).on('error', () => process.exit(1))"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
     labels:
-      - "description=Momentum Rider Production"
+      - "description=Momentum Rider Production - Full Stack Application"
       - "version=1.0.0"
     restart: unless-stopped
 
