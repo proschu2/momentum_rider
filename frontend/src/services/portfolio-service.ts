@@ -307,7 +307,7 @@ class PortfolioService {
         if (typeof allWeatherAllocations === 'object' && allWeatherAllocations !== null) {
           etfs = Object.entries(allWeatherAllocations).filter(([etf, pct]) =>
             typeof etf === 'string' && etf.length > 0 && typeof pct === 'number' && pct > 0
-          )
+          ) as [string, number][]
           console.log('ETFs from All-Weather strategy analysis:', etfs.map(([etf, pct]) => `${etf}: ${pct}%`))
         }
       } else if (typeof strategyAnalysis.targetAllocations === 'object' && !('etfAllocations' in strategyAnalysis.targetAllocations)) {

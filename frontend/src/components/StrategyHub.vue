@@ -103,36 +103,53 @@
             <div class="allweather-icon">🌤️</div>
             <div class="allweather-title">
               <h3>All-Weather Portfolio</h3>
-              <p>Fixed optimized ETF universe with trend filtering</p>
+              <p>Dalio-inspired allocation with 10-month SMA trend filtering</p>
             </div>
           </div>
 
-          <div class="compact-configs">
-            <div class="config-group compact">
-              <label class="config-label">Portfolio Value</label>
-              <input
-                v-model.number="strategyConfig.allweather.totalPortfolioValue"
-                type="number"
-                min="1000"
-                max="10000000"
-                step="1000"
-                class="config-input compact"
-                placeholder="100000"
-              />
+          <!-- Configuration Summary -->
+          <div class="config-summary">
+            <div class="summary-item">
+              <div class="summary-icon">💰</div>
+              <div class="summary-text">
+                <strong>Portfolio:</strong> Uses actual holdings value
+              </div>
             </div>
+            <div class="summary-item">
+              <div class="summary-icon">📊</div>
+              <div class="summary-text">
+                <strong>SMA Period:</strong> Fixed at 10 months
+              </div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-icon">🎯</div>
+              <div class="summary-text">
+                <strong>ETFs:</strong> 9 optimized assets
+              </div>
+            </div>
+          </div>
 
-            <div class="config-group compact">
-              <label class="config-label">SMA Period</label>
-              <div class="input-with-unit compact">
-                <input
-                  v-model.number="strategyConfig.allweather.smaPeriod"
-                  type="number"
-                  min="6"
-                  max="24"
-                  step="1"
-                  class="config-input compact"
-                />
-                <span class="unit">months</span>
+          <!-- Minimal ETF Cards View -->
+          <div class="minimal-etf-cards">
+            <div class="cards-header">
+              <h4>ETF Universe Performance</h4>
+              <span class="subtitle">10-month Simple Moving Average Analysis</span>
+            </div>
+            <div class="cards-grid">
+              <div
+                v-for="etf in getAllWeatherETFs()"
+                :key="etf.ticker"
+                class="minimal-etf-card"
+                :class="getETFCardClass(etf)"
+              >
+                <div class="card-ticker">{{ etf.ticker }}</div>
+                <div class="card-status" :class="getETFStatusClass(etf)">
+                  {{ getETFStatus(etf) }}
+                </div>
+                <div class="card-details">
+                  <div class="card-price">${{ getETFPrice(etf) }}</div>
+                  <div class="card-sma">SMA: ${{ getETFSMA(etf) }}</div>
+                </div>
               </div>
             </div>
           </div>
@@ -145,15 +162,15 @@
                   v-model="strategyConfig.allweather.showTrendSignals"
                   type="checkbox"
                 />
-                <span>Show trend signals & SGOV allocation</span>
+                <span>Show detailed trend signals & SGOV allocation</span>
               </label>
             </div>
           </div>
 
           <div class="config-help compact">
-            <strong>ETF Universe:</strong> VTI, VEA, VWO, IEF, TIP, IGIL.L, PDBC, GLDM, SGOV (auto-selected) |
-            <strong>Methodology:</strong> 10-month SMA trend filtering + SGOV cash fallback |
-            <strong>Expense Ratio:</strong> 0.162%
+            <strong>Strategy:</strong> 10-month SMA trend filtering with SGOV cash fallback |
+            <strong>Universe:</strong> VTI, VEA, VWO, IEF, TIP, IGIL.L, PDBC, GLDM, SGOV |
+            <strong>Expense Ratio:</strong> 0.162% | <strong>Rebalancing:</strong> Monthly
           </div>
         </div>
 
@@ -737,8 +754,8 @@ const strategyConfig = reactive<StrategyConfig>({
     fallbackETF: 'SGOV'
   },
   allweather: {
-    smaPeriod: 10, // 10-month SMA (not days)
-    totalPortfolioValue: 100000,
+    smaPeriod: 10, // Fixed at 10-month SMA
+    totalPortfolioValue: 100000, // This will be overridden by actual portfolio value
     rebalanceDate: new Date().toISOString().split('T')[0] || '2025-11-21', // Today's date in YYYY-MM-DD format
     showTrendSignals: true
   },
@@ -1214,7 +1231,7 @@ const analyzeStrategy = async () => {
             }
           }
 
-          return { etf, currentValue, targetValue, targetAllocation, sharesToTrade, action }
+          return { etf, currentValue, targetValue, targetAllocation, sharesToTrade, action: action as 'buy' | 'sell' | 'hold' }
         })
 
         // Next, identify holdings that are NOT in the target strategy and should be sold
@@ -1529,6 +1546,51 @@ const formatNetCashFlow = () => {
   return `${prefix}$${Math.abs(netFlow).toLocaleString()}`
 }
 
+// All-Weather ETF Card Helper Methods
+const getAllWeatherETFs = () => {
+  const allWeatherTickers = ['VTI', 'VEA', 'VWO', 'IEF', 'TIP', 'IGIL.L', 'PDBC', 'GLDM', 'SGOV']
+  return allWeatherTickers.map(ticker => {
+    const etfInfo = allETFs.value.find(etf => etf.ticker === ticker)
+    const trendSignal = analysisResults.value?.trendSignals?.[ticker]
+
+    return {
+      ticker,
+      name: etfInfo?.name || `${ticker} ETF`,
+      currentPrice: etfInfo?.currentPrice || (trendSignal?.analysis?.price ? parseFloat(trendSignal.analysis.price.replace('$', '')) : 0),
+      sma: trendSignal?.analysis?.sma ? parseFloat(trendSignal.analysis.sma.replace('$', '')) : 0,
+      signal: trendSignal?.signal || 0,
+      action: trendSignal?.action || 'HOLD',
+      percentDifference: trendSignal?.analysis?.percentDifference || '0%'
+    }
+  })
+}
+
+const getETFCardClass = (etf: any) => {
+  if (etf.signal === 1) return 'in-uptrend'
+  if (etf.signal === 0) return 'in-downtrend'
+  return 'neutral'
+}
+
+const getETFStatus = (etf: any) => {
+  if (etf.action === 'BUY') return 'BUY'
+  if (etf.action === 'SELL') return 'SELL'
+  return 'HOLD'
+}
+
+const getETFStatusClass = (etf: any) => {
+  if (etf.action === 'BUY') return 'status-buy'
+  if (etf.action === 'SELL') return 'status-sell'
+  return 'status-hold'
+}
+
+const getETFPrice = (etf: any) => {
+  return etf.currentPrice > 0 ? etf.currentPrice.toFixed(2) : '---'
+}
+
+const getETFSMA = (etf: any) => {
+  return etf.sma > 0 ? etf.sma.toFixed(2) : '---'
+}
+
 // localStorage keys
 const STRATEGY_CONFIG_KEY = 'momentum-rider-strategy-config'
 const SELECTED_STRATEGY_KEY = 'momentum-rider-selected-strategy'
@@ -1646,7 +1708,7 @@ onMounted(async () => {
           price: quote.regularMarketPrice,
           change: quote.regularMarketChangePercent
         })
-        return { ticker, ...quote, success: true }
+        return { success: true, ticker, ...Object.fromEntries(Object.entries(quote).filter(([key]) => key !== 'ticker')) }
       } catch (error) {
         console.warn(`❌ Failed to fetch quote for ${ticker}:`, error)
         return { ticker, success: false, error: (error as Error).message }
@@ -1724,17 +1786,18 @@ onMounted(async () => {
       allETFs.value = strategyTickers.map(ticker => {
         const quote = quoteMap.get(ticker)
         const category = `All-Weather ${ticker}`
+        const safeQuote = quote && quote.success ? quote as any : null
         return {
           ticker,
-          name: quote?.shortName || quote?.longName || `${ticker} ETF`,
+          name: safeQuote?.shortName || safeQuote?.longName || `${ticker} ETF`,
           category,
           isCustom: false,
-          currentPrice: quote?.regularMarketPrice || cachedPrices.value[ticker] || null,
-          dayChange: quote?.regularMarketChangePercent || null,
-          previousClose: quote?.regularMarketPreviousClose || null,
-          marketCap: quote?.marketCap || null,
-          volume: quote?.regularMarketVolume || null,
-          momentumScore: momentumScores[ticker] || 0
+          currentPrice: safeQuote?.regularMarketPrice || cachedPrices.value[ticker] || undefined,
+          dayChange: safeQuote?.regularMarketChangePercent || undefined,
+          previousClose: safeQuote?.regularMarketPreviousClose || undefined,
+          marketCap: safeQuote?.marketCap || undefined,
+          volume: safeQuote?.regularMarketVolume || undefined,
+          momentumScore: (ticker ? momentumScores[ticker] : undefined) || 0
         }
       })
     } else {
@@ -1744,19 +1807,20 @@ onMounted(async () => {
         const tickers = etfConfigStore.etfUniverse[category as keyof typeof etfConfigStore.etfUniverse]
         for (let i = 0; i < tickers.length; i++) {
           const ticker = tickers[i]
-          if (strategyTickers.includes(ticker)) {
+          if (ticker && strategyTickers.includes(ticker)) {
             const quote = quoteMap.get(ticker)
+            const safeQuote = quote && quote.success ? quote as any : null
             allETFs.value.push({
               ticker,
-              name: quote?.shortName || quote?.longName || `${ticker} ${category} ETF`,
+              name: safeQuote?.shortName || safeQuote?.longName || `${ticker} ${category} ETF`,
               category,
               isCustom: false,
-              currentPrice: quote?.regularMarketPrice || cachedPrices.value[ticker] || null,
-              dayChange: quote?.regularMarketChangePercent || null,
-              previousClose: quote?.regularMarketPreviousClose || null,
-              marketCap: quote?.marketCap || null,
-              volume: quote?.regularMarketVolume || null,
-              momentumScore: momentumScores[ticker] || 0
+              currentPrice: safeQuote?.regularMarketPrice || cachedPrices.value[ticker] || undefined,
+              dayChange: safeQuote?.regularMarketChangePercent || undefined,
+              previousClose: safeQuote?.regularMarketPreviousClose || undefined,
+              marketCap: safeQuote?.marketCap || undefined,
+              volume: safeQuote?.regularMarketVolume || undefined,
+              momentumScore: (ticker ? momentumScores[ticker] : undefined) || 0
             })
           }
         }
@@ -1777,9 +1841,12 @@ onMounted(async () => {
     } else {
       fallbackTickers = []
       for (const category in etfConfigStore.etfUniverse) {
-        const tickers = etfConfigStore.etfUniverse[category]
+        const tickers = etfConfigStore.etfUniverse[category as keyof typeof etfConfigStore.etfUniverse]
         for (let i = 0; i < tickers.length; i++) {
-          fallbackTickers.push(tickers[i])
+          const ticker = tickers[i]
+          if (ticker) {
+            fallbackTickers.push(ticker)
+          }
         }
       }
     }
