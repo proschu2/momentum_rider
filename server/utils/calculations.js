@@ -19,7 +19,9 @@ function findClosestWeeklyPrice(weeklyQuotes, targetDate) {
   let closestDiff = Infinity;
 
   for (const quote of weeklyQuotes) {
-    const diff = targetDate.getTime() - quote.date.getTime();
+    // Handle both Date objects and string dates
+    const quoteDate = quote.date instanceof Date ? quote.date : new Date(quote.date);
+    const diff = targetDate.getTime() - quoteDate.getTime();
     // Only consider quotes on or before the target date
     if (diff >= 0 && diff < closestDiff) {
       closestDiff = diff;
@@ -44,7 +46,9 @@ function findClosestDailyPrice(dailyQuotes, targetDate) {
   let closestDiff = Infinity;
 
   for (const quote of dailyQuotes) {
-    const diff = targetDate.getTime() - quote.date.getTime();
+    // Handle both Date objects and string dates
+    const quoteDate = quote.date instanceof Date ? quote.date : new Date(quote.date);
+    const diff = targetDate.getTime() - quoteDate.getTime();
     // Only consider quotes on or before the target date
     if (diff >= 0 && diff < closestDiff) {
       closestDiff = diff;

@@ -115,8 +115,8 @@ class LinearProgrammingService {
       console.log(`- Target value: $${targetValue.toFixed(2)}`);
       console.log(`- Value range (±${allocationDeviation}%): $${minValue.toFixed(2)} - $${maxValue.toFixed(2)}`);
       console.log(`- Price per share: $${etf.pricePerShare}`);
-      console.log(`- Min shares possible: ${Math.floor(minValue / etf.pricePerShare)}`);
-      console.log(`- Max shares possible: ${Math.floor(maxValue / etf.pricePerShare)}`);
+      console.log(`- Min shares possible: ${Math.floor(Math.round((minValue / etf.pricePerShare) * 100) / 100)}`);
+      console.log(`- Max shares possible: ${Math.floor(Math.round((maxValue / etf.pricePerShare) * 100) / 100)}`);
 
       // Check if at least 1 share is possible for positive targets
       if (etf.targetPercentage > 0 && etf.pricePerShare > maxValue) {

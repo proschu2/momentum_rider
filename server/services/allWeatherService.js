@@ -188,10 +188,14 @@ class AllWeatherService {
         }
 
         if (targetPercentage > 0) {
+          // Use the actual ETF's max deviation from configuration
+          const etfInfo = this.etfUniverse[etf];
+          const allowedDeviation = etfInfo ? Math.max(Math.abs(etfInfo.minDeviation), Math.abs(etfInfo.maxDeviation)) : 5;
+
           targetETFs.push({
             name: etf,
             targetPercentage: Math.round(targetPercentage * 100) / 100, // Round to 2 decimals
-            allowedDeviation: 5 // Standard 5% deviation
+            allowedDeviation: allowedDeviation // Use actual ETF deviation from config
           });
         }
       });
@@ -261,27 +265,8 @@ class AllWeatherService {
             }
           }
         } catch (priceError) {
-          console.log(`❌ ${etf}: All price methods failed (${priceError.message}), using fallback pricing`);
-
-          // Handle SGOV and other cash equivalents with fallback pricing
-          if (etf === 'SGOV' || etf.includes('GOV')) {
-            currentPrice = 100.0; // SGOV typically trades around $100
-            console.log(`ℹ️  ${etf}: Using fallback price $${currentPrice.toFixed(2)}`);
-          } else {
-            // For other ETFs, use realistic fallback prices based on typical ranges
-            const fallbackPrices = {
-              'VTI': 250.0,    // Vanguard Total Stock Market
-              'VEA': 45.0,     // Vanguard FTSE Developed Markets
-              'VWO': 50.0,     // Vanguard FTSE Emerging Markets
-              'IEF': 95.0,     // iShares 7-10 Year Treasury
-              'TIP': 105.0,    // iShares TIPS Bond
-              'IGIL.L': 120.0,   // iShares Global Inflation UCITS
-              'PDBC': 25.0,    // Invesco Optimum Yield Diversified Commodity
-              'GLDM': 90.0     // SPDR Gold MiniShares
-            };
-            currentPrice = fallbackPrices[etf] || 100.0;
-            console.log(`ℹ️  ${etf}: Using fallback price $${currentPrice.toFixed(2)} (simulation mode)`);
-          }
+          console.error(`❌ ${etf}: All price methods failed (${priceError.message})`);
+          throw new Error(`Unable to fetch real price for ${etf}. Please check market data availability or try again later. Error: ${priceError.message}`);
         }
 
         // Get historical price data for SMA calculation (10 months of month-end data)
@@ -325,6 +310,12 @@ class AllWeatherService {
   async getMonthlyPrices(etf, months) {
     console.log(`📊 Fetching ${months} months of historical data for ${etf} (using daily data for accuracy)...`);
 
+    // Special case for SGOV (cash equivalent) - doesn't need real historical data
+    if (etf === 'SGOV') {
+      console.log(`🏛️ ${etf}: Using stable price data for cash equivalent`);
+      return Array(months).fill(100.0); // SGOV has stable value around $100
+    }
+
     try {
       // Import financeService
       const financeService = require('./financeService');
@@ -334,8 +325,7 @@ class AllWeatherService {
       const dailyData = await financeService.getHistoricalDailyData(etf, 300);
 
       if (!dailyData || dailyData.length === 0) {
-        console.warn(`⚠️  No historical data available for ${etf}, using fallback pricing`);
-        return this.getFallbackMonthlyPrices(etf, months);
+        throw new Error(`No historical data available for ${etf}. Cannot calculate SMA without historical price data.`);
       }
 
       console.log(`📈 Retrieved ${dailyData.length} daily data points for ${etf} (accurate trading days)`);
@@ -354,8 +344,7 @@ class AllWeatherService {
 
     } catch (error) {
       console.error(`❌ Failed to fetch historical data for ${etf}:`, error.message);
-      console.log(`🔄 Using fallback monthly prices for ${etf}`);
-      return this.getFallbackMonthlyPrices(etf, months);
+      throw new Error(`Unable to fetch historical data for ${etf} SMA calculation. Please check market data availability. Error: ${error.message}`);
     }
   }
 
@@ -376,7 +365,9 @@ class AllWeatherService {
     }
 
     // Get the most recent date from daily data (today's quote date)
-    const latestDate = new Date(dailyData[dailyData.length - 1].date);
+    const latestDate = dailyData[dailyData.length - 1].date instanceof Date
+      ? dailyData[dailyData.length - 1].date
+      : new Date(dailyData[dailyData.length - 1].date);
     console.log(`📊 Latest quote date: ${latestDate.toISOString().split('T')[0]}`);
 
     const prices = [];
@@ -422,36 +413,7 @@ class AllWeatherService {
     return 'unknown';
   }
 
-  /**
-   * Fallback monthly prices for when API fails
-   */
-  getFallbackMonthlyPrices(etf, months) {
-    // Use the same fallback pricing logic as fetchMarketData
-    const fallbackPrices = {
-      'VTI': 250.0, 'VEA': 45.0, 'VWO': 50.0, 'IEF': 95.0, 'TIP': 105.0,
-      'IGIL.L': 120.0, 'PDBC': 25.0, 'GLDM': 90.0, 'SGOV': 100.0
-    };
-
-    const currentPrice = fallbackPrices[etf] || 100.0;
-    const monthlyPrices = [];
-
-    // Generate realistic monthly prices for the last N months
-    let basePrice = currentPrice * 0.85; // Start 15% below current price
-    for (let i = months - 1; i >= 0; i--) {
-      const volatility = 0.03; // 3% monthly volatility
-      const randomMove = (Math.random() - 0.5) * 2 * volatility;
-      basePrice = basePrice * (1 + randomMove * 0.5); // Trend toward current price
-      monthlyPrices.push(basePrice);
-    }
-
-    // Ensure the last price matches current price
-    monthlyPrices[monthlyPrices.length - 1] = currentPrice;
-
-    console.log(`🔄 Generated fallback prices for ${etf}: $${monthlyPrices[0]?.toFixed(2)} -> $${currentPrice.toFixed(2)}`);
-
-    return monthlyPrices;
-  }
-
+  
   /**
    * Calculate 10-month SMA trend signals
    */
@@ -590,7 +552,7 @@ class AllWeatherService {
         continue;
       }
 
-      const targetShares = targetAmount / currentPrice;
+      const targetShares = Math.round((targetAmount / currentPrice) * 100) / 100; // Round to 2 decimal places to avoid precision errors
       const candidateShares = [
         Math.floor(targetShares),
         Math.ceil(targetShares),
@@ -660,12 +622,12 @@ class AllWeatherService {
 
       if (sharesDiff > 0) {
         action = 'BUY';
-        shares = sharesDiff;
-        amount = sharesDiff * currentPrice;
+        shares = Math.round(sharesDiff * 100) / 100; // Round to 2 decimal places to avoid precision errors
+        amount = shares * currentPrice;
         totalBuys += amount;
       } else if (sharesDiff < 0) {
         action = 'SELL';
-        shares = Math.abs(sharesDiff);
+        shares = Math.round(Math.abs(sharesDiff) * 100) / 100; // Round to 2 decimal places to avoid precision errors
         amount = sharesDiff * currentPrice; // Negative value
         totalSells += Math.abs(amount);
       }

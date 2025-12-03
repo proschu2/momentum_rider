@@ -184,7 +184,7 @@ class SmartRebalancingService {
     // Strategy 1: Direct ETF purchase if budget allows
     for (const etf of sortedETFs) {
       if (unusedBudget >= etf.pricePerShare) {
-        const sharesPossible = Math.floor(unusedBudget / etf.pricePerShare);
+        const sharesPossible = Math.floor(Math.round((unusedBudget / etf.pricePerShare) * 100) / 100);
         if (sharesPossible > 0) {
           combinations.push({
             type: 'direct_purchase',
@@ -215,7 +215,7 @@ class SmartRebalancingService {
           const combinedCost = etfA.pricePerShare + (etfB.pricePerShare * mult);
 
           if (unusedBudget >= combinedCost && mult <= 10) { // Limit to reasonable combinations
-            const maxCombinations = Math.floor(unusedBudget / combinedCost);
+            const maxCombinations = Math.floor(Math.round((unusedBudget / combinedCost) * 100) / 100);
 
             if (maxCombinations > 0) {
               combinations.push({
@@ -367,7 +367,7 @@ class SmartRebalancingService {
     }
 
     // Calculate maximum additional shares
-    const additionalShares = Math.floor(residualBudget / cheapestETF.pricePerShare);
+    const additionalShares = Math.floor(Math.round((residualBudget / cheapestETF.pricePerShare) * 100) / 100);
 
     if (additionalShares > 0) {
       const updatedAllocations = allocations.map(allocation => {
@@ -497,7 +497,7 @@ class SmartRebalancingService {
       .sort((a, b) => b.costOfPurchase - a.costOfPurchase)[0];
 
     if (bestETF && unusedBudget >= bestETF.pricePerShare) {
-      const additionalShares = Math.floor(unusedBudget / bestETF.pricePerShare);
+      const additionalShares = Math.floor(Math.round((unusedBudget / bestETF.pricePerShare) * 100) / 100);
 
       if (additionalShares > 0) {
         const updatedAllocations = allocations.map(allocation => {

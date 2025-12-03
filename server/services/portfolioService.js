@@ -849,7 +849,7 @@ class PortfolioService {
                 // Need to buy more - get current price
                 const etfPrice = await this.getETFPrice(etfName);
                 const price = currentHolding.pricePerShare || etfPrice || 100;
-                const sharesToBuy = difference / price;
+                const sharesToBuy = Math.round((difference / price) * 100) / 100; // Round to 2 decimal places
                 trades.push({
                   etf: etfName,
                   action: 'buy',
@@ -864,7 +864,7 @@ class PortfolioService {
                 const etfPrice = await this.getETFPrice(etfName);
                 const price = currentHolding.pricePerShare || etfPrice || 100;
                 const excessValue = Math.abs(difference);
-                const sharesToSell = excessValue / price;
+                const sharesToSell = Math.round((excessValue / price) * 100) / 100; // Round to 2 decimal places
                 trades.push({
                   etf: etfName,
                   action: 'sell',
@@ -893,15 +893,16 @@ class PortfolioService {
             const etfPrice = await this.getETFPrice(allocation.etfName);
             const finalPrice = etfPrice || 100; // fallback price
 
+            const roundedShares = Math.round(allocation.sharesToBuy * 100) / 100; // Round to 2 decimal places
             trades.push({
               etf: allocation.etfName,
               action: 'buy',
-              shares: allocation.sharesToBuy,
-              value: allocation.costOfPurchase || (allocation.sharesToBuy * finalPrice),
+              shares: roundedShares,
+              value: allocation.costOfPurchase || (roundedShares * finalPrice),
               price: finalPrice,
               reason: 'Portfolio Rebalance - New Position'
             });
-            totalTradeValue += allocation.costOfPurchase || (allocation.sharesToBuy * finalPrice);
+            totalTradeValue += allocation.costOfPurchase || (roundedShares * finalPrice);
           }
         }
       }
@@ -909,10 +910,11 @@ class PortfolioService {
       // Process sell trades for holdings not in target at all
       if (optimization.holdingsToSell) {
         optimization.holdingsToSell.forEach(holding => {
+          const roundedSellShares = Math.round(holding.shares * 100) / 100; // Round to 2 decimal places
           trades.push({
             etf: holding.name,
             action: 'sell',
-            shares: holding.shares,
+            shares: roundedSellShares,
             value: holding.totalValue,
             price: holding.pricePerShare,
             reason: 'Portfolio Rebalance - Not in Target Allocation'

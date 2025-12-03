@@ -1130,14 +1130,24 @@ const analyzeStrategy = async () => {
           // Calculate target allocation percentage from the optimization result
           const targetAllocation = allocation.targetPercentage || 0
 
-          // Calculate shares to trade based on value difference and price
-          const pricePerShare = allocation.pricePerShare || 100
-          const valueDifference = targetValue - currentValue
+          // Get actual shares from execution plan API response instead of calculating locally
+          const executionTrade = executionPlan.value.find(trade => trade.etf === etf)
           let sharesToTrade = 0
-          if (action === 'buy' && valueDifference > 0) {
-            sharesToTrade = Math.floor(valueDifference / pricePerShare)
-          } else if (action === 'sell' && valueDifference < 0) {
-            sharesToTrade = Math.floor(Math.abs(valueDifference) / pricePerShare)
+
+          if (executionTrade) {
+            // Use the actual shares from the API response
+            sharesToTrade = executionTrade.shares
+            // Override action with the actual API action to ensure consistency
+            action = executionTrade.action
+          } else {
+            // Fallback: calculate shares if no execution trade found
+            const pricePerShare = allocation.pricePerShare || 100
+            const valueDifference = targetValue - currentValue
+            if (action === 'buy' && valueDifference > 0) {
+              sharesToTrade = Math.round((valueDifference / pricePerShare) * 100) / 100
+            } else if (action === 'sell' && valueDifference < 0) {
+              sharesToTrade = Math.round((Math.abs(valueDifference) / pricePerShare) * 100) / 100
+            }
           }
 
           return { etf, currentValue, targetValue, targetAllocation, sharesToTrade, action }
@@ -1158,18 +1168,29 @@ const analyzeStrategy = async () => {
           // Calculate target allocation percentage from analysis results
           const targetAllocation = analysis.targetAllocations?.[etf] || 0
 
-          // Calculate shares to trade based on value difference and price
-          const pricePerShare = analysis.momentumScores?.[etf]?.price || cachedPrices.value[etf] || 100
-          const valueDifference = targetValue - currentValue
+          // Get actual shares from execution plan API response instead of calculating locally
+          const executionTrade = executionPlan.value.find(trade => trade.etf === etf)
           let sharesToTrade = 0
-          if (targetValue > currentValue * 1.05) { // Buy action
-            action = 'buy'
-            sharesToTrade = Math.floor(valueDifference / pricePerShare)
-          } else if (targetValue < currentValue * 0.95) { // Sell action
-            action = 'sell'
-            sharesToTrade = Math.floor(Math.abs(valueDifference) / pricePerShare)
+          let action = 'hold'
+
+          if (executionTrade) {
+            // Use the actual shares from the API response
+            sharesToTrade = executionTrade.shares
+            action = executionTrade.action
           } else {
-            action = 'hold'
+            // Fallback: determine action from value difference if no execution trade found
+            const valueDifference = targetValue - currentValue
+            if (Math.abs(valueDifference) > 10) { // Only trade if difference > $10
+              if (valueDifference > 0) {
+                action = 'buy'
+                const pricePerShare = analysis.momentumScores?.[etf]?.price || cachedPrices.value[etf] || 100
+                sharesToTrade = Math.round((valueDifference / pricePerShare) * 100) / 100
+              } else {
+                action = 'sell'
+                const pricePerShare = analysis.momentumScores?.[etf]?.price || cachedPrices.value[etf] || 100
+                sharesToTrade = Math.round((Math.abs(valueDifference) / pricePerShare) * 100) / 100
+              }
+            }
           }
 
           return { etf, currentValue, targetValue, targetAllocation, sharesToTrade, action }
@@ -1763,7 +1784,7 @@ onMounted(async () => {
 }
 
 .hub-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #4f46e5;
   color: white;
   padding: 30px;
   border-radius: 16px;
@@ -1777,21 +1798,24 @@ onMounted(async () => {
 }
 
 .current-portfolio-summary .summary-card {
-  background: rgba(255, 255, 255, 0.1);
-  padding: 20px;
+  background: white;
+  padding: 16px;
   border-radius: 12px;
-  backdrop-filter: blur(10px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e5e7eb;
 }
 
 .summary-label {
   font-size: 0.9rem;
   opacity: 0.8;
   margin-bottom: 5px;
+  color: #6b7280;
 }
 
 .summary-value {
   font-size: 1.8rem;
   font-weight: bold;
+  color: #1f2937;
   margin-bottom: 5px;
 }
 
@@ -3093,11 +3117,15 @@ input:checked + .toggle-slider:before {
   }
 
   .detail-label {
-    color: #9ca3af;
+    color: #4b5563;
   }
 
   .detail-value {
-    color: #f9fafb;
+    color: #1f2937;
+  }
+
+  .shares-to-trade {
+    color: #374151 !important;
   }
 
   /* Keep light backgrounds for summary items and tables */
@@ -3113,7 +3141,7 @@ input:checked + .toggle-slider:before {
   }
 
   .desktop-table .table-header {
-    background: linear-gradient(135deg, #374151, #1f2937);
+    background: #374151;
     color: #f9fafb;
   }
 
@@ -3153,7 +3181,7 @@ input:checked + .toggle-slider:before {
   align-items: center;
   gap: 16px;
   padding: 20px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #667eea;
   color: white;
   border-radius: 12px;
   margin-bottom: 20px;
@@ -3395,7 +3423,7 @@ input:checked + .toggle-slider:before {
 
 /* SGOV Allocation Display */
 .sgov-allocation-card {
-  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+  background: #28a745;
   color: #1f2937; /* Dark text for visibility */
   border-radius: 8px;
   padding: 20px;

@@ -3,6 +3,7 @@
  */
 
 const financeService = require('./financeService');
+const preFetchService = require('./preFetchService');
 const cacheService = require('./cacheService');
 const logger = require('../config/logger');
 const { calculateReturnFromPrice, findClosestWeeklyPrice } = require('../utils/calculations');
@@ -30,23 +31,47 @@ async function calculateMomentum(ticker, includeName = false) {
       throw new Error('No historical data available');
     }
 
-    // Get REAL current price from finance service (not from weekly data)
+    // Get REAL current price using preFetchService (consistent with other services)
     let currentPrice;
     try {
-      currentPrice = await financeService.getCurrentPrice(ticker);
+      // Try preFetchService first (Redis-first caching)
+      currentPrice = await preFetchService.getCachedPrice(ticker);
       logger.logInfo('Real current price fetched for momentum calculation', {
         ticker,
         price: currentPrice,
-        source: 'financeService.getCurrentPrice'
+        source: 'preFetchService.getCachedPrice'
       });
+
+      // Extract price from response object if needed
+      if (currentPrice && typeof currentPrice === 'object' && currentPrice.price) {
+        currentPrice = currentPrice.price;
+      }
+
+      // Validate that we got a valid price
+      if (currentPrice == null || typeof currentPrice !== 'number' || isNaN(currentPrice) || currentPrice <= 0) {
+        throw new Error(`Invalid price from preFetchService: ${currentPrice}`);
+      }
     } catch (priceError) {
-      logger.logWarn('Failed to get current price, falling back to latest weekly quote', {
+      logger.logWarn('Failed to get current price from preFetchService, trying finance service', {
         ticker,
         error: priceError.message
       });
-      // Fallback to latest weekly quote
-      const latestQuote = weeklyQuotes[weeklyQuotes.length - 1];
-      currentPrice = latestQuote.close;
+
+      try {
+        currentPrice = await financeService.getCurrentPrice(ticker);
+        logger.logInfo('Real current price fetched from finance service fallback', {
+          ticker,
+          price: currentPrice,
+          source: 'financeService.getCurrentPrice'
+        });
+      } catch (fallbackError) {
+        logger.logError('Both price sources failed for momentum calculation', {
+          ticker,
+          preFetchError: priceError.message,
+          financeError: fallbackError.message
+        });
+        throw new Error(`Unable to fetch current price for ${ticker}: ${fallbackError.message}`);
+      }
     }
 
     // Handle both object and number return types from getCurrentPrice
@@ -117,7 +142,7 @@ async function calculateMomentum(ticker, includeName = false) {
       price: priceValue, // Include the real current price in the result
     };
 
-    await cacheService.setCachedData(cacheKey, result);
+    await cacheService.setCachedData(cacheKey, result, 300); // Cache for 10 minutes (600 seconds)
     logger.logInfo('Momentum calculation completed and cached', {
       ticker,
       absoluteMomentum,
@@ -223,7 +248,7 @@ async function getDetailedPrices(ticker, includeName = false) {
     },
   };
 
-  cacheService.setCachedData(cacheKey, result);
+  cacheService.setCachedData(cacheKey, result, 600); // Cache for 10 minutes (600 seconds)
   return result;
 }
 
