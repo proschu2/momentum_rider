@@ -498,6 +498,38 @@ interface StrategyConfig {
   }
 }
 
+interface APIAnalysisResponse {
+  totalInvestment: number
+  currentPortfolioValue: number
+  targetAllocations: Record<string, number>
+  targetValues: Record<string, number>
+  currentValues: Record<string, number>
+  strategy: string
+  selectedETFs: string[]
+  momentumScores?: Record<string, number> | undefined
+  strategyAnalysis?: {
+    targetETFs?: Array<{
+      name: string
+      targetPercentage: number
+      allowedDeviation: number
+    }>
+    trendSignals?: Record<string, {
+      currentPrice: number
+      sma10Month: number
+      signal: number
+      priceToSmaRatio: number
+      action: string
+      analysis: {
+        price: string
+        sma: string
+        difference: string
+        percentDifference: string
+      }
+    }>
+  }
+  analysisTimestamp: string
+}
+
 interface AnalysisResults {
   totalInvestment: number
   utilizedCapital: number
@@ -841,7 +873,7 @@ const analyzeStrategy = async () => {
     }
 
     // Call real portfolio analysis API
-    const analysis = await portfolioService.analyzeStrategy(analysisRequest)
+    const analysis: APIAnalysisResponse = await portfolioService.analyzeStrategy(analysisRequest)
 
     // Calculate proper optimization values using real portfolio optimization
     let optimizationResult = null
