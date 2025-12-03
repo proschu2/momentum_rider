@@ -165,5 +165,5 @@ export function getStrategyById(id: string): Strategy | null {
  * Helper function to get default strategy
  */
 export function getDefaultStrategy(): Strategy {
-  return STRATEGY_DEFINITIONS[0]; // First strategy (Momentum) as default
+  return STRATEGY_DEFINITIONS[0]!; // First strategy (Momentum) as default
 }

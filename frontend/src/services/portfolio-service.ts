@@ -2,6 +2,8 @@
  * Portfolio analysis and optimization service
  */
 
+import { httpClient } from './http-client'
+
 export interface StrategyConfiguration {
   type: 'momentum' | 'allweather' | 'custom'
   parameters: {
@@ -56,6 +58,8 @@ export interface StrategyAnalysis {
   strategy: string
   selectedETFs: string[]
   analysisTimestamp: string
+  momentumScores?: Record<string, number>
+  etfUniverse?: string[]
 }
 
 export interface PortfolioOptimization {
@@ -97,6 +101,7 @@ export interface Trade {
 }
 
 export interface ExecutionPlan {
+  success: boolean
   trades: Trade[]
   totalTradeValue: number
   tradeCount: number
@@ -144,6 +149,7 @@ export interface StrategyPerformance {
 
 class PortfolioService {
   private baseUrl: string
+  private apiClient = httpClient
 
   constructor() {
     this.baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api'
@@ -308,7 +314,7 @@ class PortfolioService {
         // Standard format: { "VTI": 22.2, "VEA": 22.2, ... }
         etfs = Object.entries(strategyAnalysis.targetAllocations).filter(([etf, pct]) =>
           typeof etf === 'string' && etf.length > 0 && typeof pct === 'number' && pct > 0
-        )
+        ) as [string, number][]
         console.log('ETFs from standard strategy analysis:', etfs.map(([etf, pct]) => `${etf}: ${pct}%`))
       }
 

@@ -585,6 +585,27 @@ interface ETFInfo {
   isCustom: boolean
   currentPrice?: number
   momentumScore?: number
+  dayChange?: number
+  dayChangePercent?: number
+  previousClose?: number
+  marketCap?: number
+  volume?: number
+}
+
+interface QuoteResponse {
+  ticker: string
+  success: boolean
+  error?: any
+  shortName?: string
+  longName?: string
+  regularMarketPrice?: number
+  regularMarketChangePercent?: number
+  regularMarketPreviousClose?: number
+  marketCap?: number
+  regularMarketVolume?: number
+  currency?: string
+  marketState?: string
+  quoteType?: string
 }
 
 interface StrategyConfig {
@@ -1183,11 +1204,11 @@ const analyzeStrategy = async () => {
             if (Math.abs(valueDifference) > 10) { // Only trade if difference > $10
               if (valueDifference > 0) {
                 action = 'buy'
-                const pricePerShare = analysis.momentumScores?.[etf]?.price || cachedPrices.value[etf] || 100
+                const pricePerShare = cachedPrices.value[etf] || 100
                 sharesToTrade = Math.round((valueDifference / pricePerShare) * 100) / 100
               } else {
                 action = 'sell'
-                const pricePerShare = analysis.momentumScores?.[etf]?.price || cachedPrices.value[etf] || 100
+                const pricePerShare = cachedPrices.value[etf] || 100
                 sharesToTrade = Math.round((Math.abs(valueDifference) / pricePerShare) * 100) / 100
               }
             }
@@ -1628,7 +1649,7 @@ onMounted(async () => {
         return { ticker, ...quote, success: true }
       } catch (error) {
         console.warn(`❌ Failed to fetch quote for ${ticker}:`, error)
-        return { ticker, success: false, error: error.message }
+        return { ticker, success: false, error: (error as Error).message }
       }
     })
 
@@ -1720,10 +1741,10 @@ onMounted(async () => {
       // For Momentum, use the original categories from etfConfigStore
       allETFs.value = []
       for (const category in etfConfigStore.etfUniverse) {
-        const tickers = etfConfigStore.etfUniverse[category]
+        const tickers = etfConfigStore.etfUniverse[category as keyof typeof etfConfigStore.etfUniverse]
         for (let i = 0; i < tickers.length; i++) {
           const ticker = tickers[i]
-          if (strategyTickers.indexOf(ticker) !== -1) {
+          if (strategyTickers.includes(ticker)) {
             const quote = quoteMap.get(ticker)
             allETFs.value.push({
               ticker,
