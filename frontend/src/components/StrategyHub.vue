@@ -726,9 +726,12 @@ const availableCashAfterSales = computed(() => {
 
 // Filter out holdings with 0 current and target values from portfolio comparison
 const filteredPortfolioComparison = computed(() => {
-  return portfolioComparison.value.filter(comparison =>
+  console.log('All portfolio comparisons before filtering:', portfolioComparison.value)
+  const filtered = portfolioComparison.value.filter(comparison =>
     comparison.currentValue > 0 || comparison.targetValue > 0
   )
+  console.log('Portfolio comparisons after filtering:', filtered)
+  return filtered
 })
 
 // Methods
@@ -1081,8 +1084,84 @@ const analyzeStrategy = async () => {
           return { etf, currentValue, targetValue, targetAllocation, sharesToTrade, action }
         })
 
-        portfolioComparison.value = cleanSlateComparisons
-        console.log('Portfolio comparison generated from clean-slate allocations:', cleanSlateComparisons)
+        // ADD HOLDINGS TO CLEAN-SLATE COMPARISONS (both non-target and overweight)
+        // Identify holdings that need to be sold
+        const currentHoldingETFs = Object.keys(props.portfolio?.holdings || {})
+        console.log('Current portfolio holdings for clean-slate:', props.portfolio?.holdings)
+        console.log('Selected ETFs:', selectedETFs.value)
+
+        // Check for holdings that need to be sold (either non-target or overweight)
+        const additionalSellComparisons = []
+
+        for (const etf of currentHoldingETFs) {
+          const currentValue = props.portfolio?.holdings?.[etf]?.value || 0
+          const currentShares = props.portfolio?.holdings?.[etf]?.shares || 0
+
+          if (currentValue > 0) {
+            // Check if this ETF is in the clean-slate allocations
+            const cleanSlateAllocation = cleanSlateComparisons.find(comp => comp.etf === etf)
+
+            if (!cleanSlateAllocation) {
+              // This is a non-target holding - sell all
+              console.log(`Non-target holding: ${etf}, selling all ${currentShares} shares worth $${currentValue}`)
+
+              // Check if we already have this ETF in additional comparisons to prevent duplicates
+              const alreadyExists = additionalSellComparisons.find(comp => comp.etf === etf)
+              if (!alreadyExists) {
+                additionalSellComparisons.push({
+                  etf,
+                  currentValue,
+                  targetValue: 0,
+                  targetAllocation: 0,
+                  sharesToTrade: currentShares,
+                  action: 'sell' as const
+                })
+              }
+            } else {
+              // This ETF is in target allocations - check if we need to sell some shares
+              const targetValue = cleanSlateAllocation.targetValue || 0
+
+              if (currentValue > targetValue + 10) { // $10 tolerance to handle small differences
+                const excessValue = currentValue - targetValue
+                const excessShares = (excessValue / currentValue) * currentShares
+                console.log(`Overweight holding: ${etf}, current $${currentValue}, target $${targetValue}, selling ${excessShares.toFixed(2)} shares worth $${excessValue}`)
+
+                // Check if we already have this ETF in additional comparisons to prevent duplicates
+                const alreadyExists = additionalSellComparisons.find(comp => comp.etf === etf)
+                if (!alreadyExists) {
+                  additionalSellComparisons.push({
+                    etf,
+                    currentValue,
+                    targetValue,
+                    targetAllocation: cleanSlateAllocation.targetAllocation || 0,
+                    sharesToTrade: excessShares,
+                    action: 'sell' as const
+                  })
+                }
+              }
+            }
+          }
+        }
+
+        console.log('Additional sell comparisons generated:', additionalSellComparisons)
+
+        // Combine clean-slate allocations with additional sell comparisons and remove duplicates
+        const combinedComparisons = [...cleanSlateComparisons, ...additionalSellComparisons]
+
+        // Remove duplicates by ETF ticker - keep the last occurrence (which includes our adjustments)
+        const deduplicatedComparisons = combinedComparisons.reduce((unique, comparison) => {
+          const existingIndex = unique.findIndex(item => item.etf === comparison.etf)
+          if (existingIndex >= 0) {
+            // Replace existing entry with our adjusted one
+            unique[existingIndex] = comparison
+          } else {
+            unique.push(comparison)
+          }
+          return unique
+        }, [] as typeof combinedComparisons)
+
+        portfolioComparison.value = deduplicatedComparisons
+        console.log('Portfolio comparison generated from clean-slate allocations with sell adjustments (deduplicated):', portfolioComparison.value)
       } else {
         // Fallback to original logic if no optimization results
         console.log('No optimization allocations available, using fallback logic')
@@ -1126,13 +1205,19 @@ const analyzeStrategy = async () => {
         })
 
         // Next, identify holdings that are NOT in the target strategy and should be sold
-        const currentHoldingETFs = Object.keys(analysis.currentValues || {})
+        // Use portfolio holdings directly instead of analysis.currentValues
+        const currentHoldingETFs = Object.keys(props.portfolio?.holdings || {})
+        console.log('Current portfolio holdings:', props.portfolio?.holdings)
+        console.log('Selected ETFs:', selectedETFs.value)
+
         const nonTargetHoldings = currentHoldingETFs.filter(etf =>
-          !selectedETFs.value.includes(etf) && (analysis.currentValues?.[etf] || 0) > 0
+          !selectedETFs.value.includes(etf) && (props.portfolio?.holdings?.[etf]?.value || 0) > 0
         )
 
+        console.log('Non-target holdings identified:', nonTargetHoldings)
+
         const sellComparisons = nonTargetHoldings.map(etf => {
-          const currentValue = analysis.currentValues[etf] || 0
+          const currentValue = props.portfolio?.holdings?.[etf]?.value || 0
           return {
             etf,
             currentValue,
@@ -1145,11 +1230,11 @@ const analyzeStrategy = async () => {
         portfolioComparison.value = [...targetETFComparisons, ...sellComparisons]
       }
 
-      // CLEAN-SLATE: Only generate fallback execution plan if no optimization results at all
-      // The clean-slate optimization should provide complete execution plan
-      if (!optimizationResult?.allocations && (executionPlan.value.length === 0 || !executionPlan.value.some(trade => trade.action === 'sell'))) {
+      // CLEAN-SLATE: Generate fallback execution plan if no optimization results
+      // Always include sell trades for non-target holdings, even if optimization provides buy trades
+      if (!optimizationResult?.allocations) {
         console.log('No optimization results, generating fallback execution plan from portfolio comparison')
-        
+
         // Generate trades for all comparisons (both target and non-target)
         const fallbackTrades = portfolioComparison.value
           .filter(comp => comp.action !== 'hold')
@@ -1165,10 +1250,10 @@ const analyzeStrategy = async () => {
             } else if (etfPrice === 0 && (analysis as any).momentumScores?.[comp.etf]?.price) {
               etfPrice = (analysis as any).momentumScores[comp.etf].price
             }
-            
+
             const shares = Math.abs(comp.targetValue - comp.currentValue) / etfPrice
             const value = comp.targetValue - comp.currentValue
-            
+
             return {
               etf: comp.etf,
               action: comp.action as 'buy' | 'sell',
@@ -1179,16 +1264,41 @@ const analyzeStrategy = async () => {
                       comp.targetValue === 0 ? 'Not in target allocation' : 'Overweight'
             }
           })
-        
-        // If we have some optimization trades but no sell trades, add sell trades
-        if (executionPlan.value.length > 0 && !executionPlan.value.some(trade => trade.action === 'sell')) {
-          const sellTrades = fallbackTrades.filter(trade => trade.action === 'sell')
-          executionPlan.value = [...executionPlan.value, ...sellTrades]
-          console.log('Added SELL trades to execution plan:', sellTrades)
-        } else {
-          // Use complete fallback plan
-          executionPlan.value = fallbackTrades
-          console.log('Using complete fallback execution plan:', fallbackTrades)
+
+        executionPlan.value = fallbackTrades
+        console.log('Using complete fallback execution plan:', fallbackTrades)
+      } else {
+        // We have optimization results (buy trades), but need to ensure sell trades for non-target holdings are included
+        if (!executionPlan.value.some(trade => trade.action === 'sell')) {
+          // Generate sell trades for non-target holdings
+          const sellComparisons = portfolioComparison.value.filter(comp => comp.action === 'sell')
+          const sellTrades = sellComparisons.map(comp => {
+            // Get real ETF price from cached prices, analysis momentum scores, or current values
+            let etfPrice = cachedPrices.value[comp.etf] || 0 // Use cached price first
+            if (etfPrice === 0 && analysis.currentValues?.[comp.etf] && currentHoldings.value.find(h => h.etf === comp.etf)) {
+              // Calculate price from current holding value and shares
+              const currentHolding = currentHoldings.value.find(h => h.etf === comp.etf)
+              if (currentHolding && currentHolding.shares > 0) {
+                etfPrice = (analysis.currentValues?.[comp.etf] || 0) / currentHolding.shares
+              }
+            } else if (etfPrice === 0 && (analysis as any).momentumScores?.[comp.etf]?.price) {
+              etfPrice = (analysis as any).momentumScores[comp.etf].price
+            }
+
+            return {
+              etf: comp.etf,
+              action: 'sell' as const,
+              shares: comp.currentValue / etfPrice, // Sell all shares
+              value: comp.currentValue,
+              price: etfPrice,
+              reason: 'Not in target allocation'
+            }
+          })
+
+          if (sellTrades.length > 0) {
+            executionPlan.value = [...executionPlan.value, ...sellTrades]
+            console.log('Added SELL trades for non-target holdings:', sellTrades)
+          }
         }
       }
 

@@ -59,9 +59,9 @@ class PreFetchService {
 
         results.tickersProcessed++;
 
-        // Rate limiting protection - delay between API calls
+        // Rate limiting protection - delay between API calls (increased from 100ms)
         if (!priceResult.fromCache) {
-          await new Promise(resolve => setTimeout(resolve, 100));
+          await new Promise(resolve => setTimeout(resolve, 250));
         }
 
       } catch (error) {

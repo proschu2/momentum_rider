@@ -1,0 +1,50 @@
+services:
+  momentum-rider:
+    image: ghcr.io/proschu2/proschu2/momentum_rider:latest
+    container_name: momentum-rider
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - ALLOWED_ORIGINS=*
+      - DOCKER_ENV=true
+      # Redis configuration (optional - will fall back to in-memory if not available)
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DATABASE=0
+      - REDIS_TTL_SECONDS=300
+    depends_on:
+      - redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) }).on('error', () => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "description=Momentum Rider - Production with Pre-built Image"
+      - "version=1.0.0"
+
+  redis:
+    image: redis:8.2.2-alpine
+    container_name: momentum-rider-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    labels:
+      - "description=Redis Cache for Momentum Rider"
+      - "version=1.0.0"
+
+volumes:
+  redis_data:
+    name: momentum-rider-redis-data

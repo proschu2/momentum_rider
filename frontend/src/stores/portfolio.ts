@@ -185,12 +185,25 @@ export const usePortfolioStore = defineStore('portfolio', () => {
 
             const portfolio = portfolios.value[portfolioId]
             if (portfolio) {
+                // Check if holding already exists and ADD to existing shares
+                const existingHolding = portfolio.holdings[ticker]
+                if (existingHolding) {
+                    // Add to existing shares
+                    holding.shares += existingHolding.shares
+                    holding.value = holding.shares * holding.price
+                }
+
                 portfolio.holdings[ticker] = holding
                 portfolio.updatedAt = new Date().toISOString()
+
+                // Subtract buy cost from cash
+                const buyCost = shares * currentPrice
+                portfolio.additionalCash -= buyCost
 
                 // Update legacy state if this is the active portfolio
                 if (activePortfolioId.value === portfolioId) {
                     currentHoldings.value[ticker] = holding
+                    additionalCash.value = portfolio.additionalCash
                 }
             }
 
@@ -326,14 +339,31 @@ export const usePortfolioStore = defineStore('portfolio', () => {
             const currentPrice = quoteData.regularMarketPrice || quoteData.price || price || 1
             const name = quoteData.longName || quoteData.shortName || ticker
 
-            currentHoldings.value[ticker] = {
-                shares,
-                price: currentPrice,
-                value: shares * currentPrice,
-                name,
-                currentPrice
+            // Check if holding already exists and ADD to existing shares
+            const existingHolding = currentHoldings.value[ticker]
+            if (existingHolding) {
+                // Add to existing shares
+                const totalShares = existingHolding.shares + shares
+                const totalValue = totalShares * currentPrice
+                currentHoldings.value[ticker] = {
+                    shares: totalShares,
+                    price: currentPrice,
+                    value: totalValue,
+                    name,
+                    currentPrice
+                }
+            } else {
+                currentHoldings.value[ticker] = {
+                    shares,
+                    price: currentPrice,
+                    value: shares * currentPrice,
+                    name,
+                    currentPrice
+                }
             }
 
+            // Subtract buy cost from additional cash for legacy format
+            additionalCash.value -= shares * currentPrice
             savePortfolioToStorage()
         } catch (error) {
             console.warn(`Failed to fetch quote for ${ticker}:`, error)
@@ -344,6 +374,8 @@ export const usePortfolioStore = defineStore('portfolio', () => {
                 value: shares * fallbackPrice,
                 name: ticker
             }
+            // Subtract buy cost from additional cash for legacy format (using fallback price)
+            additionalCash.value -= shares * fallbackPrice
             savePortfolioToStorage()
         }
     }

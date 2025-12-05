@@ -80,8 +80,8 @@ async function getQuote(ticker) {
 
     logger.logInfo('Fetching quote from Yahoo Finance API', { ticker });
 
-    // Add small delay to help prevent rate limiting
-    await new Promise(resolve => setTimeout(resolve, 50));
+    // Add delay to help prevent rate limiting (increased from 50ms)
+    await new Promise(resolve => setTimeout(resolve, 200));
 
     const quoteData = await yahooFinance.quote(ticker);
 
@@ -235,8 +235,8 @@ async function getCurrentPrice(ticker) {
 
     logger.logInfo('Fetching current price from Yahoo Finance API', { ticker });
 
-    // Add delay to help prevent rate limiting
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // Add delay to help prevent rate limiting (increased from 100ms)
+    await new Promise(resolve => setTimeout(resolve, 300));
 
     const quoteData = await yahooFinance.quote(ticker);
     const price = quoteData.regularMarketPrice || quoteData.previousClose;
@@ -326,8 +326,8 @@ async function getFullQuote(ticker) {
 
     logger.logInfo('Fetching full quote from Yahoo Finance API', { ticker });
 
-    // Add delay to help prevent rate limiting
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // Add delay to help prevent rate limiting (increased from 100ms)
+    await new Promise(resolve => setTimeout(resolve, 300));
 
     const quoteData = await yahooFinance.quote(ticker);
 
