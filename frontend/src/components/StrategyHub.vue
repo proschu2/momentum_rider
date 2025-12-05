@@ -369,7 +369,7 @@
             <span class="action-status" :class="comparison.action">
               {{ getActionIcon(comparison.action) }} {{ comparison.action.toUpperCase() }}
             </span>
-            <span class="shares-to-trade">{{ Number(comparison.sharesToTrade || 0).toFixed(2) }}</span>
+            <span class="shares-to-trade">{{ Number(comparison.sharesToTrade || 0).toFixed(0) }}</span>
             <span class="trade-value" :class="getTradeValueClass(comparison)">
               {{ formatTradeValue(comparison) }}
             </span>

@@ -8,7 +8,7 @@ services:
     ports:
       - "5173:5173"
     environment:
-      - VITE_API_URL=http://localhost:3001/api
+      - VITE_API_URL=http://${HOST_IP:-localhost}:3001/api
     volumes:
       - ./frontend:/app
       - /app/node_modules
@@ -21,7 +21,7 @@ services:
       - "version=1.0.0"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5173"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5173"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -39,7 +39,7 @@ services:
       - NODE_ENV=development
       - DOCKER_ENV=true
       - PORT=3001
-      - ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000,http://frontend:5173,http://backend:3001
+      - ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000,http://frontend:5173,http://backend:3001,http://${HOST_IP:-localhost}:5173
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_DATABASE=0
@@ -58,7 +58,7 @@ services:
       - "version=1.0.0"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -68,12 +68,10 @@ services:
   redis:
     image: redis:8.2.2-alpine
     container_name: momentum-redis-dev
-    ports:
-      - "6379:6379"
     networks:
       - momentum-network
     volumes:
-      - redis_data:/data
+      - redis_data_dev:/data
     restart: unless-stopped
     command: redis-server --appendonly yes
     healthcheck:
@@ -82,12 +80,12 @@ services:
       timeout: 3s
       retries: 5
     labels:
-      - "description=Redis Cache for Momentum Rider"
+      - "description=Redis Cache for Momentum Rider Development"
       - "version=1.0.0"
 
 volumes:
-  redis_data:
-    name: momentum-redis-data
+  redis_data_dev:
+    name: momentum-redis-data-dev
 
 networks:
   momentum-network:
